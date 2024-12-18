@@ -1,0 +1,806 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AAA4EF452D0D887900D361CA /* KeychainSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AAA4EF442D0D887900D361CA /* KeychainSwift */; };
+		AAA4EF622D0DFA7800D361CA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF612D0DFA7800D361CA /* AVFoundation.framework */; };
+		AAA4EF642D0DFA7E00D361CA /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF632D0DFA7E00D361CA /* CoreHaptics.framework */; };
+		AAA4EF662D0DFA8800D361CA /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF652D0DFA8800D361CA /* GameController.framework */; };
+		AAA4EF682D0DFA9000D361CA /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF672D0DFA9000D361CA /* CoreMotion.framework */; };
+		AAA4EF6A2D0DFA9900D361CA /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF692D0DFA9900D361CA /* CoreFoundation.framework */; };
+		AAA4EF6C2D0DFAB700D361CA /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF6B2D0DFAB700D361CA /* AudioToolbox.framework */; };
+		AAA4EFA42D0FBEB000D361CA /* VNCClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */; };
+		AAA4EFA52D0FBEB000D361CA /* VNCClient.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		AAA4EFB22D0FC4EC00D361CA /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB12D0FC4EC00D361CA /* AudioToolbox.framework */; };
+		AAA4EFB42D0FC4F400D361CA /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB32D0FC4F400D361CA /* CoreFoundation.framework */; };
+		AAA4EFB62D0FC4F900D361CA /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB52D0FC4F900D361CA /* CoreMotion.framework */; };
+		AAA4EFB82D0FC50800D361CA /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB72D0FC50800D361CA /* GameController.framework */; };
+		AAA4EFBA2D0FC51000D361CA /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB92D0FC51000D361CA /* CoreHaptics.framework */; };
+		AAA4EFBC2D0FC52000D361CA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFBB2D0FC52000D361CA /* AVFoundation.framework */; };
+		AAA4EFC22D0FD6D000D361CA /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFC12D0FD6D000D361CA /* libz.tbd */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AAA4EF522D0DA3B100D361CA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA7EA51E2D01F33E00FF7760 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA7EA5252D01F33E00FF7760;
+			remoteInfo = "Scrcpy Remote";
+		};
+		AAA4EFA22D0FBEB000D361CA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA7EA51E2D01F33E00FF7760 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAA4EF9D2D0FBEB000D361CA;
+			remoteInfo = VNCClient;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AAA4EFAA2D0FBEB000D361CA /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				AAA4EFA52D0FBEB000D361CA /* VNCClient.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Scrcpy Remote.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAA4EF332D0D277400D361CA /* ffmpegkit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ffmpegkit.xcframework; path = ../porting/libs/xcframeworks/ffmpegkit.xcframework; sourceTree = "<group>"; };
+		AAA4EF342D0D277400D361CA /* libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswresample.xcframework; path = ../porting/libs/xcframeworks/libswresample.xcframework; sourceTree = "<group>"; };
+		AAA4EF352D0D277400D361CA /* libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswscale.xcframework; path = ../porting/libs/xcframeworks/libswscale.xcframework; sourceTree = "<group>"; };
+		AAA4EF362D0D277400D361CA /* libavfilter.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavfilter.xcframework; path = ../porting/libs/xcframeworks/libavfilter.xcframework; sourceTree = "<group>"; };
+		AAA4EF372D0D277400D361CA /* libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavformat.xcframework; path = ../porting/libs/xcframeworks/libavformat.xcframework; sourceTree = "<group>"; };
+		AAA4EF382D0D277400D361CA /* libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavcodec.xcframework; path = ../porting/libs/xcframeworks/libavcodec.xcframework; sourceTree = "<group>"; };
+		AAA4EF392D0D277400D361CA /* libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavutil.xcframework; path = ../porting/libs/xcframeworks/libavutil.xcframework; sourceTree = "<group>"; };
+		AAA4EF3A2D0D277400D361CA /* libavdevice.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavdevice.xcframework; path = ../porting/libs/xcframeworks/libavdevice.xcframework; sourceTree = "<group>"; };
+		AAA4EF4E2D0DA3B100D361CA /* Scrcpy Remote Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Scrcpy Remote Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAA4EF612D0DFA7800D361CA /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		AAA4EF632D0DFA7E00D361CA /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
+		AAA4EF652D0DFA8800D361CA /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
+		AAA4EF672D0DFA9000D361CA /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
+		AAA4EF692D0DFA9900D361CA /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		AAA4EF6B2D0DFAB700D361CA /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = VNCClient.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAA4EFB12D0FC4EC00D361CA /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
+		AAA4EFB32D0FC4F400D361CA /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks/CoreFoundation.framework; sourceTree = DEVELOPER_DIR; };
+		AAA4EFB52D0FC4F900D361CA /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks/CoreMotion.framework; sourceTree = DEVELOPER_DIR; };
+		AAA4EFB72D0FC50800D361CA /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/iOSSupport/System/Library/Frameworks/GameController.framework; sourceTree = DEVELOPER_DIR; };
+		AAA4EFB92D0FC51000D361CA /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks/CoreHaptics.framework; sourceTree = DEVELOPER_DIR; };
+		AAA4EFBB2D0FC52000D361CA /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks/AVFoundation.framework; sourceTree = DEVELOPER_DIR; };
+		AAA4EFC12D0FD6D000D361CA /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/lib/libz.tbd; sourceTree = DEVELOPER_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AAA4EF5C2D0DF10100D361CA /* Exceptions for "Scrcpy SDL" folder in "Scrcpy Remote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyBlockWrapper.m,
+				ScrcpyClientWrapper.m,
+			);
+			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
+		};
+		AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient" folder in "VNCClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyVNCClient.h,
+			);
+			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
+		};
+		AAA4EFC62D0FF5DF00D361CA /* Exceptions for "Scrcpy SDL" folder in "VNCClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyBlockWrapper.m,
+			);
+			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Scrcpy Remote";
+			sourceTree = "<group>";
+		};
+		AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Scrcpy Remote Tests";
+			sourceTree = "<group>";
+		};
+		AAA4EF592D0DEC9300D361CA /* Scrcpy SDL */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AAA4EF5C2D0DF10100D361CA /* Exceptions for "Scrcpy SDL" folder in "Scrcpy Remote" target */,
+				AAA4EFC62D0FF5DF00D361CA /* Exceptions for "Scrcpy SDL" folder in "VNCClient" target */,
+			);
+			path = "Scrcpy SDL";
+			sourceTree = "<group>";
+		};
+		AAA4EF9F2D0FBEB000D361CA /* VNCClient */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient" folder in "VNCClient" target */,
+			);
+			path = VNCClient;
+			sourceTree = "<group>";
+		};
+		AAA4EFC72D1072DE00D361CA /* ADBClient */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ADBClient;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA7EA5232D01F33E00FF7760 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAA4EFA42D0FBEB000D361CA /* VNCClient.framework in Frameworks */,
+				AAA4EF6C2D0DFAB700D361CA /* AudioToolbox.framework in Frameworks */,
+				AAA4EF6A2D0DFA9900D361CA /* CoreFoundation.framework in Frameworks */,
+				AAA4EF682D0DFA9000D361CA /* CoreMotion.framework in Frameworks */,
+				AAA4EF662D0DFA8800D361CA /* GameController.framework in Frameworks */,
+				AAA4EF642D0DFA7E00D361CA /* CoreHaptics.framework in Frameworks */,
+				AAA4EF622D0DFA7800D361CA /* AVFoundation.framework in Frameworks */,
+				AAA4EF452D0D887900D361CA /* KeychainSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAA4EF4B2D0DA3B100D361CA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAA4EF9B2D0FBEB000D361CA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAA4EFC22D0FD6D000D361CA /* libz.tbd in Frameworks */,
+				AAA4EFBC2D0FC52000D361CA /* AVFoundation.framework in Frameworks */,
+				AAA4EFBA2D0FC51000D361CA /* CoreHaptics.framework in Frameworks */,
+				AAA4EFB82D0FC50800D361CA /* GameController.framework in Frameworks */,
+				AAA4EFB62D0FC4F900D361CA /* CoreMotion.framework in Frameworks */,
+				AAA4EFB42D0FC4F400D361CA /* CoreFoundation.framework in Frameworks */,
+				AAA4EFB22D0FC4EC00D361CA /* AudioToolbox.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA7EA51D2D01F33E00FF7760 = {
+			isa = PBXGroup;
+			children = (
+				AAA4EFC72D1072DE00D361CA /* ADBClient */,
+				AAA4EF592D0DEC9300D361CA /* Scrcpy SDL */,
+				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
+				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
+				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
+				AAA4EF322D0D277400D361CA /* Frameworks */,
+				AA7EA5272D01F33E00FF7760 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA7EA5272D01F33E00FF7760 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */,
+				AAA4EF4E2D0DA3B100D361CA /* Scrcpy Remote Tests.xctest */,
+				AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AAA4EF322D0D277400D361CA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AAA4EFC12D0FD6D000D361CA /* libz.tbd */,
+				AAA4EFBB2D0FC52000D361CA /* AVFoundation.framework */,
+				AAA4EFB92D0FC51000D361CA /* CoreHaptics.framework */,
+				AAA4EFB72D0FC50800D361CA /* GameController.framework */,
+				AAA4EFB52D0FC4F900D361CA /* CoreMotion.framework */,
+				AAA4EFB32D0FC4F400D361CA /* CoreFoundation.framework */,
+				AAA4EF6B2D0DFAB700D361CA /* AudioToolbox.framework */,
+				AAA4EFB12D0FC4EC00D361CA /* AudioToolbox.framework */,
+				AAA4EF692D0DFA9900D361CA /* CoreFoundation.framework */,
+				AAA4EF672D0DFA9000D361CA /* CoreMotion.framework */,
+				AAA4EF652D0DFA8800D361CA /* GameController.framework */,
+				AAA4EF632D0DFA7E00D361CA /* CoreHaptics.framework */,
+				AAA4EF612D0DFA7800D361CA /* AVFoundation.framework */,
+				AAA4EF332D0D277400D361CA /* ffmpegkit.xcframework */,
+				AAA4EF382D0D277400D361CA /* libavcodec.xcframework */,
+				AAA4EF3A2D0D277400D361CA /* libavdevice.xcframework */,
+				AAA4EF362D0D277400D361CA /* libavfilter.xcframework */,
+				AAA4EF372D0D277400D361CA /* libavformat.xcframework */,
+				AAA4EF392D0D277400D361CA /* libavutil.xcframework */,
+				AAA4EF342D0D277400D361CA /* libswresample.xcframework */,
+				AAA4EF352D0D277400D361CA /* libswscale.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		AAA4EF992D0FBEB000D361CA /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA7EA5342D01F33F00FF7760 /* Build configuration list for PBXNativeTarget "Scrcpy Remote" */;
+			buildPhases = (
+				AA7EA5222D01F33E00FF7760 /* Sources */,
+				AA7EA5232D01F33E00FF7760 /* Frameworks */,
+				AA7EA5242D01F33E00FF7760 /* Resources */,
+				AAA4EFAA2D0FBEB000D361CA /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AAA4EFA32D0FBEB000D361CA /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
+				AAA4EFC72D1072DE00D361CA /* ADBClient */,
+			);
+			name = "Scrcpy Remote";
+			packageProductDependencies = (
+				AAA4EF442D0D887900D361CA /* KeychainSwift */,
+			);
+			productName = "Scrcpy Remote";
+			productReference = AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AAA4EF4D2D0DA3B100D361CA /* Scrcpy Remote Tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAA4EF542D0DA3B100D361CA /* Build configuration list for PBXNativeTarget "Scrcpy Remote Tests" */;
+			buildPhases = (
+				AAA4EF4A2D0DA3B100D361CA /* Sources */,
+				AAA4EF4B2D0DA3B100D361CA /* Frameworks */,
+				AAA4EF4C2D0DA3B100D361CA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AAA4EF532D0DA3B100D361CA /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
+			);
+			name = "Scrcpy Remote Tests";
+			packageProductDependencies = (
+			);
+			productName = "Scrcpy Remote Tests";
+			productReference = AAA4EF4E2D0DA3B100D361CA /* Scrcpy Remote Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		AAA4EF9D2D0FBEB000D361CA /* VNCClient */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAA4EFA62D0FBEB000D361CA /* Build configuration list for PBXNativeTarget "VNCClient" */;
+			buildPhases = (
+				AAA4EF992D0FBEB000D361CA /* Headers */,
+				AAA4EF9A2D0FBEB000D361CA /* Sources */,
+				AAA4EF9B2D0FBEB000D361CA /* Frameworks */,
+				AAA4EF9C2D0FBEB000D361CA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
+			);
+			name = VNCClient;
+			packageProductDependencies = (
+			);
+			productName = VNCClient;
+			productReference = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA7EA51E2D01F33E00FF7760 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 1610;
+				TargetAttributes = {
+					AA7EA5252D01F33E00FF7760 = {
+						CreatedOnToolsVersion = 16.1;
+						LastSwiftMigration = 1610;
+					};
+					AAA4EF4D2D0DA3B100D361CA = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = AA7EA5252D01F33E00FF7760;
+					};
+					AAA4EF9D2D0FBEB000D361CA = {
+						CreatedOnToolsVersion = 16.1;
+						LastSwiftMigration = 1610;
+					};
+				};
+			};
+			buildConfigurationList = AA7EA5212D01F33E00FF7760 /* Build configuration list for PBXProject "Scrcpy Remote" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA7EA51D2D01F33E00FF7760;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AAA4EF432D0D887900D361CA /* XCRemoteSwiftPackageReference "keychain-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AA7EA5272D01F33E00FF7760 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */,
+				AAA4EF4D2D0DA3B100D361CA /* Scrcpy Remote Tests */,
+				AAA4EF9D2D0FBEB000D361CA /* VNCClient */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA7EA5242D01F33E00FF7760 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAA4EF4C2D0DA3B100D361CA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAA4EF9C2D0FBEB000D361CA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA7EA5222D01F33E00FF7760 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAA4EF4A2D0DA3B100D361CA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAA4EF9A2D0FBEB000D361CA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AAA4EF532D0DA3B100D361CA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
+			targetProxy = AAA4EF522D0DA3B100D361CA /* PBXContainerItemProxy */;
+		};
+		AAA4EFA32D0FBEB000D361CA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
+			targetProxy = AAA4EFA22D0FBEB000D361CA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA7EA5322D01F33F00FF7760 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA7EA5332D01F33F00FF7760 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AA7EA5352D01F33F00FF7760 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Scrcpy Remote/Preview Content\"";
+				DEVELOPMENT_TEAM = K8Q74NT2BG;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/include";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrcpy Remote Pro";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ladb-full";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Scrcpy SDL/Scrcpy Remote-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA7EA5362D01F33F00FF7760 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Scrcpy Remote/Preview Content\"";
+				DEVELOPMENT_TEAM = K8Q74NT2BG;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/include";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrcpy Remote Pro";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ladb-full";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Scrcpy SDL/Scrcpy Remote-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AAA4EF552D0DA3B100D361CA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.Scrcpy-Remote-Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Scrcpy Remote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Scrcpy Remote";
+			};
+			name = Debug;
+		};
+		AAA4EF562D0DA3B100D361CA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.Scrcpy-Remote-Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Scrcpy Remote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Scrcpy Remote";
+			};
+			name = Release;
+		};
+		AAA4EFA72D0FBEB000D361CA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = K8Q74NT2BG;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/include";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				OTHER_LDFLAGS = (
+					"-lssl",
+					"-lvncclient",
+					"-lcrypto",
+					"-lSDL2",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.VNCClient;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		AAA4EFA82D0FBEB000D361CA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = K8Q74NT2BG;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/include";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				OTHER_LDFLAGS = (
+					"-lssl",
+					"-lvncclient",
+					"-lcrypto",
+					"-lSDL2",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.VNCClient;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA7EA5212D01F33E00FF7760 /* Build configuration list for PBXProject "Scrcpy Remote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA7EA5322D01F33F00FF7760 /* Debug */,
+				AA7EA5332D01F33F00FF7760 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA7EA5342D01F33F00FF7760 /* Build configuration list for PBXNativeTarget "Scrcpy Remote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA7EA5352D01F33F00FF7760 /* Debug */,
+				AA7EA5362D01F33F00FF7760 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AAA4EF542D0DA3B100D361CA /* Build configuration list for PBXNativeTarget "Scrcpy Remote Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAA4EF552D0DA3B100D361CA /* Debug */,
+				AAA4EF562D0DA3B100D361CA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AAA4EFA62D0FBEB000D361CA /* Build configuration list for PBXNativeTarget "VNCClient" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAA4EFA72D0FBEB000D361CA /* Debug */,
+				AAA4EFA82D0FBEB000D361CA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AAA4EF432D0D887900D361CA /* XCRemoteSwiftPackageReference "keychain-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/evgenyneu/keychain-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 24.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AAA4EF442D0D887900D361CA /* KeychainSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAA4EF432D0D887900D361CA /* XCRemoteSwiftPackageReference "keychain-swift" */;
+			productName = KeychainSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AA7EA51E2D01F33E00FF7760 /* Project object */;
+}

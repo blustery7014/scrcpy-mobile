@@ -1,25 +1,45 @@
-all: scrcpy-init adb-mobile libsdl ffmpeg scrcpy scrcpy-server
+all: adb-mobile libsdl ffmpeg scrcpy scrcpy-server
 
-scrcpy-init:
-	cd ../scrcpy && rm -rf x && meson x --buildtype release --strip -Db_lto=true -Dportable=true -Dusb=false
+scrcpy-config:
+	cd ../scrcpy && meson setup x --reconfigure --buildtype=release --strip -Db_lto=true -Dusb=false
 
-adb-mobile:
+mkdir-output:
+	[[ ! -d libs ]] && mkdir -pv libs || echo ""
+
+adb-mobile: mkdir-output
 	make -C ../external/adb-mobile
+	cp -av ../external/adb-mobile/output/iphoneos/arm64/libadb-full.a ./libs/iphoneos/arm64
+	cp -av ../external/adb-mobile/output/iphonesimulator/arm64/libadb-full.a ./libs/iphonesimulator/arm64
+	cp -av ../external/adb-mobile/output/iphonesimulator/x86_64/libadb-full.a ./libs/iphonesimulator/x86_64
+	cp -av ../external/adb-mobile/output/include/adb_public.h ./libs/include
 
-libsdl:
-	OUTPUT=../output bash ./scripts/make-libsdl.sh
+libsdl: mkdir-output
+	OUTPUT=libs bash ./scripts/make-libsdl.sh
 
-ffmpeg:
-	OUTPUT=../output bash ./scripts/make-ffmpeg.sh
+ffmpeg: mkdir-output
+	OUTPUT=libs bash ./scripts/make-ffmpeg.sh
 
-scrcpy:
+vncclient: mkdir-output
+	for target in iphoneos/arm64:OS64 iphonesimulator/arm64:SIMULATORARM64 iphonesimulator/x86_64:SIMULATOR64; do \
+		target=$$target output_dir=./libs bash scripts/make-vncclient.sh; \
+	done
+
+openssl:
+	cd ../external/OpenSSL-for-iPhone && \
+		./build-libssl.sh --disable-bitcode --targets="ios-sim-cross-x86_64 ios-sim-cross-arm64 ios-cross-arm64" && \
+		cp -av ./bin/iPhoneSimulator*-x86_64.sdk/lib/*.a ../../porting/libs/iphonesimulator/x86_64 && \
+		cp -av ./bin/iPhoneSimulator*-arm64.sdk/lib/*.a ../../porting/libs/iphonesimulator/arm64 && \
+		cp -av ./bin/iPhoneOS*-arm64.sdk/lib/*.a ../../porting/libs/iphoneos/arm64;
+	cp -av ../external/OpenSSL-for-iPhone/include/openssl ./libs/include;
+
+scrcpy: scrcpy-config mkdir-output
 	OUTPUT=../output TARGET=scrcpy/iphoneos/arm64 bash ./scripts/make-scrcpy.sh
 	OUTPUT=../output TARGET=scrcpy/iphonesimulator/x86_64 bash ./scripts/make-scrcpy.sh
 	lipo -create ../output/*/*/libscrcpy.a -output ../output/iphone/libscrcpy.a
 
 scrcpy-server:
 	set -x && \
-	export SCRCPY_VERSION=2.3 && \
+	export SCRCPY_VERSION=3.0.2 && \
 	export ANDROID_SDK_ROOT=~/Library/Android/sdk && \
 	export JAVA_HOME="$$(/usr/libexec/java_home --version 1.11)" && \
 	export PATH="$$JAVA_HOME/bin:$$PATH" && \

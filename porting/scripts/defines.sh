@@ -12,15 +12,15 @@ ARCH_NAME=$(echo "$TARGET" | cut -d/ -f3);
 # Src root
 SOURCE_ROOT=$(cd $(dirname $0)/../.. && pwd);
 
+# Lib src root
+LIB_SRCROOT=$(cd "$LIB_SRCROOT" && pwd);
+
 # Porting root
 PORTING_ROOT=$SOURCE_ROOT/porting;
 
 # Prepare output path
 FULL_OUTPUT=$(cd $OUTPUT && pwd)/$SDK_NAME/$ARCH_NAME;
 [[ ! -d $FULL_OUTPUT ]] && mkdir -p $FULL_OUTPUT;
-
-# For iphone, change to platform
-PLATFORM=$([[ $SDK_NAME == iphoneos ]] && echo "OS64" || echo "SIMULATOR64");
 
 # Setup iphone deploy target
 DEPLOYMENT_TARGET=11.0;
