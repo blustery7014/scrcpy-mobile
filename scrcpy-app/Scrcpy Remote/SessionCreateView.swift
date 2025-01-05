@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct SessionCreateView: View {
-    @State private var sessionModel = ScrcpySessionModel()
+    @State var sessionModel = ScrcpySessionModel()
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -48,6 +48,7 @@ struct SessionCreateView: View {
                     }
                     TextField("Max FPS", text: $sessionModel.adbOptions.maxFPS)
                         .keyboardType(.numberPad)
+                    Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
                 }
             }
 

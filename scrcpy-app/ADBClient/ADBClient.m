@@ -113,7 +113,7 @@ void adb_connect_status_updated(const char *serial, const char *status)
     // Find an available port in range [15037, 15037 + 32]
     NSLog(@"Find an available port in range [15037, 15037 + 32]");
     for (int i = 0; i < 32; i++) {
-        int port = 15037 + i;
+        int port = 25037 + i;
         // Try bind on port by sockect func to test if it's available
         struct sockaddr_in addr;
         memset(&addr, 0, sizeof(addr));
@@ -188,6 +188,21 @@ void adb_connect_status_updated(const char *serial, const char *status)
         return nil;
     }
     return [self executeADBCommandUnderlying:commands returnCode:returnCode];
+}
+
+- (void)executeADBCommandAsync:(NSArray<NSString *> *)commands callback:(ADBClientCallback)callback
+{
+    if (!_isADBLaunched) {
+        NSLog(@"❌ ADB Client not launched yet!");
+        if (callback) { callback(nil, -1); }
+        return;
+    }
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        int returnCode = -1;
+        NSString *output = [self executeADBCommand:commands returnCode:&returnCode];
+        if (callback) { callback(output, returnCode); }
+    });
 }
 
 #pragma mark - Getter & Setter

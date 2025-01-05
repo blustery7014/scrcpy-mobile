@@ -13,6 +13,18 @@ struct VNCSessionOptions: Codable, Identifiable {
     var id = UUID()
     var vncUser: String = ""
     var vncPassword: String = ""
+    
+    init() {
+        vncUser = ""
+        vncPassword = ""
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.vncUser = try container.decode(String.self, forKey: .vncUser)
+        self.vncPassword = try container.decode(String.self, forKey: .vncPassword)
+    }
 }
 
 // ADB Session Model can be saved to AppStorage
@@ -22,6 +34,28 @@ struct ADBSessionOptions: Codable, Identifiable {
     var bitRate: String = ""
     var videoEncoder: String = ""
     var maxFPS: String = "60"
+    var enableAudio: Bool = false
+    
+    init() {
+        maxScreenSize = ""
+        bitRate = ""
+        videoEncoder = ""
+        maxFPS = "60"
+        enableAudio = false
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.maxScreenSize = try container.decode(String.self, forKey: .maxScreenSize)
+        self.bitRate = try container.decode(String.self, forKey: .bitRate)
+        self.videoEncoder = try container.decode(String.self, forKey: .videoEncoder)
+        self.maxFPS = try container.decode(String.self, forKey: .maxFPS)
+        do {
+            self.enableAudio = try container.decode(Bool.self, forKey: .enableAudio)
+        } catch {
+            self.enableAudio = false
+        }
+    }
 }
 
 // Enum for device types
@@ -101,6 +135,16 @@ class SessionManager {
     func saveSession(_ session: ScrcpySessionModel) {
         // Save session to keychain
         var sessions = loadSessions()
+        
+        // Check if session already exists
+        if let index = sessions.firstIndex(where: { $0.id == session.id }) {
+            print("Updating session at index:", index)
+            sessions[index] = session
+            let data = try! JSONEncoder().encode(sessions)
+            keychain.set(data, forKey: sessionKey)
+            return
+        }
+        
         sessions.append(session)
         let data = try! JSONEncoder().encode(sessions)
         keychain.set(data, forKey: sessionKey)

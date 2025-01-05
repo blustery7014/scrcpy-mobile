@@ -13,7 +13,7 @@
 #import <rfb/rfbclient.h>
 
 CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled) {
-    return CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, returnAfterSourceHandled);
+    return CFRunLoopRunInMode(mode, seconds, returnAfterSourceHandled);
 }
 
 @implementation SDLUIKitDelegate (Extend)

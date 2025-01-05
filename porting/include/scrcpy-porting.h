@@ -13,6 +13,9 @@ int scrcpy_main(int argc, char *argv[]);
 
 enum ScrcpyStatus {
     ScrcpyStatusDisconnected = 0,
+   	ScrcpyStatusADBConnected,
+    ScrcpyStatusSDLInited,
+    ScrcpyStatusSDLWindowCreated,
     ScrcpyStatusConnecting,
     ScrcpyStatusConnectingFailed,
     ScrcpyStatusConnected,

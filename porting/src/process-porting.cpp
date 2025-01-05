@@ -148,17 +148,17 @@ void adb_process_thread_func(bool *thread_started, pid_t pid, const char *thread
     // Execute adb command
     bool success;
     char *result = strdup("");
+    size_t output_size = 0;
 
-    std::thread commandline_thread = std::thread([argc, &argv, &result, &success]() {
-        int ret_code = adb_commandline_porting(argc, argv, &result);
+    std::thread commandline_thread = std::thread([argc, &argv, &result, &output_size, &success]() {
+        int ret_code = adb_commandline_porting(&result, &output_size, argc, argv);
         success = ret_code == 0;
     });
     commandline_thread.join();
 
     // deal with commandline occur errors and thread exit
-    if (!success && strlen(result) == 0) {
-        printf("> commandline_thread failed, save last output\n");
-        result = adb_commandline_last_output();
+    if (!success) {
+        printf("> commandline_thread failed with output:\n%s", result);
     }
 
     // Save success
@@ -197,7 +197,7 @@ sc_process_execute_p(const char *const argv[], sc_pid *pid, unsigned flags,
     adb_args[len-1] = NULL;
     
     // Format thread name
-    const char *fmt = "ADB-%d";
+    const char *fmt = "adb-command-%d";
     int th_len = std::snprintf(nullptr, 0, fmt, *pid);
     char th_name[th_len+1];
     std::snprintf(th_name, th_len+1, fmt, *pid);

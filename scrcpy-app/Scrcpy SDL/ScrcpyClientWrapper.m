@@ -60,7 +60,7 @@
     return _vncClient;
 }
 
-- (void)startClient:(NSDictionary *)arguments {
+- (void)startClient:(NSDictionary *)arguments completion:(nonnull void (^)(enum ScrcpyStatus, NSString * _Nonnull))completion {
     NSLog(@"SDL_main start");
     
     if ([arguments[@"deviceType"] isEqualToString:@"vnc"]) {
@@ -69,7 +69,7 @@
                          user:arguments[@"vncOptions"][@"vncUser"]
                      password:arguments[@"vncOptions"][@"vncPassword"]];
     } else {
-        [self.adbClient startClient:arguments];
+        [self.adbClient startClient:arguments completion:completion];
     }
 }
 

@@ -5,6 +5,9 @@
 //  Created by Ethan on 2022/6/2.
 //
 
+// include time
+#include <sys/time.h>
+
 #define sc_controller_push_msg(...)     sc_controller_push_msg_hijack(__VA_ARGS__)
 
 #include "controller.c"
@@ -20,6 +23,12 @@ sc_screen_current_screen(struct sc_screen *screen);
 bool sc_controller_push_msg(struct sc_controller *controller,
                             struct sc_control_msg *msg) {
     if (msg->type == SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT) {
+      	// log current touch event with time and position
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        printf("inject_touch_event: %ld.%06ld, x=%d, y=%d\n", tv.tv_sec, tv.tv_usec,
+               msg->inject_touch_event.position.point.x, msg->inject_touch_event.position.point.y);
+
         // x/y is negative
         msg->inject_touch_event.position.point.x = msg->inject_touch_event.position.point.x < 0 ? 0 : msg->inject_touch_event.position.point.x;
         msg->inject_touch_event.position.point.y = msg->inject_touch_event.position.point.y < 0 ? 0 : msg->inject_touch_event.position.point.y;

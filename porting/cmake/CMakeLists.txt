@@ -9,14 +9,17 @@ add_library( # Sets the name of the library.
         STATIC
         # Sources of scrcpy v3.0.2
         ../../scrcpy/app/src/control_msg.c
-        ../../scrcpy/app/src/display.c
+        # ../../scrcpy/app/src/display.c
+        ../src/display-porting.c
         ../../scrcpy/app/src/uhid/gamepad_uhid.c
         ../../scrcpy/app/src/uhid/mouse_uhid.c
         ../../scrcpy/app/src/uhid/keyboard_uhid.c
         ../../scrcpy/app/src/uhid/uhid_output.c
-        ../../scrcpy/app/src/controller.c
+        # ../../scrcpy/app/src/controller.c
+        ../src/controller-porting.c
         ../../scrcpy/app/src/recorder.c
-        ../../scrcpy/app/src/demuxer.c
+        # ../../scrcpy/app/src/demuxer.c
+        ../src/demuxer-porting.c
         ../../scrcpy/app/src/cli.c
         ../../scrcpy/app/src/receiver.c
         ../../scrcpy/app/src/compat.c
@@ -24,7 +27,9 @@ add_library( # Sets the name of the library.
         ../../scrcpy/app/src/util/net_intr.c
         ../../scrcpy/app/src/util/thread.c
         ../../scrcpy/app/src/util/term.c
-        ../../scrcpy/app/src/util/process.c
+        # ../../scrcpy/app/src/util/process.c
+        ../src/process-porting.c
+        ../src/process-porting.cpp
         ../../scrcpy/app/src/util/rand.c
         ../../scrcpy/app/src/util/memory.c
         ../../scrcpy/app/src/util/timeout.c
@@ -40,9 +45,11 @@ add_library( # Sets the name of the library.
         ../../scrcpy/app/src/util/tick.c
         ../../scrcpy/app/src/util/intmap.c
         ../../scrcpy/app/src/util/intr.c
-        ../../scrcpy/app/src/scrcpy.c
+        # ../../scrcpy/app/src/scrcpy.c
+        ../src/scrcpy-porting.c
         ../../scrcpy/app/src/v4l2_sink.c
-        ../../scrcpy/app/src/screen.c
+        # ../../scrcpy/app/src/screen.c
+        ../src/screen-porting.c
         ../../scrcpy/app/src/fps_counter.c
         ../../scrcpy/app/src/mouse_sdk.c
         ../../scrcpy/app/src/clock.c
@@ -72,7 +79,8 @@ add_library( # Sets the name of the library.
 
         ../../scrcpy/app/src/sys/unix/process.c
         ../../scrcpy/app/src/sys/unix/file.c
-        ../../scrcpy/app/src/main.c
+        # ../../scrcpy/app/src/main.c
+        ../src/main-porting.c
         ../../scrcpy/app/src/trait/packet_source.c
         ../../scrcpy/app/src/trait/frame_source.c
         ../../scrcpy/app/src/opengl.c
@@ -80,12 +88,14 @@ add_library( # Sets the name of the library.
         ../../scrcpy/app/src/hid/hid_mouse.c
         ../../scrcpy/app/src/hid/hid_gamepad.c
         ../../scrcpy/app/src/hid/hid_keyboard.c
-        ../../scrcpy/app/src/decoder.c
+        # ../../scrcpy/app/src/decoder.c
+        ../src/decoder-porting.c
         ../../scrcpy/app/src/events.c
         ../../scrcpy/app/src/device_msg.c
         ../../scrcpy/app/src/input_manager.c
         ../../scrcpy/app/src/icon.c
-        ../../scrcpy/app/src/audio_player.c
+        # ../../scrcpy/app/src/audio_player.c
+        ../src/audio_player-porting.c
         ../../scrcpy/app/src/options.c
         ../../scrcpy/app/src/keyboard_sdk.c
         ../../scrcpy/app/src/delay_buffer.c
@@ -99,9 +109,7 @@ target_include_directories(
         ../include
         ../../scrcpy/app/src
         ../../scrcpy/x/app
-        ../../output/include
-        ../../external/adb-mobile/output/include
-        ../../external/adb-mobile/android-tools/vendor/boringssl/include
+        ../libs/include
         )
 
 target_compile_options(

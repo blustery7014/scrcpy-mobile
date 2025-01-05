@@ -33,15 +33,16 @@ openssl:
 	cp -av ../external/OpenSSL-for-iPhone/include/openssl ./libs/include;
 
 scrcpy: scrcpy-config mkdir-output
-	OUTPUT=../output TARGET=scrcpy/iphoneos/arm64 bash ./scripts/make-scrcpy.sh
-	OUTPUT=../output TARGET=scrcpy/iphonesimulator/x86_64 bash ./scripts/make-scrcpy.sh
-	lipo -create ../output/*/*/libscrcpy.a -output ../output/iphone/libscrcpy.a
+	for target in iphoneos/arm64:OS64 iphonesimulator/arm64:SIMULATORARM64 iphonesimulator/x86_64:SIMULATOR64; do \
+		target=$$target output_dir=./libs bash scripts/make-scrcpy.sh; \
+	done
+	cp -v include/*.h ./libs/include
 
 scrcpy-server:
 	set -x && \
-	export SCRCPY_VERSION=3.0.2 && \
+	export SCRCPY_VERSION=3.1 && \
 	export ANDROID_SDK_ROOT=~/Library/Android/sdk && \
-	export JAVA_HOME="$$(/usr/libexec/java_home --version 1.11)" && \
+	export JAVA_HOME="/opt/homebrew/opt/openjdk@17" && \
 	export PATH="$$JAVA_HOME/bin:$$PATH" && \
 	cd server && rm -rf scrcpy-* && \
 	curl -o scrcpy.zip -L https://github.com/Genymobile/scrcpy/archive/refs/tags/v$$SCRCPY_VERSION.zip && \
@@ -50,4 +51,4 @@ scrcpy-server:
 	meson setup x --buildtype=release --strip -Db_lto=true -Dcompile_app=false -Dcompile_server=true && \
 	sed -ibak 's/exit/echo/g' server/scripts/build-wrapper.sh && \
 	ninja -Cx -v && \
-	find . -type f -name "scrcpy-server" -exec cp -v {} .. \;
+	find . -type f -name "scrcpy-server" -exec cp -v {} ../../../scrcpy-app/ADBClient/scrcpy-server \;

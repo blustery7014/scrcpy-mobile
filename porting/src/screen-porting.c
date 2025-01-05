@@ -7,17 +7,15 @@
 
 #include "stdbool.h"
 
-bool ScrcpyEnableHardwareDecoding(void);
-
 #define sc_screen_init(...)   sc_screen_init_orig(__VA_ARGS__)
-#define sc_frame_buffer_consume(...)   sc_frame_buffer_consume_hijack(__VA_ARGS__)
 #define sc_screen_handle_event(...)    sc_screen_handle_event_hijack(__VA_ARGS__)
+#define SDL_CreateWindow(...)    SDL_CreateWindow_hijack(__VA_ARGS__)
 
 #include "screen.c"
 
 #undef sc_screen_init
-#undef sc_frame_buffer_consume
 #undef sc_screen_handle_event
+#undef SDL_CreateWindow
 
 struct sc_screen *
 sc_screen_current_screen(struct sc_screen *screen) {
@@ -29,7 +27,7 @@ sc_screen_current_screen(struct sc_screen *screen) {
 }
 
 __attribute__((weak))
-float screen_scale(void) {
+float ScrcpyRenderScreenScale(void) {
     return 2.f;
 }
 
@@ -39,26 +37,12 @@ sc_screen_init(struct sc_screen *screen,
     bool ret = sc_screen_init_orig(screen, params);
 
     // Set renderer scale
-    SDL_RenderSetScale(screen->display.renderer, screen_scale(), screen_scale());
+    SDL_RenderSetScale(screen->display.renderer, ScrcpyRenderScreenScale(), ScrcpyRenderScreenScale());
     
     // Save current screen pointer
     sc_screen_current_screen(screen);
 
     return ret;
-}
-
-__attribute__((weak))
-void ScrcpyHandleFrame(AVFrame *frame) {}
-
-void
-sc_frame_buffer_consume(struct sc_frame_buffer *fb, AVFrame *dst);
-// Hijack sc_video_buffer_consume to convert NV12 pixels
-void
-sc_frame_buffer_consume_hijack(struct sc_frame_buffer *fb, AVFrame *dst) {
-    sc_frame_buffer_consume(fb, dst);
-    
-    // Handle hardware frame render
-    if (ScrcpyEnableHardwareDecoding()) ScrcpyHandleFrame(dst);
 }
 
 bool
@@ -93,4 +77,14 @@ sc_screen_handle_event(struct sc_screen *screen, SDL_Event *event) {
     }
     
     return sc_screen_handle_event_hijack(screen, event);
+}
+
+
+#include "scrcpy-porting.h"
+
+SDL_Window *SDL_CreateWindow(const char *title, int x, int y, int w, int h, Uint32 flags);
+SDL_Window *SDL_CreateWindow_hijack(const char *title, int x, int y, int w, int h, Uint32 flags) {
+    SDL_Window *window = SDL_CreateWindow(title, x, y, w, h, flags);
+    ScrcpyUpdateStatus(ScrcpyStatusSDLWindowCreated);
+    return window;
 }

@@ -45,6 +45,7 @@ struct SessionsView: View {
     var savedSessions: [ScrcpySession] = []
     var onDeleteSession: ((UUID) -> Void)?
     var onConnectSession: ((ScrcpySession) -> Void)?
+    var onEditSession: ((ScrcpySession) -> Void)?
 
     var body: some View {
         NavigationView {
@@ -110,19 +111,19 @@ struct SessionsView: View {
                     .listRowSeparator(.hidden)
                     .contextMenu {
                         Button(action: {
-                            
+                            onConnectSession?(session)
                         }) {
                             Label("Connect Session", systemImage: "play")
+                        }
+                        Button(action: {
+                            onEditSession?(session)
+                        }) {
+                            Label("Edit Session", systemImage: "pencil")
                         }
                         Button(action: {
                             
                         }) {
                             Label("Copy URL Scheme", systemImage: "doc.on.doc")
-                        }
-                        Button(action: {
-                            
-                        }) {
-                            Label("Edit Session", systemImage: "pencil")
                         }
                         Button(role: .destructive, action: {
                             onDeleteSession?(session.id)

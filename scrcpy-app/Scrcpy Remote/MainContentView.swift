@@ -14,6 +14,7 @@ struct MainContentView: View {
     @State private var isSessionConnecting = false
     @EnvironmentObject var appSettings: AppSettings
     @State var savedSessions: [ScrcpySession]
+    @State var editingSession: ScrcpySession?
     
     init() {
         savedSessions = SessionManager.shared.loadSessions().map {
@@ -45,8 +46,22 @@ struct MainContentView: View {
                     
                     // Connect to session
                     DispatchQueue.main.async {
-                        ScrcpyClientWrapper().startClient(session.sessionModel.toDict())
+                        ScrcpyClientWrapper().startClient(session.sessionModel.toDict(), completion: { statusCode, message in
+                            switch statusCode.rawValue {
+                            case ScrcpyStatusConnected.rawValue:
+                                print("Connected to session:", session.title)
+                                isSessionConnecting = false
+                            case ScrcpyStatusConnectingFailed.rawValue:
+                                print("Failed to connect to session:", session.title)
+                                isSessionConnecting = false
+                            default:
+                                print("Connection status:", statusCode, message)
+                            }
+                        })
                     }
+                }, onEditSession: { session in
+                    print("Editing session:", session.title)
+                    editingSession = session
                 })
                     .tabItem {
                         Image(systemName: "rectangle.stack")
@@ -79,9 +94,22 @@ struct MainContentView: View {
                 SettingsView()
             }
             .sheet(isPresented: $isSessionCreatePresented, onDismiss: {
+                // Reset editing session
+                editingSession = nil
+                
+                // Reload sessions
                 reloadSessions()
             }) {
                 SessionCreateView()
+            }
+            .sheet(item: $editingSession, onDismiss: {
+                // Reset editing session
+                editingSession = nil
+                
+                // Reload sessions
+                reloadSessions()
+            }) { item in
+                SessionCreateView(sessionModel: item.sessionModel)
             }
             .overlay {
                 if isSessionConnecting {
@@ -91,12 +119,11 @@ struct MainContentView: View {
                     ProgressView("Connecting..\n")
                         .multilineTextAlignment(.center)
                         .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(2)
                         .frame(width: 140, height: 140)
                         .tint(.white)
                         .background(.black.opacity(0.75))
                         .foregroundColor(.white)
-                        .font(.system(size: 7, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .cornerRadius(16)
                         .overlay {
                             Button(action: {
@@ -104,14 +131,14 @@ struct MainContentView: View {
                             }) {
                                 Label("Cancel", systemImage: "xmark")
                                     .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .foregroundColor(.red)
-                                    .background(.black.opacity(0.9))
+                                    .padding(.horizontal, 15)
+                                    .padding(.vertical, 6)
+                                    .foregroundColor(.white)
+                                    .background(.red.opacity(0.6))
                                     .cornerRadius(20)
                                     .clipped()
                             }
-                            .offset(x: 0, y: 42)
+                            .offset(x: 0, y: 35)
                         }
                 }
             }

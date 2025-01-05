@@ -10,20 +10,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Make protocol to match: @implementation SDLUIKitDelegate
-@interface SDLUIKitDelegate: NSObject<UIApplicationDelegate>
-+ (id)sharedAppDelegate;
-+ (NSString *)getAppDelegateClassName;
-- (void)hideLaunchScreen;
-
-- (UIWindow *)window;
-- (void)applicationWillTerminate:(UIApplication *)application;
-- (void)applicationDidReceiveMemoryWarning:(UIApplication *)application;
-- (void)applicationWillResignActive:(UIApplication*)application;
-- (void)applicationDidEnterBackground:(UIApplication*)application;
-- (void)applicationWillEnterForeground:(UIApplication*)application;
-- (void)applicationDidBecomeActive:(UIApplication*)application;
-@end
 
 @interface ScrcpyVNCClient : NSObject
 

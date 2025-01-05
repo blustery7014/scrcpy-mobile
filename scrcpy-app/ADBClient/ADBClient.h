@@ -19,6 +19,9 @@ typedef NS_ENUM(NSInteger, ADBDeviceStatus) {
     ADBDeviceStatusUnknown
 };
 
+// Execute ADB Command Callback
+typedef void (^ADBClientCallback)(NSString * _Nullable output, int returnCode);
+
 @interface ADBDevice : NSObject
 
 @property (nonatomic, copy) NSString *serial;
@@ -34,7 +37,12 @@ typedef NS_ENUM(NSInteger, ADBDeviceStatus) {
 @property (nonatomic, strong, readonly)   NSArray <NSString *>* adbDevices;
 
 + (instancetype)shared;
+
+// Execute ADB Command sync
 - (NSString *)executeADBCommand:(NSArray <NSString *>*)commands returnCode:(int * __nullable)returnCode;
+
+// Execute ADB Command Async
+- (void)executeADBCommandAsync:(NSArray<NSString *> *)commands callback:(ADBClientCallback)callback;
 
 @end
 
