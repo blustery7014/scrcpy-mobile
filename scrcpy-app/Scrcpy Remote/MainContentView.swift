@@ -121,24 +121,24 @@ struct MainContentView: View {
                         .progressViewStyle(CircularProgressViewStyle())
                         .frame(width: 140, height: 140)
                         .tint(.white)
-                        .background(.black.opacity(0.75))
+                        .background(.black.opacity(0.9))
                         .foregroundColor(.white)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                         .cornerRadius(16)
                         .overlay {
                             Button(action: {
                                 isSessionConnecting = false
                             }) {
                                 Label("Cancel", systemImage: "xmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 15)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .padding(.horizontal, 14)
                                     .padding(.vertical, 6)
                                     .foregroundColor(.white)
-                                    .background(.red.opacity(0.6))
+                                    .background(.red.opacity(0.5))
                                     .cornerRadius(20)
                                     .clipped()
                             }
-                            .offset(x: 0, y: 35)
+                            .offset(x: 0, y: 44)
                         }
                 }
             }

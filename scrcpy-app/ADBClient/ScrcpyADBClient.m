@@ -53,6 +53,9 @@
     
     [self setupScrcpyEnvs];
     
+    // Reset audio volume ajust
+    // ScrcpyAudioVolumeScale(1.1);
+    
     NSString *host = arguments[@"hostReal"];
     NSString *port = arguments[@"port"];
     NSString *serial = [NSString stringWithFormat:@"%@:%@", host, port];
@@ -86,7 +89,7 @@
         @"maxScreenSize": @"--max-size",
         @"bitRate": @"--bit-rate",
         @"maxFPS": @"--max-fps",
-        @"videoEncoder": @"--video-codec",
+        @"videoCodec": @"--video-codec",
         @"videoBuffer": @"--video-buffer",
     };
     return supportedOptions[key] ?: nil;
@@ -106,11 +109,12 @@
         @"--verbosity": @"debug",
 #endif
         @"--fullscreen": @(YES),
-        @"--video-codec": @"h265",
+        @"--video-codec": @"h264",
         @"--video-buffer": @"16",
         @"--print-fps": @(YES),
         @"--video-bit-rate": @"4M",
         @"--serial": serial,
+        @"--audio-output-buffer": @"10",
     }];
     
     // Merge with session arguments
@@ -203,6 +207,12 @@
     self.sdlDelegate.window.windowScene = self.currentScene;
     NSLog(@"SDL Window Scene: %@", self.sdlDelegate.window.windowScene);
     [self.sdlDelegate.window makeKeyWindow];
+}
+
+- (void)testKill {
+    [ADBClient.shared executeADBCommandAsync:@[@"kill-server"] callback:^(NSString * _Nullable output, int returnCode) {
+        NSLog(@"ADB Kill Result: %@, %@", output, @(returnCode));
+    }];
 }
 
 @end

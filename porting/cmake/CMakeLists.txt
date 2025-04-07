@@ -71,7 +71,8 @@ add_library( # Sets the name of the library.
         ../../scrcpy/app/src/adb/adb_tunnel.c
         ../../scrcpy/app/src/adb/adb_parser.c
         ../../scrcpy/app/src/packet_merger.c
-        ../../scrcpy/app/src/audio_regulator.c
+        # ../../scrcpy/app/src/audio_regulator.c
+        ../src/audio_regulator-porting.c
 
         # Remove windows platform source code
         # ../../scrcpy/app/src/sys/win/process.c

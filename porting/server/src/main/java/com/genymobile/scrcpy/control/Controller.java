@@ -489,16 +489,13 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             }
         }
 
-        Ln.w("obtain with lastTouchCont = \"" + lastTouchCont + "\"" + " now = \"" + now + "\"");
         MotionEvent event = MotionEvent.obtain(lastTouchDown, lastTouchCont, action, pointerCount, pointerProperties, pointerCoords, 0, buttons, 1f, 1f,
                 DEFAULT_DEVICE_ID, 0, source, 0);
         // Mark: make touch duration under 18ms to make touch event smooth
         if (now - lastTouchCont <= 18) {
             lastTouchCont = now;
-            Ln.w("reset lastTouchCont to now: \"" + lastTouchCont + "\"");
         } else {
             lastTouchCont += 16.666;
-            Ln.w("make lastTouchCont to +16.666: \"" + lastTouchCont + "\"");
         }
         return Device.injectEvent(event, targetDisplayId, Device.INJECT_MODE_ASYNC);
     }

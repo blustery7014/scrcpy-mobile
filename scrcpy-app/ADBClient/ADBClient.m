@@ -177,7 +177,7 @@ void adb_connect_status_updated(const char *serial, const char *status)
         [self updateDevices];
     }
     
-    return [NSString stringWithUTF8String:output];
+    return output_size > 0 && output != NULL ? [NSString stringWithUTF8String:output] : @"";
 }
 
 - (NSString *)executeADBCommand:(NSArray <NSString *>*)commands returnCode:(int * __nullable)returnCode

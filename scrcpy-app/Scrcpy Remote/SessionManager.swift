@@ -14,10 +14,7 @@ struct VNCSessionOptions: Codable, Identifiable {
     var vncUser: String = ""
     var vncPassword: String = ""
     
-    init() {
-        vncUser = ""
-        vncPassword = ""
-    }
+    init() { }
     
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -27,22 +24,23 @@ struct VNCSessionOptions: Codable, Identifiable {
     }
 }
 
+// Codec Enum for ADB Session
+enum ADBCodec: String, Codable, CaseIterable {
+    case h264 = "h264"
+    case h265 = "h265"
+}
+
 // ADB Session Model can be saved to AppStorage
 struct ADBSessionOptions: Codable, Identifiable {
     var id = UUID()
     var maxScreenSize: String = ""
     var bitRate: String = ""
+    var videoCodec: ADBCodec = .h264
     var videoEncoder: String = ""
     var maxFPS: String = "60"
     var enableAudio: Bool = false
     
-    init() {
-        maxScreenSize = ""
-        bitRate = ""
-        videoEncoder = ""
-        maxFPS = "60"
-        enableAudio = false
-    }
+    init() { }
     
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -54,6 +52,11 @@ struct ADBSessionOptions: Codable, Identifiable {
             self.enableAudio = try container.decode(Bool.self, forKey: .enableAudio)
         } catch {
             self.enableAudio = false
+        }
+        do {
+            self.videoCodec = try container.decode(ADBCodec.self, forKey: .videoCodec)
+        } catch {
+            self.videoCodec = .h264
         }
     }
 }

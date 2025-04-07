@@ -36,9 +36,14 @@ struct SessionCreateView: View {
                 Section(header: Text("ADB Session Options")) {
                     TextField("Max Screen Size", text: $sessionModel.adbOptions.maxScreenSize)
                         .keyboardType(.numberPad)
-                    TextField("Bit Rate", text: $sessionModel.adbOptions.bitRate)
+                    TextField("Bit Rate, Default: 4M", text: $sessionModel.adbOptions.bitRate)
                         .autocapitalization(.none)
                         .autocorrectionDisabled(true)
+                    Picker("Video Codec", selection: $sessionModel.adbOptions.videoCodec) {
+                        ForEach(ADBCodec.allCases, id: \.self) { codec in
+                            Text(codec.rawValue)
+                        }
+                    }
                     NavigationLink(destination: VideoEncoderSelectionView(selectedEncoder: $sessionModel.adbOptions.videoEncoder)) {
                         HStack {
                             Text("Video Encoder")
@@ -46,7 +51,7 @@ struct SessionCreateView: View {
                             Text(sessionModel.adbOptions.videoEncoder)
                         }
                     }
-                    TextField("Max FPS", text: $sessionModel.adbOptions.maxFPS)
+                    TextField("Max FPS, Default: 60", text: $sessionModel.adbOptions.maxFPS)
                         .keyboardType(.numberPad)
                     Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
                 }

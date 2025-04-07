@@ -82,17 +82,22 @@ void sc_thread_clean() {
     // try to avoid crash when there is no thread stored
     if (sc_thread_map.size() == 0) return;
     
-    for (auto &th : sc_thread_map) {
-        auto t = th.second;
-        printf("> check thread %p status %d\n", t, t != nullptr && t->joinable());
-        if (t == nullptr) pending_clean[th.first] = th.second;
-    }
+    // try catch
+    try {
+        for (auto &th : sc_thread_map) {
+            auto t = th.second;
+            printf("> check thread %p status %d\n", t, t != nullptr && t->joinable());
+            if (t == nullptr) pending_clean[th.first] = th.second;
+        }
 
-    printf("> cleaning %zu/%zu threads\n", pending_clean.size(), sc_thread_map.size());
-    for (auto &th : pending_clean) {
-        sc_thread_map.erase(th.first);
+        printf("> cleaning %zu/%zu threads\n", pending_clean.size(), sc_thread_map.size());
+        for (auto &th : pending_clean) {
+            sc_thread_map.erase(th.first);
+        }
+        printf("> thread count after clean: %zu\n", sc_thread_map.size());
+    } catch (const std::exception &e) {
+        printf("> thread clean error: %s\n", e.what());
     }
-    printf("> thread count after clean: %zu\n", sc_thread_map.size());
 }
 
 void sc_store_thread(pid_t pid, std::thread *thread) {
@@ -112,6 +117,10 @@ void sc_remove_thread(pid_t pid) {
 
 std::thread *sc_retrieve_thread(pid_t pid) {
     std::lock_guard<std::mutex> lock(sc_thread_map_mutex);
+    // Check pid in map first
+    if (sc_thread_map.find(pid) == sc_thread_map.end()) {
+        return nullptr;
+    }
     return sc_thread_map[pid];
 }
 

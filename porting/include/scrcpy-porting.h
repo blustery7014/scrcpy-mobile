@@ -22,4 +22,7 @@ enum ScrcpyStatus {
 };
 void ScrcpyUpdateStatus(enum ScrcpyStatus status);
 
+// Custom audio volume adjust
+float ScrcpyAudioVolumeScale(float volume_scale);
+
 #endif /* scrcpy_h */
