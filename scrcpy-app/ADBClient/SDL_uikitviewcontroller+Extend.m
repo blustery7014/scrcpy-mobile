@@ -8,6 +8,7 @@
 #import "SDL_uikitviewcontroller+Extend.h"
 #import <AVFoundation/AVFoundation.h>
 #import "ScrcpyClientWrapper.h"
+#import "ADBClient.h"
 
 @implementation SDL_uikitviewcontroller (Extend)
 
@@ -19,6 +20,11 @@
             layer.frame = self.view.bounds;
         }
     }
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
 }
 
 - (void)dealloc

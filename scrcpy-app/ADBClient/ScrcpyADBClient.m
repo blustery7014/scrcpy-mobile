@@ -17,6 +17,7 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #import <AVFoundation/AVFoundation.h>
+#import "ScrcpyRuntime.h"
 
 
 @interface ScrcpyADBClient ()
@@ -24,6 +25,9 @@
 @property (nonatomic, strong)  SDLUIKitDelegate  *sdlDelegate;
 @property (nonatomic, copy) void (^sessionCompletion)(enum ScrcpyStatus, NSString *);
 @property (nonatomic, copy) NSDictionary  *sessionArguments;
+
+// Property for scrcpy status
+@property (nonatomic, assign) enum ScrcpyStatus scrcpyStatus;
 
 @end
 
@@ -33,8 +37,16 @@
     self = [super init];
     if (self) {
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onScrcpyStatusUpdated:) name:@"ScrcpyStatusUpdated" object:nil];
+        // Observe application enter background
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
+        // Observe application enter foreground
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
     }
     return self;
+}
+
+-(void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (UIWindowScene *)currentScene {
@@ -51,6 +63,9 @@
 - (void)startClient:(NSDictionary *)arguments completion:(nonnull void (^)(enum ScrcpyStatus, NSString * _Nonnull))completion {
     NSLog(@"🟢 Starting connect ADB device..");
     
+    // Init scrcpy status
+    self.scrcpyStatus = ScrcpyStatusDisconnected;
+    
     [self setupScrcpyEnvs];
     
     // Reset audio volume ajust
@@ -64,8 +79,9 @@
     self.sessionCompletion = completion;
     self.sessionArguments = arguments;
     
-    // Connect ADB device async to prevent blocking main thread
+    // First kill the ADB server before connecting
     __weak typeof(self) weakSelf = self;
+    // Now connect to the ADB device
     [ADBClient.shared executeADBCommandAsync:@[@"connect", serial] callback:^(NSString * _Nullable connectResult, int returnCode) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         NSLog(@"ADB Result: %@, %@", connectResult, @(returnCode));
@@ -87,7 +103,8 @@
 - (NSString *)optionArgumentKeyMapping:(NSString *)key {
     NSDictionary *supportedOptions = @{
         @"maxScreenSize": @"--max-size",
-        @"bitRate": @"--bit-rate",
+        @"bitRate": @"--video-bit-rate",
+        @"videoBitRate": @"--video-bit-rate",
         @"maxFPS": @"--max-fps",
         @"videoCodec": @"--video-codec",
         @"videoBuffer": @"--video-buffer",
@@ -98,6 +115,7 @@
 - (NSString *)reverseOptionArgumentKeyMapping:(NSString *)key {
     NSDictionary *supportedOptions = @{
         @"enableAudio": @"--no-audio",
+        @"enableClipboardSync": @"--no-clipboard-autosync",
     };
     return supportedOptions[key] ?: nil;
 }
@@ -123,22 +141,40 @@
             continue;
         }
         
-        NSString *argKey = [self optionArgumentKeyMapping:key];
-        NSString *argValue = self.sessionArguments[@"adbOptions"][key];
-        if (argKey && argValue != nil && argValue.length > 0) {
-            args[argKey] = self.sessionArguments[@"adbOptions"][key];
+        // Check reverse option which should be removed
+        NSString *reverseKey = [self reverseOptionArgumentKeyMapping:key];
+        if (reverseKey) {
+            id reverseValue = self.sessionArguments[@"adbOptions"][key];
+            if ([reverseValue isKindOfClass:[NSNumber class]] && [reverseValue boolValue] == NO) {
+                [args setObject:@(YES) forKey:reverseKey];
+            }
             continue;
         }
         
-        // Reverse flags
-        NSString *reverseArgKey = [self reverseOptionArgumentKeyMapping:key];
-        if (reverseArgKey && [self.sessionArguments[@"adbOptions"][key] boolValue] == NO) {
-            args[reverseArgKey] = @(YES);
+        NSString *argKey = [self optionArgumentKeyMapping:key];
+        if (!argKey) {
+            NSLog(@"⚠️ Unsupported option key: %@", key);
+            continue;
+        }
+        
+        id argValue = self.sessionArguments[@"adbOptions"][key];
+        
+        // Handle boolean values
+        if ([argValue isKindOfClass:[NSNumber class]] && [argValue isKindOfClass:@YES.class]) {
+            if ([argValue boolValue] == NO) {
+                args[argKey] = @(YES);
+            }
+            continue;
+        }
+        
+        // Handle string values
+        if ([argValue isKindOfClass:[NSString class]] && [(NSString *)argValue length] > 0) {
+            args[argKey] = argValue;
             continue;
         }
         
         // Not supported options
-        NSLog(@"❌ Unsupported option: %@, %@", key, argValue);
+        NSLog(@"⚠️ Unsupported option value: %@, %@", key, argValue);
     }
     
     NSMutableArray *argv = [NSMutableArray arrayWithArray:@[@"scrcpy"]];
@@ -166,6 +202,18 @@
     // Flush all events include the not proccessed SERVER_DISCONNECT events
     SDL_FlushEvents(0, 0xFFFF);
     
+    // Update audio volume scale if audio is enabled
+    ScrpyAudioVolumeScale(1.0);
+    if (self.sessionArguments && self.sessionArguments[@"adbOptions"]) {
+        id enableAudio = self.sessionArguments[@"adbOptions"][@"enableAudio"];
+        id volumeScale = self.sessionArguments[@"adbOptions"][@"volumeScale"];
+        if ([enableAudio isKindOfClass:[NSNumber class]] && [enableAudio boolValue] && 
+            [volumeScale isKindOfClass:[NSNumber class]]) {
+            double scale = [volumeScale doubleValue];
+            ScrpyAudioVolumeScale(scale);
+        }
+    }
+    
     // Setup arguments
     NSArray *startArgs = [self buildScrcpyArgs:serial];
     NSLog(@"Starting scrcpy with arguments: %@", startArgs);
@@ -177,6 +225,87 @@
     scrcpy_main((int)startArgs.count, (char **)args);
     
     SDL_iPhoneSetEventPump(SDL_FALSE);
+}
+
+-(void)stopScrcpy {
+    // Call SQL_Quit to send Quit Event
+    SDL_Event event;
+    event.type = SDL_QUIT;
+    SDL_PushEvent(&event);
+    
+    // Disconnect ADB core
+    [ADBClient.shared executeADBCommandAsync:@[@"disconnect"] callback:^(NSString * _Nullable output, int returnCode) {
+        NSLog(@"ADB Disconnect Result: %@, %@", output, @(returnCode));
+    }];
+}
+
+#pragma mark - Scrcpy Events
+
+-(void)syncClipboard {
+    NSLog(@"-> Syncing clipboard");
+    SDL_Event clip_event;
+    clip_event.type = SDL_CLIPBOARDUPDATE;
+
+    BOOL posted = (SDL_PushEvent(&clip_event) > 0);
+    NSLog(@"Clipboard event: Post %@", posted? @"Success" : @"Failed");
+}
+
+-(void)sendKeycodeEvent:(SDL_Scancode)scancode keycode:(SDL_Keycode)keycode keymod:(SDL_Keymod)keymod {
+    SDL_Keysym keySym;
+    keySym.scancode = scancode;
+    keySym.sym = keycode;
+    keySym.mod = keymod;
+    keySym.unused = 1;
+    
+    {
+        SDL_KeyboardEvent keyEvent;
+        keyEvent.type = SDL_KEYDOWN;
+        keyEvent.state = SDL_PRESSED;
+        keyEvent.repeat = '\0';
+        keyEvent.keysym = keySym;
+        
+        SDL_Event event;
+        event.type = keyEvent.type;
+        event.key = keyEvent;
+        
+        SDL_PushEvent(&event);
+    }
+    
+    {
+        SDL_KeyboardEvent keyEvent;
+        keyEvent.type = SDL_KEYUP;
+        keyEvent.state = SDL_PRESSED;
+        keyEvent.repeat = '\0';
+        keyEvent.keysym = keySym;
+        
+        SDL_Event event;
+        event.type = keyEvent.type;
+        event.key = keyEvent;
+        
+        SDL_PushEvent(&event);
+    }
+    NSLog(@"KEY EVENT: Post Success");
+}
+
+-(void)syncClipboardWithConnectedDevice {
+    if (self.scrcpyStatus != ScrcpyStatusSDLWindowCreated) {
+        return;
+    }
+    
+    // Check if clipboard sync is enabled
+    BOOL enableClipboardSync = YES;
+    if (self.sessionArguments && self.sessionArguments[@"adbOptions"]) {
+        id value = self.sessionArguments[@"adbOptions"][@"enableClipboardSync"];
+        if ([value isKindOfClass:[NSNumber class]]) {
+            enableClipboardSync = [value boolValue];
+        }
+    }
+    
+    if (enableClipboardSync) {
+        [self syncClipboard];
+    } else {
+        NSLog(@"-> Clipboard sync is disabled");
+    }
 }
 
 #pragma mark - Getters
@@ -194,8 +323,14 @@
     NSLog(@"Scrcpy status updated: %@", notification.userInfo);
     enum ScrcpyStatus status = [notification.userInfo[@"status"] intValue];
     
+    // Update scrcpy status
+    self.scrcpyStatus = status;
+    
     // Callback
     if (self.sessionCompletion) self.sessionCompletion(status, notification.userInfo[@"message"]);
+    
+    // Sync clipboard after connected
+    [self syncClipboardWithConnectedDevice];
     
     // Make SDL Window visible after window created
     if (status != ScrcpyStatusSDLWindowCreated) {
@@ -209,10 +344,44 @@
     [self.sdlDelegate.window makeKeyWindow];
 }
 
-- (void)testKill {
-    [ADBClient.shared executeADBCommandAsync:@[@"kill-server"] callback:^(NSString * _Nullable output, int returnCode) {
-        NSLog(@"ADB Kill Result: %@, %@", output, @(returnCode));
-    }];
+- (void)onApplicationDidEnterBackground:(NSNotification *)notification {
+    NSTimeInterval beginBackgroundTime = [NSDate date].timeIntervalSince1970;
+
+    // For more time execute in background
+    static void (^beginTaskHandler)(void) = nil;
+    beginTaskHandler = ^{
+        __block UIBackgroundTaskIdentifier taskIdentifier = [UIApplication.sharedApplication beginBackgroundTaskWithName:@"com.mobile.scrcpy-ios.task" expirationHandler:^{
+            [UIApplication.sharedApplication endBackgroundTask:taskIdentifier];
+            NSLog(@"Background task expired: %lu", (unsigned long)taskIdentifier);
+            
+            if (NSDate.date.timeIntervalSince1970 - beginBackgroundTime < 60 * 2) {
+                beginTaskHandler();
+            }
+        }];
+        NSLog(@"Application did enter background with task identifier: %lu", (unsigned long)taskIdentifier);
+    };
+    beginTaskHandler();
+}
+
+- (void)onApplicationDidBecomeActive:(NSNotification *)notification {
+    NSLog(@"Application did become active, reset video");
+    
+    if (self.scrcpyStatus != ScrcpyStatusSDLWindowCreated) {
+        return;
+    }
+    
+    // Sync clipboard
+    [self syncClipboardWithConnectedDevice];
+    
+    // Send key: lalt+shift+r to reset video
+    [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LALT | KMOD_SHIFT];
+    NSLog(@"-> [1] Reset video by LALT+SHIFT+R");
+    
+    // Again to make sure triggered
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LALT | KMOD_SHIFT];
+        NSLog(@"-> [2] Reset video by LALT+SHIFT+R");
+    });
 }
 
 @end

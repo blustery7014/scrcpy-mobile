@@ -73,8 +73,4 @@
     }
 }
 
-- (void)testKill {
-    [self.adbClient testKill];
-}
-
 @end

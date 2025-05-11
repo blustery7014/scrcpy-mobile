@@ -39,6 +39,8 @@ struct ADBSessionOptions: Codable, Identifiable {
     var videoEncoder: String = ""
     var maxFPS: String = "60"
     var enableAudio: Bool = false
+    var enableClipboardSync: Bool = true
+    var volumeScale: Double = 1.0
     
     init() { }
     
@@ -57,6 +59,16 @@ struct ADBSessionOptions: Codable, Identifiable {
             self.videoCodec = try container.decode(ADBCodec.self, forKey: .videoCodec)
         } catch {
             self.videoCodec = .h264
+        }
+        do {
+            self.enableClipboardSync = try container.decode(Bool.self, forKey: .enableClipboardSync)
+        } catch {
+            self.enableClipboardSync = true
+        }
+        do {
+            self.volumeScale = try container.decode(Double.self, forKey: .volumeScale)
+        } catch {
+            self.volumeScale = 1.0
         }
     }
 }

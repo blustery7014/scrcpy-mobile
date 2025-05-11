@@ -99,8 +99,6 @@ struct SettingsView: View {
                     Button(action: {
                         // Show confirm alert to clear logs
                         showingClearLogsAlert = true
-                        
-                        ScrcpyClientWrapper().testKill()
                     }) {
                         Text("Clear Logs")
                             .foregroundColor(.red)

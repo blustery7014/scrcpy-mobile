@@ -1,4 +1,4 @@
-all: adb-mobile libsdl ffmpeg scrcpy scrcpy-server
+all: adb-mobile libsdl ffmpeg scrcpy scrcpy-server ish
 
 scrcpy-config:
 	cd ../scrcpy && meson setup x --reconfigure --buildtype=release --strip -Db_lto=true -Dusb=false
@@ -52,3 +52,48 @@ scrcpy-server:
 	sed -ibak 's/exit/echo/g' server/scripts/build-wrapper.sh && \
 	ninja -Cx -v && \
 	find . -type f -name "scrcpy-server" -exec cp -v {} ../../../scrcpy-app/ADBClient/scrcpy-server \;
+
+ish: mkdir-output
+	# Create build directories
+	mkdir -p build/ish/iphoneos-arm64
+	mkdir -p build/ish/iphonesimulator-arm64
+	mkdir -p build/ish/iphonesimulator-x86_64
+	
+	# Build for iphoneos/arm64
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target "iSH pre" -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphoneos-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libiSHApp -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphoneos-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libish -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphoneos-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libfakefs -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphoneos-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libish_emu -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphoneos-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/deps/libarchive.xcodeproj -target libarchive -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphoneos-arm64 ONLY_ACTIVE_ARCH=NO build
+	mkdir -p ./libs/iphoneos/arm64
+	find build/ish/iphoneos-arm64 -name "*.a" -exec cp -v {} ./libs/iphoneos/arm64 \;
+	
+	# Build for iphonesimulator/arm64
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target "iSH pre" -sdk iphonesimulator -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libiSHApp -sdk iphonesimulator -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libish -sdk iphonesimulator -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libfakefs -sdk iphonesimulator -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libish_emu -sdk iphonesimulator -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-arm64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/deps/libarchive.xcodeproj -target libarchive -sdk iphonesimulator -arch arm64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-arm64 ONLY_ACTIVE_ARCH=NO build
+	mkdir -p ./libs/iphonesimulator/arm64
+	find build/ish/iphonesimulator-arm64 -name "*.a" -exec cp -v {} ./libs/iphonesimulator/arm64 \;
+	
+	# Build for iphonesimulator/x86_64
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target "iSH pre" -sdk iphonesimulator -arch x86_64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-x86_64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libiSHApp -sdk iphonesimulator -arch x86_64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-x86_64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libish -sdk iphonesimulator -arch x86_64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-x86_64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libfakefs -sdk iphonesimulator -arch x86_64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-x86_64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/iSH.xcodeproj -target libish_emu -sdk iphonesimulator -arch x86_64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-x86_64 ONLY_ACTIVE_ARCH=NO build
+	xcodebuild -project ../external/ish/deps/libarchive.xcodeproj -target libarchive -sdk iphonesimulator -arch x86_64 CONFIGURATION_BUILD_DIR=$(PWD)/build/ish/iphonesimulator-x86_64 ONLY_ACTIVE_ARCH=NO build
+	mkdir -p ./libs/iphonesimulator/x86_64
+	find build/ish/iphonesimulator-x86_64 -name "*.a" -exec cp -v {} ./libs/iphonesimulator/x86_64 \;
+
+	# Copy headers
+	mkdir -p ./libs/include/ish/{fs,kernel,util,emu}
+	cp -av ../external/ish/fs/*.h ./libs/include/ish/fs
+	cp -av ../external/ish/kernel/*.h ./libs/include/ish/kernel
+	cp -av ../external/ish/util/*.h ./libs/include/ish/util
+	cp -av ../external/ish/emu/*.h ./libs/include/ish/emu
+	cp -av ../external/ish/misc.h ./libs/include/ish
+	cp -av ../external/ish/debug.h ./libs/include/ish

@@ -118,7 +118,7 @@ void sc_remove_thread(pid_t pid) {
 std::thread *sc_retrieve_thread(pid_t pid) {
     std::lock_guard<std::mutex> lock(sc_thread_map_mutex);
     // Check pid in map first
-    if (sc_thread_map.find(pid) == sc_thread_map.end()) {
+    if (sc_thread_map.empty() || sc_thread_map.size() == 0 || sc_thread_map.find(pid) == sc_thread_map.end()) {
         return nullptr;
     }
     return sc_thread_map[pid];

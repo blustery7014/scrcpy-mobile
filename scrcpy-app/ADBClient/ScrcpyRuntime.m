@@ -33,6 +33,13 @@ int ScrcpyEnableHardwareDecoding(void)
     return TARGET_OS_SIMULATOR ? ScrcpyHardwareDecodingDisabled : ScrcpyHardwareDecodingLayerRender;
 }
 
+float ScrpyAudioVolumeScale(float update_scale)
+{
+    static float volume_scale = 1.0f;
+    volume_scale = update_scale > 0 ? update_scale : volume_scale;
+    return volume_scale;
+}
+
 void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
     if (pixelBuffer == NULL) { return; }
     

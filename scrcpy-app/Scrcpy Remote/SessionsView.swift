@@ -106,7 +106,8 @@ struct SessionsView: View {
                             )
                     }
                     .listRowInsets(EdgeInsets())
-                    .padding(.vertical, 8)
+                    .padding(.bottom, session.id == savedSessions.last?.id ? 16 : 8)
+                    .padding(.top, session.id == savedSessions.first?.id ? 16 : 8)
                     .padding(.horizontal, 12)
                     .listRowSeparator(.hidden)
                     .contextMenu {

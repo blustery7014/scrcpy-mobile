@@ -20,10 +20,46 @@ struct MainContentView: View {
         savedSessions = SessionManager.shared.loadSessions().map {
             ScrcpySession(sessionModel: $0)
         }
+        
+        // Configure navigation bar and tab bar appearance for iOS 14+
+        if #available(iOS 14.0, *) {
+            let appearance = UINavigationBarAppearance()
+            appearance.configureWithDefaultBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            UINavigationBar.appearance().standardAppearance = appearance
+            UINavigationBar.appearance().compactAppearance = appearance
+            UINavigationBar.appearance().scrollEdgeAppearance = appearance
+            
+            let tabBarAppearance = UITabBarAppearance()
+            tabBarAppearance.configureWithDefaultBackground()
+            tabBarAppearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            UITabBar.appearance().standardAppearance = tabBarAppearance
+            if #available(iOS 15.0, *) {
+                UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+            }
+        }
     }
     
     init(sessions: [ScrcpySession]) {
         savedSessions = sessions
+        
+        // Configure navigation bar and tab bar appearance for iOS 14+
+        if #available(iOS 14.0, *) {
+            let appearance = UINavigationBarAppearance()
+            appearance.configureWithDefaultBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            UINavigationBar.appearance().standardAppearance = appearance
+            UINavigationBar.appearance().compactAppearance = appearance
+            UINavigationBar.appearance().scrollEdgeAppearance = appearance
+            
+            let tabBarAppearance = UITabBarAppearance()
+            tabBarAppearance.configureWithDefaultBackground()
+            tabBarAppearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            UITabBar.appearance().standardAppearance = tabBarAppearance
+            if #available(iOS 15.0, *) {
+                UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+            }
+        }
     }
     
     func reloadSessions() {
@@ -47,15 +83,28 @@ struct MainContentView: View {
                     // Connect to session
                     DispatchQueue.main.async {
                         ScrcpyClientWrapper().startClient(session.sessionModel.toDict(), completion: { statusCode, message in
-                            switch statusCode.rawValue {
-                            case ScrcpyStatusConnected.rawValue:
-                                print("Connected to session:", session.title)
-                                isSessionConnecting = false
-                            case ScrcpyStatusConnectingFailed.rawValue:
-                                print("Failed to connect to session:", session.title)
-                                isSessionConnecting = false
-                            default:
-                                print("Connection status:", statusCode, message)
+                            DispatchQueue.main.async {
+                                switch statusCode.rawValue {
+                                case ScrcpyStatusConnected.rawValue:
+                                    print("Connected to session:", session.title)
+                                    isSessionConnecting = false
+                                case ScrcpyStatusConnectingFailed.rawValue:
+                                    print("Failed to connect to session:", session.title)
+                                    isSessionConnecting = false
+                                    // Show error alert
+                                    let alert = UIAlertController(
+                                        title: "Connection Failed",
+                                        message: message.count == 0 ? "Failed to connect to device" : message,
+                                        preferredStyle: .alert
+                                    )
+                                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                       let rootViewController = windowScene.windows.first?.rootViewController {
+                                        rootViewController.present(alert, animated: true)
+                                    }
+                                default:
+                                    print("Connection status:", statusCode, message)
+                                }
                             }
                         })
                     }

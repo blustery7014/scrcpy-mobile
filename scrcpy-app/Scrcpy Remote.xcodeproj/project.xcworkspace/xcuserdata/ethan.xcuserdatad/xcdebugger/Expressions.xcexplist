@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VariablesViewState
+   version = "1.0">
+   <ContextStates>
+      <ContextState
+         contextName = "-[ScrcpyADBClient syncClipboardWithConnectedDevice]:ScrcpyADBClient.m">
+      </ContextState>
+      <ContextState
+         contextName = "swr_convert_hijack:audio_regulator-porting.c">
+         <PersistentStrings>
+            <PersistentString
+               value = "(int)((*out)[i])">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "closure #1 in closure #1 in SessionCreateView.body.getter:SessionCreateView.swift">
+      </ContextState>
+      <ContextState
+         contextName = "sc_audio_player_sdl_callback:audio_player.c">
+         <PersistentStrings>
+            <PersistentString
+               value = "(int)stream[0]">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "closure #8 in closure #1 in MainContentView.body.getter:MainContentView.swift">
+      </ContextState>
+      <ContextState
+         contextName = "sc_audio_player_frame_sink_open:audio_player.c">
+      </ContextState>
+      <ContextState
+         contextName = "-[ScrcpyADBClient buildScrcpyArgs:]:ScrcpyADBClient.m">
+      </ContextState>
+      <ContextState
+         contextName = "sc_audio_regulator_pull_hijack:audio_player-porting.c">
+         <PersistentStrings>
+            <PersistentString
+               value = "(float)out[0]">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+   </ContextStates>
+</VariablesViewState>

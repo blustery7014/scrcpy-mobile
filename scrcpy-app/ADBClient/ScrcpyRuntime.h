@@ -8,3 +8,5 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import "ScrcpyClientWrapper.h"
+
+float ScrpyAudioVolumeScale(float update_scale);

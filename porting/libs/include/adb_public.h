@@ -30,7 +30,7 @@ int adb_commandline_porting(char **output_buffer, size_t *output_buffer_size, in
 
 // enable adb verbose trace
 static inline void adb_enable_trace(void) {
-	setenv("ADB_TRACE", "adb", 1);
+	setenv("ADB_TRACE", "all", 1);
 	const char *argv[] = { "adb" };
 	adb_trace_init_porting((char **)argv);
     adb_trace_enable_porting(ADB);

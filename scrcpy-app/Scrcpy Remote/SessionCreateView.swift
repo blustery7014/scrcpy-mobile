@@ -36,9 +36,17 @@ struct SessionCreateView: View {
                 Section(header: Text("ADB Session Options")) {
                     TextField("Max Screen Size", text: $sessionModel.adbOptions.maxScreenSize)
                         .keyboardType(.numberPad)
-                    TextField("Bit Rate, Default: 4M", text: $sessionModel.adbOptions.bitRate)
+                    TextField("Bit Rate, Default: 4M or 4000K", text: $sessionModel.adbOptions.bitRate)
                         .autocapitalization(.none)
                         .autocorrectionDisabled(true)
+                        .onChange(of: sessionModel.adbOptions.bitRate) { newValue in
+                            if !newValue.isEmpty {
+                                let filteredValue = filterBitRateInput(newValue)
+                                if filteredValue != newValue {
+                                    sessionModel.adbOptions.bitRate = filteredValue
+                                }
+                            }
+                        }
                     Picker("Video Codec", selection: $sessionModel.adbOptions.videoCodec) {
                         ForEach(ADBCodec.allCases, id: \.self) { codec in
                             Text(codec.rawValue)
@@ -54,6 +62,16 @@ struct SessionCreateView: View {
                     TextField("Max FPS, Default: 60", text: $sessionModel.adbOptions.maxFPS)
                         .keyboardType(.numberPad)
                     Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
+                    if sessionModel.adbOptions.enableAudio {
+                        HStack {
+                            Text("Volume Scale")
+                            Spacer()
+                            Text(String(format: "%.1fx", sessionModel.adbOptions.volumeScale))
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...20, step: 0.1)
+                    }
+                    Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
                 }
             }
 
@@ -105,4 +123,40 @@ struct CreateSessionView_Previews: PreviewProvider {
     static var previews: some View {
         SessionCreateView()
     }
+}
+
+private func filterBitRateInput(_ input: String) -> String {
+    // If it's a valid number, return as is
+    if let _ = Int(input) {
+        return input
+    }
+    
+    // Check if it ends with K or M (case insensitive)
+    let upperInput = input.uppercased()
+    if upperInput.hasSuffix("K") || upperInput.hasSuffix("M") {
+        let numberPart = String(input.dropLast())
+        if let _ = Int(numberPart) {
+            return input
+        }
+    }
+    
+    // Filter out invalid characters, keeping only numbers and K/M
+    let filtered = input.filter { char in
+        char.isNumber || char.uppercased() == "K" || char.uppercased() == "M"
+    }
+    
+    // If the filtered string ends with K or M, ensure there are numbers before it
+    if filtered.uppercased().hasSuffix("K") || filtered.uppercased().hasSuffix("M") {
+        let numberPart = String(filtered.dropLast())
+        if let _ = Int(numberPart) {
+            return filtered
+        }
+    }
+    
+    // If we have numbers, return just the numbers
+    if let _ = Int(filtered) {
+        return filtered
+    }
+    
+    return ""
 }

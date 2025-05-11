@@ -31,7 +31,6 @@ static inline UIWindowScene * GetCurrentWindowScene(void)
 - (void)applicationWillTerminate:(UIApplication *)application;
 - (void)applicationDidReceiveMemoryWarning:(UIApplication *)application;
 - (void)applicationWillResignActive:(UIApplication*)application;
-- (void)applicationDidEnterBackground:(UIApplication*)application;
 - (void)applicationWillEnterForeground:(UIApplication*)application;
 - (void)applicationDidBecomeActive:(UIApplication*)application;
 @end
@@ -40,8 +39,6 @@ static inline UIWindowScene * GetCurrentWindowScene(void)
 @interface ScrcpyClientWrapper : NSObject
 
 - (void)startClient:(NSDictionary *)arguments completion:(void (^)(enum ScrcpyStatus statusCode, NSString *message))completion;
-
-- (void)testKill;
 
 @end
 

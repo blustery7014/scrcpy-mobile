@@ -82,6 +82,12 @@
 
 /* Begin PBXFileReference section */
 		AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Scrcpy Remote.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA8E62322DC6502300999976 /* libfakefs.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libfakefs.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA8E62342DC6502300999976 /* libish_emu.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libish_emu.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA8E62362DC6502300999976 /* libish.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libish.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA8E62382DC6502300999976 /* libiSHApp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libiSHApp.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA8E623A2DC6502300999976 /* libarchive.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libarchive.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA8E626B2DC655DD00999976 /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = usr/lib/libarchive.tbd; sourceTree = SDKROOT; };
 		AAA1764F2D13B6C20050862D /* libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswresample.xcframework; path = ../../porting/libs/xcframeworks/libswresample.xcframework; sourceTree = "<group>"; };
 		AAA176502D13B6C20050862D /* libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswscale.xcframework; path = ../../porting/libs/xcframeworks/libswscale.xcframework; sourceTree = "<group>"; };
 		AAA176512D13B6C20050862D /* ffmpegkit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ffmpegkit.xcframework; path = ../../porting/libs/xcframeworks/ffmpegkit.xcframework; sourceTree = "<group>"; };
@@ -265,6 +271,12 @@
 		AAA4EF322D0D277400D361CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				AA8E626B2DC655DD00999976 /* libarchive.tbd */,
+				AA8E62322DC6502300999976 /* libfakefs.a */,
+				AA8E62342DC6502300999976 /* libish_emu.a */,
+				AA8E62362DC6502300999976 /* libish.a */,
+				AA8E62382DC6502300999976 /* libiSHApp.a */,
+				AA8E623A2DC6502300999976 /* libarchive.a */,
 				AAA4EFC12D0FD6D000D361CA /* libz.tbd */,
 				AAA4EFBB2D0FC52000D361CA /* AVFoundation.framework */,
 				AAA4EFB92D0FC51000D361CA /* CoreHaptics.framework */,
@@ -617,6 +629,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/include";
+				INFOPLIST_FILE = "Scrcpy-Remote-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Screen Remote";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -636,11 +649,13 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Scrcpy SDL/Scrcpy Remote-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -657,6 +672,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/include";
+				INFOPLIST_FILE = "Scrcpy-Remote-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Screen Remote";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -676,10 +692,12 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Scrcpy SDL/Scrcpy Remote-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
