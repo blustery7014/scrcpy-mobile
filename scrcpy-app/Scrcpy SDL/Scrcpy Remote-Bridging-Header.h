@@ -6,3 +6,4 @@
 #import <SDL2/SDL_main.h>
 
 #import "ScrcpyClientWrapper.h"
+#import "ADBLatencyTester.h"

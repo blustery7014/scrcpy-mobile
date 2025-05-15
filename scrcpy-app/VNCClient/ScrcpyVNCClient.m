@@ -12,8 +12,18 @@
 #import <SDL2/SDL.h>
 #import <rfb/rfbclient.h>
 
+#define CFRunLoopNormalInterval     0.6f
+#define CFRunLoopHandledSourceInterval 0.0001f
+
 CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled) {
-    return CFRunLoopRunInMode(mode, 0.001, returnAfterSourceHandled);
+    static CFTimeInterval nextLoopInterval = CFRunLoopNormalInterval;
+    CFRunLoopRunResult result = CFRunLoopRunInMode(mode, nextLoopInterval, returnAfterSourceHandled);
+    if (result == kCFRunLoopRunHandledSource) {
+        nextLoopInterval = CFRunLoopHandledSourceInterval;
+    } else {
+        nextLoopInterval = CFRunLoopNormalInterval;
+    }
+    return result;
 }
 
 @implementation SDLUIKitDelegate (Extend)

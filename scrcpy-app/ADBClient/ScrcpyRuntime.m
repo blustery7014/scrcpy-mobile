@@ -53,6 +53,10 @@ void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
     CFRelease(pixelBuffer);
     CFRelease(videoInfo);
     
+    if (sampleBuffer == NULL) {
+        return;
+    }
+    
     CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
     CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
     CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
@@ -66,7 +70,10 @@ void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
         UIWindow *sdlWindow = GetCurrentWindowScene().keyWindow;
         
         // Skip when no SDL window found
-        if (sdlWindow == nil) return;
+        if (sdlWindow == nil) {
+            CFRelease(sampleBuffer);
+            return;
+        }
         
         displayLayer.frame = sdlWindow.rootViewController.view.bounds;
         [sdlWindow.rootViewController.view.layer addSublayer:displayLayer];

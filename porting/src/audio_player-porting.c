@@ -21,8 +21,7 @@ void sc_audio_regulator_pull_hijack(struct sc_audio_regulator *ar, uint8_t *out,
 
 	// Adjust volume
     float volume_scale = ScrpyAudioVolumeScale(0);
-	printf("Adjusting volume by %f...\n", volume_scale);
-    
+
     // 处理 AUDIO_F32 格式
     float *samples = (float *)out;
 

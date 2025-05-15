@@ -19,7 +19,8 @@ AVCodecContext *avcodec_alloc_context3_hijack(const AVCodec *codec) {
     
     if (context->codec_type != AVMEDIA_TYPE_VIDEO ||
         ScrcpyEnableHardwareDecoding() == 0) {
-        printf("hardware decoding is disabled\n");
+        printf("hardware decoding is disabled, codec_type=%d(video=%d|audio=%d), ScrcpyEnableHardwareDecoding=%d\n",
+               context->codec_type, AVMEDIA_TYPE_VIDEO, AVMEDIA_TYPE_AUDIO, ScrcpyEnableHardwareDecoding());
         return context;
     }
     

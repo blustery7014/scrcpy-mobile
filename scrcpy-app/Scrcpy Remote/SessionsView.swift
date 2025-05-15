@@ -46,6 +46,11 @@ struct SessionsView: View {
     var onDeleteSession: ((UUID) -> Void)?
     var onConnectSession: ((ScrcpySession) -> Void)?
     var onEditSession: ((ScrcpySession) -> Void)?
+    
+    @State private var testingLatencySessionId: UUID? = nil
+    @State private var latencyResults: [UUID: Double] = [:]
+    @State private var latencyErrors: [UUID: String] = [:]
+    @State private var isRefreshing: Bool = false
 
     var body: some View {
         NavigationView {
@@ -88,14 +93,16 @@ struct SessionsView: View {
                             )
                             .overlay(
                                 VStack {
-                                    Text(session.deviceType)
-                                        .font(.subheadline)
-                                        .foregroundColor(.white)
-                                        .padding(2)
-                                        .padding(.leading, 6)
-                                        .padding(.trailing, 6)
-                                        .background(Color.black.opacity(0.6))
-                                        .cornerRadius(12)
+                                    HStack(spacing: 8) {
+                                        latencyTestView(for: session)
+                                        Text(session.deviceType)
+                                            .font(.subheadline)
+                                            .foregroundColor(.white)
+                                            .padding(2)
+                                            .padding(.horizontal, 6)
+                                            .background(Color.black.opacity(0.6))
+                                            .cornerRadius(15)
+                                    }
                                 }
                                 .padding(),
                                 alignment: .bottomTrailing
@@ -137,7 +144,138 @@ struct SessionsView: View {
                     }
                 }
                 .listStyle(.plain)
+                .refreshable {
+                    isRefreshing = true
+                    // Reset all latency results
+                    latencyResults = [:]
+                    latencyErrors = [:]
+                    // Start testing all sessions sequentially
+                    testSessionsSequentially(sessions: savedSessions)
+                    // Mark refresh as complete
+                    isRefreshing = false
+                }
+                .onAppear {
+                    // Auto-test latency for all sessions when view appears
+                    // Using a sequential approach with delays to avoid network congestion
+                    if !savedSessions.isEmpty {
+                        testSessionsSequentially(sessions: savedSessions)
+                    }
+                }
             }
+        }
+    }
+    
+    // Test sessions one by one with a delay between each test
+    private func testSessionsSequentially(sessions: [ScrcpySession], index: Int = 0) {
+        guard index < sessions.count else { return }
+        
+        // Check if any latency test is already in progress
+        if testingLatencySessionId != nil {
+            // Try again after a delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                testSessionsSequentially(sessions: sessions, index: index)
+            }
+            return
+        }
+        
+        let session = sessions[index]
+        testLatency(for: session)
+        
+        // Schedule next test with delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            testSessionsSequentially(sessions: sessions, index: index + 1)
+        }
+    }
+    
+    @ViewBuilder
+    private func latencyTestView(for session: ScrcpySession) -> some View {
+        Button(action: {
+            testLatency(for: session)
+        }) {
+            HStack(spacing: 4) {
+                if testingLatencySessionId == session.id {
+                    // Show spinner while testing
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .frame(width: 12, height: 12)
+                } else if let latency = latencyResults[session.id] {
+                    // Show latency result with color and icon based on value
+                    HStack(spacing: 2) {
+                        Text("\(Int(latency))ms")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(latencyColor(for: latency))
+                        
+                        Image(systemName: latencyIcon(for: latency))
+                            .font(.system(size: 8))
+                            .foregroundColor(latencyColor(for: latency))
+                    }
+                } else if latencyErrors[session.id] != nil {
+                    // Show error icon
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 12))
+                }
+                
+                Image(systemName: "wifi")
+                    .foregroundColor(.white)
+                    .font(.system(size: 12))
+            }
+            .padding(5)
+            .padding(.horizontal, 6)
+            .background(Color.black.opacity(0.6))
+            .cornerRadius(15)
+        }
+        .buttonStyle(BorderlessButtonStyle()) // Prevent tap propagation
+        .disabled(testingLatencySessionId != nil)
+    }
+    
+    private func testLatency(for session: ScrcpySession) {
+        // Clear previous results for this session
+        latencyResults[session.id] = nil
+        latencyErrors[session.id] = nil
+        
+        // Set testing state
+        testingLatencySessionId = session.id
+        
+        // Initialize ADBLatencyTester
+        let tester = ADBLatencyTester(session: session.sessionModel.toDict())
+        
+        // Run latency test with 1 iterations for an average
+        tester.testAverageLatency(withCount: 1) { latency, error in
+            DispatchQueue.main.async {
+                if let latency = latency?.doubleValue {
+                    latencyResults[session.id] = latency
+                } else if let error = error {
+                    latencyErrors[session.id] = error.localizedDescription
+                }
+                
+                // Reset testing state
+                testingLatencySessionId = nil
+            }
+        }
+    }
+    
+    // Helper function to determine color based on latency value
+    private func latencyColor(for latency: Double) -> Color {
+        switch latency {
+        case ..<60:
+            return .green       // Excellent latency
+        case 60..<150:
+            return .yellow      // Good latency
+        default:
+            return .red         // Poor latency
+        }
+    }
+    
+    // Helper function to determine icon based on latency value
+    private func latencyIcon(for latency: Double) -> String {
+        switch latency {
+        case ..<60:
+            return "bolt.fill"        // Fast/lightning icon for excellent latency
+        case 60..<150:
+            return "checkmark.circle"  // Checkmark for good latency
+        default:
+            return "exclamationmark.triangle"  // Warning for poor latency
         }
     }
 }

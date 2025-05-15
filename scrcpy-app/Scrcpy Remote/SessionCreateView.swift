@@ -69,7 +69,7 @@ struct SessionCreateView: View {
                             Text(String(format: "%.1fx", sessionModel.adbOptions.volumeScale))
                                 .foregroundColor(.secondary)
                         }
-                        Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...20, step: 0.1)
+                        Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...50, step: 0.1)
                     }
                     Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
                 }

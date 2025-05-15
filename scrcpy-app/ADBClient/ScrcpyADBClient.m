@@ -128,11 +128,11 @@
 #endif
         @"--fullscreen": @(YES),
         @"--video-codec": @"h264",
-        @"--video-buffer": @"16",
+        @"--video-buffer": @"32",
         @"--print-fps": @(YES),
         @"--video-bit-rate": @"4M",
         @"--serial": serial,
-        @"--audio-output-buffer": @"10",
+        @"--audio-output-buffer": @"32",
     }];
     
     // Merge with session arguments

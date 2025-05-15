@@ -108,7 +108,7 @@ void adb_connect_status_updated(const char *serial, const char *status)
                                                object:nil];
     
     // Enable verbose trace
-    adb_enable_trace();
+    // adb_enable_trace();
 
     // Find an available port in range [15037, 15037 + 32]
     NSLog(@"Find an available port in range [15037, 15037 + 32]");

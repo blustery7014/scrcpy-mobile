@@ -10,12 +10,14 @@
 #define sc_screen_init(...)   sc_screen_init_orig(__VA_ARGS__)
 #define sc_screen_handle_event(...)    sc_screen_handle_event_hijack(__VA_ARGS__)
 #define SDL_CreateWindow(...)    SDL_CreateWindow_hijack(__VA_ARGS__)
+#define SDL_DestroyWindow(...)    SDL_DestroyWindow_hijack(__VA_ARGS__)
 
 #include "screen.c"
 
 #undef sc_screen_init
 #undef sc_screen_handle_event
 #undef SDL_CreateWindow
+#undef SDL_DestroyWindow
 
 struct sc_screen *
 sc_screen_current_screen(struct sc_screen *screen) {
@@ -87,4 +89,11 @@ SDL_Window *SDL_CreateWindow_hijack(const char *title, int x, int y, int w, int 
     SDL_Window *window = SDL_CreateWindow(title, x, y, w, h, flags);
     ScrcpyUpdateStatus(ScrcpyStatusSDLWindowCreated);
     return window;
+}
+
+void SDL_DestroyWindow(SDL_Window *window);
+void SDL_DestroyWindow_hijack(SDL_Window *window) {
+	printf("Exit fullscreen before SDL_DestroyWindow\n");
+	SDL_SetWindowFullscreen(window, 0);
+    SDL_DestroyWindow(window);
 }

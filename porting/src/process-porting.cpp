@@ -244,13 +244,16 @@ sc_pipe_read_all_intr(struct sc_intr *intr, sc_pid pid, sc_pipe pipe,
 
 sc_exit_code
 sc_process_wait(pid_t pid, bool close) {
+    // Wait 100ms to check thread status, prevent thread not started
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
     std::thread *adb_thread = sc_retrieve_thread(pid);
     if (adb_thread == nullptr) {
         return sc_retrieve_success(pid)?0:1;
     }
     
     while((adb_thread = sc_retrieve_thread(pid)) && adb_thread != nullptr) {
-        usleep(10000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     
     printf("> wait pid=%d, result=%s\n", pid, sc_retrieve_success(pid)?"true":"false");
