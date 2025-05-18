@@ -19,6 +19,48 @@
 #import <AVFoundation/AVFoundation.h>
 #import "ScrcpyRuntime.h"
 
+// C function implementation
+void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keymod keymod) {
+    SDL_Keysym keySym;
+    keySym.scancode = scancode;
+    keySym.sym = keycode;
+    keySym.mod = keymod;
+    keySym.unused = 1;
+    
+    // Send key down event
+    {
+        SDL_KeyboardEvent keyEvent;
+        keyEvent.type = SDL_KEYDOWN;
+        keyEvent.state = SDL_PRESSED;
+        keyEvent.repeat = '\0';
+        keyEvent.keysym = keySym;
+        
+        SDL_Event event;
+        event.type = keyEvent.type;
+        event.key = keyEvent;
+        
+        SDL_PushEvent(&event);
+        
+        NSLog(@"KEYDOWN EVENT: Post Success");
+    }
+    
+    // Send key up event
+    {
+        SDL_KeyboardEvent keyEvent;
+        keyEvent.type = SDL_KEYUP;
+        keyEvent.state = SDL_PRESSED;
+        keyEvent.repeat = '\0';
+        keyEvent.keysym = keySym;
+        
+        SDL_Event event;
+        event.type = keyEvent.type;
+        event.key = keyEvent;
+        
+        SDL_PushEvent(&event);
+        
+        NSLog(@"KEYUP EVENT: Post Success");
+    }
+}
 
 @interface ScrcpyADBClient ()
 
@@ -41,6 +83,8 @@
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
         // Observe application enter foreground
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
+        // Observe disconnect event from scrcpy menu view
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopScrcpy) name:ScrcpyRequestDisconnectNotification object:nil];
     }
     return self;
 }
@@ -128,11 +172,13 @@
 #endif
         @"--fullscreen": @(YES),
         @"--video-codec": @"h264",
-        @"--video-buffer": @"32",
+        @"--video-buffer": @"0",
+        @"--audio-buffer": @"150",
         @"--print-fps": @(YES),
         @"--video-bit-rate": @"4M",
         @"--serial": serial,
-        @"--audio-output-buffer": @"32",
+        @"--audio-output-buffer": @"10",
+        @"--shortcut-mod": @"lctrl,rctrl,lalt,ralt",
     }];
     
     // Merge with session arguments
@@ -222,8 +268,8 @@
     for (int i = 0; i < startArgs.count; i++) {
         args[i] = (char *)[startArgs[i] UTF8String];
     }
-    scrcpy_main((int)startArgs.count, (char **)args);
     
+    scrcpy_main((int)startArgs.count, (char **)args);
     SDL_iPhoneSetEventPump(SDL_FALSE);
 }
 
@@ -232,11 +278,6 @@
     SDL_Event event;
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
-    
-    // Disconnect ADB core
-    [ADBClient.shared executeADBCommandAsync:@[@"disconnect"] callback:^(NSString * _Nullable output, int returnCode) {
-        NSLog(@"ADB Disconnect Result: %@, %@", output, @(returnCode));
-    }];
 }
 
 #pragma mark - Scrcpy Events
@@ -251,39 +292,7 @@
 }
 
 -(void)sendKeycodeEvent:(SDL_Scancode)scancode keycode:(SDL_Keycode)keycode keymod:(SDL_Keymod)keymod {
-    SDL_Keysym keySym;
-    keySym.scancode = scancode;
-    keySym.sym = keycode;
-    keySym.mod = keymod;
-    keySym.unused = 1;
-    
-    {
-        SDL_KeyboardEvent keyEvent;
-        keyEvent.type = SDL_KEYDOWN;
-        keyEvent.state = SDL_PRESSED;
-        keyEvent.repeat = '\0';
-        keyEvent.keysym = keySym;
-        
-        SDL_Event event;
-        event.type = keyEvent.type;
-        event.key = keyEvent;
-        
-        SDL_PushEvent(&event);
-    }
-    
-    {
-        SDL_KeyboardEvent keyEvent;
-        keyEvent.type = SDL_KEYUP;
-        keyEvent.state = SDL_PRESSED;
-        keyEvent.repeat = '\0';
-        keyEvent.keysym = keySym;
-        
-        SDL_Event event;
-        event.type = keyEvent.type;
-        event.key = keyEvent;
-        
-        SDL_PushEvent(&event);
-    }
+    ScrcpySendKeycodeEvent(scancode, keycode, keymod);
     NSLog(@"KEY EVENT: Post Success");
 }
 
@@ -374,12 +383,12 @@
     [self syncClipboardWithConnectedDevice];
     
     // Send key: lalt+shift+r to reset video
-    [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LALT | KMOD_SHIFT];
+    [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LCTRL | KMOD_SHIFT];
     NSLog(@"-> [1] Reset video by LALT+SHIFT+R");
     
     // Again to make sure triggered
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LALT | KMOD_SHIFT];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LCTRL | KMOD_SHIFT];
         NSLog(@"-> [2] Reset video by LALT+SHIFT+R");
     });
 }

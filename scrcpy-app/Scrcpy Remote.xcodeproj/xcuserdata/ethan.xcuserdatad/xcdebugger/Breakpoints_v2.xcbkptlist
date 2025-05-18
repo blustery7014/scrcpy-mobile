@@ -226,8 +226,8 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "309"
-            endingLineNumber = "309"
+            startingLineNumber = "311"
+            endingLineNumber = "311"
             landmarkName = "-syncClipboardWithConnectedDevice"
             landmarkType = "7">
          </BreakpointContent>
@@ -686,26 +686,10 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "85"
-            endingLineNumber = "85"
-            landmarkName = "-startClient:completion:"
+            startingLineNumber = "90"
+            endingLineNumber = "90"
+            landmarkName = "-init"
             landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "D3F50E24-90BD-4FC8-9CEA-0513085C0DE9"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "ADBClient/ScrcpyRuntime.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "68"
-            endingLineNumber = "68"
-            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
-            landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -718,8 +702,8 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "100"
-            endingLineNumber = "100"
+            startingLineNumber = "111"
+            endingLineNumber = "111"
             landmarkName = "ScrcpyHandleFrame(frame)"
             landmarkType = "9">
          </BreakpointContent>
@@ -766,9 +750,9 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "132"
-            endingLineNumber = "132"
-            landmarkName = "-buildScrcpyArgs:"
+            startingLineNumber = "137"
+            endingLineNumber = "137"
+            landmarkName = "-startClient:completion:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -798,8 +782,8 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "174"
-            endingLineNumber = "174"
+            startingLineNumber = "180"
+            endingLineNumber = "180"
             landmarkName = "-buildScrcpyArgs:"
             landmarkType = "7">
          </BreakpointContent>
@@ -830,8 +814,8 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "143"
-            endingLineNumber = "143"
+            startingLineNumber = "151"
+            endingLineNumber = "151"
             landmarkName = "ScrcpyHandleFrame(frame)"
             landmarkType = "9">
          </BreakpointContent>
@@ -892,9 +876,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "30"
-            endingLineNumber = "30"
-            landmarkName = "swr_convert_hijack(s, out, out_count, in, in_count)"
-            landmarkType = "9">
+            endingLineNumber = "30">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -908,9 +890,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "22"
-            endingLineNumber = "22"
-            landmarkName = "swr_convert_hijack(s, out, out_count, in, in_count)"
-            landmarkType = "9">
+            endingLineNumber = "22">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -924,9 +904,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "28"
-            endingLineNumber = "28"
-            landmarkName = "swr_convert_hijack(s, out, out_count, in, in_count)"
-            landmarkType = "9">
+            endingLineNumber = "28">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -940,9 +918,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "34"
-            endingLineNumber = "34"
-            landmarkName = "unknown"
-            landmarkType = "0">
+            endingLineNumber = "34">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -1496,9 +1472,9 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "192"
-            endingLineNumber = "192"
-            landmarkName = "-startScrcpy:"
+            startingLineNumber = "199"
+            endingLineNumber = "199"
+            landmarkName = "-buildScrcpyArgs:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1512,9 +1488,9 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "154"
-            endingLineNumber = "154"
-            landmarkName = "-buildScrcpyArgs:"
+            startingLineNumber = "159"
+            endingLineNumber = "159"
+            landmarkName = "-reverseOptionArgumentKeyMapping:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1616,25 +1592,9 @@
             filePath = "ADBClient/ScrcpyADBClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "275"
-            endingLineNumber = "275"
-            landmarkName = "-sendKeycodeEvent:keycode:keymod:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "CB9395D1-95A9-420B-86CB-4E2488AC75A5"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "ADBClient/ScrcpyADBClient.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "269"
-            endingLineNumber = "269"
-            landmarkName = "-sendKeycodeEvent:keycode:keymod:"
+            startingLineNumber = "277"
+            endingLineNumber = "277"
+            landmarkName = "-stopScrcpy"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1650,7 +1610,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "34"
             endingLineNumber = "34"
-            landmarkName = "GetVolumeScale()"
+            landmarkName = "sc_audio_regulator_pull_hijack(ar, out, out_samples)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1680,8 +1640,8 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "46"
-            endingLineNumber = "46"
+            startingLineNumber = "76"
+            endingLineNumber = "76"
             landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
             landmarkType = "9">
          </BreakpointContent>
@@ -1690,26 +1650,12 @@
          BreakpointExtensionID = "Xcode.Breakpoint.SymbolicBreakpoint">
          <BreakpointContent
             uuid = "11375905-B5C8-45C4-97E7-1CB05C70ED3B"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             symbolName = "SDL_DestroyWindow"
             moduleName = "">
             <Locations>
-               <Location
-                  uuid = "11375905-B5C8-45C4-97E7-1CB05C70ED3B - 2ce0fb44c3932376"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "SDL_DestroyWindow"
-                  moduleName = "VNCClient"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///var/folders/hr/xw76b5ps73n6t_4n674pt1qc0000gn/T/SDL.4BitIntcVd/SDL2-2.0.22/src/video/SDL_video.c"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "3110"
-                  endingLineNumber = "3110">
-               </Location>
             </Locations>
          </BreakpointContent>
       </BreakpointProxy>
@@ -1755,6 +1701,65 @@
             startingLineNumber = "24"
             endingLineNumber = "24"
             landmarkName = "CFRunLoopRunInMode_fix(mode, seconds, returnAfterSourceHandled)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "8EB618A4-46BB-457A-BDB5-617BA437DA2E"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "ADBClient/ScrcpyMenuView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "827"
+            endingLineNumber = "827">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A02AB865-3851-4D75-B100-18D551C75E0F"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "ADBClient/ScrcpyMenuView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "816"
+            endingLineNumber = "816"
+            landmarkName = "-savePositionRatio:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.SymbolicBreakpoint">
+         <BreakpointContent
+            uuid = "342A5A4D-FDAA-4DAB-B5B2-8ACF499A2777"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            symbolName = "sc_display_set_texture_size_internal"
+            moduleName = "">
+            <Locations>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "42471CC6-924A-4F4D-891A-42C353C3B110"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../porting/src/screen-porting.c"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "81"
+            endingLineNumber = "81"
+            landmarkName = "sc_screen_handle_event(screen, event)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>

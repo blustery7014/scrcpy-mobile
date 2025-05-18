@@ -75,10 +75,6 @@ struct SessionCreateView: View {
                 }
             }
 
-            Section(header: Text("Other Options")) {
-                Toggle("Power Saving Mode", isOn: $sessionModel.powerSavingMode)
-            }
-
             Section {
                 Button(action: {
                     // Save session

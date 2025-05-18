@@ -101,9 +101,6 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     // Used for resetting video encoding on RESET_VIDEO message
     private SurfaceCapture surfaceCapture;
 
-    private final AtomicBoolean isCtrlPressed = new AtomicBoolean(false);
-    private final AtomicBoolean isShiftPressed = new AtomicBoolean(false);
-
     public Controller(ControlChannel controlChannel, CleanUp cleanUp, Options options) {
         this.displayId = options.getDisplayId();
         this.controlChannel = controlChannel;

@@ -24,6 +24,29 @@ class AppSettings: ObservableObject {
         }
     }
     
+    init() {
+        applyTheme()
+        
+        // 监听系统外观变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppearanceChange),
+            name: NSNotification.Name("UITraitCollectionDidChangeNotification"),
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func handleAppearanceChange() {
+        // 当系统外观变化时，如果用户设置为system模式，则应用相应主题
+        if apperance == .system {
+            applyTheme()
+        }
+    }
+    
     var apperanceMode: ColorScheme {
         switch apperance {
         case .dark:
@@ -31,13 +54,40 @@ class AppSettings: ObservableObject {
         case .light:
             return .light
         case .system:
-            return .dark
+            var window: UIWindow?
+            
+            // 先尝试iOS 14+的方式获取窗口
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                window = windowScene.windows.first
+            }
+            
+            // 如果上面的方式不可用（iOS 13），尝试使用旧方法
+            if window == nil {
+                window = UIApplication.shared.windows.first
+            }
+            
+            if let window = window {
+                return window.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+            }
+            
+            return .dark // 仅作为fallback返回dark
         }
     }
     
     func applyTheme() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
+        var window: UIWindow?
+        
+        // 先尝试iOS 14+的方式获取窗口
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            window = windowScene.windows.first
+        }
+        
+        // 如果上面的方式不可用（iOS 13），尝试使用旧方法
+        if window == nil {
+            window = UIApplication.shared.windows.first
+        }
+        
+        guard let window = window else {
             return
         }
 

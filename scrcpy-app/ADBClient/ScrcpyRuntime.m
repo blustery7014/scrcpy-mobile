@@ -40,29 +40,14 @@ float ScrpyAudioVolumeScale(float update_scale)
     return volume_scale;
 }
 
-void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
-    if (pixelBuffer == NULL) { return; }
-    
-    CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
-    CMVideoFormatDescriptionRef videoInfo = NULL;
-    OSStatus result = CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixelBuffer, &videoInfo);
-    
-    CMSampleBufferRef sampleBuffer = NULL;
-    result = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault,pixelBuffer, true, NULL, NULL, videoInfo, &timing, &sampleBuffer);
-    
-    CFRelease(pixelBuffer);
-    CFRelease(videoInfo);
-    
-    if (sampleBuffer == NULL) {
-        return;
+AVSampleBufferDisplayLayer *GetSampleBufferDisplayLayer(void)
+{
+    static AVSampleBufferDisplayLayer *displayLayer = nil;
+    if (displayLayer != nil && displayLayer.superlayer != nil) {
+        return displayLayer;
     }
     
-    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
-    CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
-    CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
-    
-    static AVSampleBufferDisplayLayer *displayLayer = nil;
-    if (displayLayer == nil || displayLayer.superlayer == nil) {
+    dispatch_sync(dispatch_get_main_queue(), ^{
         [displayLayer removeFromSuperlayer];
         displayLayer = [AVSampleBufferDisplayLayer layer];
         displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
@@ -71,7 +56,6 @@ void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
         
         // Skip when no SDL window found
         if (sdlWindow == nil) {
-            CFRelease(sampleBuffer);
             return;
         }
         
@@ -80,16 +64,43 @@ void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
         sdlWindow.rootViewController.view.backgroundColor = UIColor.blackColor;
         // sometimes failed to set background color, so we append to next runloop
         displayLayer.backgroundColor = UIColor.blackColor.CGColor;
-        NSLog(@"[INFO] Rendering in SampleBufferDisplayLayer.");
+    });
+
+    return displayLayer;
+}
+
+void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
+    @autoreleasepool {
+        if (pixelBuffer == NULL) { return; }
+        
+        CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
+        CMVideoFormatDescriptionRef videoInfo = NULL;
+        OSStatus result = CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixelBuffer, &videoInfo);
+        
+        CMSampleBufferRef sampleBuffer = NULL;
+        result = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault,pixelBuffer, true, NULL, NULL, videoInfo, &timing, &sampleBuffer);
+        
+        CFRelease(pixelBuffer);
+        CFRelease(videoInfo);
+        
+        if (sampleBuffer == NULL) {
+            return;
+        }
+        
+        CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
+        CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+        
+        AVSampleBufferDisplayLayer *displayLayer = GetSampleBufferDisplayLayer();
+        
+        // After become forground from background, may render fail
+        if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+            [displayLayer flush];
+        }
+        
+        // render sampleBuffer now
+        [displayLayer enqueueSampleBuffer:sampleBuffer];
     }
-    
-    // After become forground from background, may render fail
-    if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-        [displayLayer flush];
-    }
-    
-    // render sampleBuffer now
-    [displayLayer enqueueSampleBuffer:sampleBuffer];
 }
 
 AVFrame * ScrcpyHandleFrame(AVFrame *frame) {
@@ -104,10 +115,7 @@ AVFrame * ScrcpyHandleFrame(AVFrame *frame) {
     }
     
     if (ScrcpyEnableHardwareDecoding() == ScrcpyHardwareDecodingLayerRender) {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            RenderPixelBufferFrame(pixelBuffer);
-        });
-        
+        RenderPixelBufferFrame(pixelBuffer);
         return frame;
     }
     

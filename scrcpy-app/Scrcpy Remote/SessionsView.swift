@@ -194,10 +194,9 @@ struct SessionsView: View {
         }) {
             HStack(spacing: 4) {
                 if testingLatencySessionId == session.id {
-                    // Show spinner while testing
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(width: 12, height: 12)
+                    // Replace spinner with dots animation
+                    DotLoadingView()
+                        .frame(width: 24, height: 12)
                 } else if let latency = latencyResults[session.id] {
                     // Show latency result with color and icon based on value
                     HStack(spacing: 2) {
@@ -276,6 +275,27 @@ struct SessionsView: View {
             return "checkmark.circle"  // Checkmark for good latency
         default:
             return "exclamationmark.triangle"  // Warning for poor latency
+        }
+    }
+}
+
+// Add a dot loading animation view
+struct DotLoadingView: View {
+    @State private var animationStep = 0
+    
+    let timer = Timer.publish(every: 0.3, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<3) { index in
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 4, height: 4)
+                    .opacity(self.animationStep == index ? 1 : 0.3)
+            }
+        }
+        .onReceive(timer) { _ in
+            self.animationStep = (self.animationStep + 1) % 3
         }
     }
 }

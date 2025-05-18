@@ -162,7 +162,7 @@ struct MainContentView: View {
             }
             .overlay {
                 if isSessionConnecting {
-                    Color.gray.opacity(0.2)
+                    Color.black.opacity(0.8)
                         .ignoresSafeArea()
                         .animation(.easeInOut, value: true)
                     ProgressView("Connecting..\n")

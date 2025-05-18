@@ -119,8 +119,6 @@ struct ScrcpySessionModel: Codable, Identifiable {
         self.port = port
     }
     
-    var powerSavingMode: Bool = false
-    
     func toDict() -> [String: Any] {
         do {
             let jsonData = try JSONEncoder().encode(self)
