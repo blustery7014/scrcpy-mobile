@@ -85,7 +85,7 @@ struct MainContentView: View {
                         ScrcpyClientWrapper().startClient(session.sessionModel.toDict(), completion: { statusCode, message in
                             DispatchQueue.main.async {
                                 switch statusCode.rawValue {
-                                case ScrcpyStatusConnected.rawValue:
+                                case ScrcpyStatusSDLWindowAppeared.rawValue:
                                     print("Connected to session:", session.title)
                                     isSessionConnecting = false
                                 case ScrcpyStatusConnectingFailed.rawValue:

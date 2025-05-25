@@ -13,6 +13,7 @@
 #import "ScrcpyClientWrapper.h"
 #import "ADBClient.h"
 #import "ScrcpyADBClient.h"
+#import "ScrcpyRuntime.h"
 #import "ScrcpyMenuView.h"
 #import "ScrcpyInputMaskView.h"
 
@@ -69,7 +70,7 @@ static char inputMaskViewKey;
     
     // Initialize the ScrappyMenuView with appropriate size
     __weak typeof(self) weakSelf = self;
-    self.menuView = [[ScrcpyMenuView alloc] initWithFrame:CGRectMake(0, 0, 60, 20)];
+    self.menuView = [[ScrcpyMenuView alloc] initWithFrame:CGRectZero]; // Frame will be set correctly during initialization
     self.menuView.delegate = weakSelf;
     [self.menuView addToActiveWindow];
     
@@ -83,6 +84,11 @@ static char inputMaskViewKey;
                                              selector:@selector(keyboardWillHide:)
                                                  name:UIKeyboardWillHideNotification
                                                object:nil];
+    
+    // Post nitfication to update scrcpy connect status
+    [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyStatusUpdatedNotificationName object:nil userInfo:@{
+        @"status": @(ScrcpyStatusSDLWindowAppeared)
+    }];
 }
 
 -(void)viewWillUnload

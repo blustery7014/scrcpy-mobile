@@ -42,6 +42,12 @@ struct ADBSessionOptions: Codable, Identifiable {
     var enableClipboardSync: Bool = true
     var volumeScale: Double = 1.0
     
+    // 新虚拟显示器选项
+    var startNewDisplay: Bool = false
+    var displayWidth: String = ""
+    var displayHeight: String = ""
+    var displayDPI: String = "240"
+    
     init() { }
     
     init(from decoder: any Decoder) throws {
@@ -69,6 +75,27 @@ struct ADBSessionOptions: Codable, Identifiable {
             self.volumeScale = try container.decode(Double.self, forKey: .volumeScale)
         } catch {
             self.volumeScale = 1.0
+        }
+        // 解码新虚拟显示器选项
+        do {
+            self.startNewDisplay = try container.decode(Bool.self, forKey: .startNewDisplay)
+        } catch {
+            self.startNewDisplay = false
+        }
+        do {
+            self.displayWidth = try container.decode(String.self, forKey: .displayWidth)
+        } catch {
+            self.displayWidth = ""
+        }
+        do {
+            self.displayHeight = try container.decode(String.self, forKey: .displayHeight)
+        } catch {
+            self.displayHeight = ""
+        }
+        do {
+            self.displayDPI = try container.decode(String.self, forKey: .displayDPI)
+        } catch {
+            self.displayDPI = "240"
         }
     }
 }

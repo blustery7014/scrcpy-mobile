@@ -17,6 +17,17 @@
          contextName = "closure #1 in closure #1 in SessionCreateView.body.getter:SessionCreateView.swift">
       </ContextState>
       <ContextState
+         contextName = "RenderPixelBufferFrame:ScrcpyRuntime.m">
+         <PersistentStrings>
+            <PersistentString
+               value = "(int)CFGetRetainCount(0x1177cabc0)">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "SDL_UpdateYUVTexture:SDL_render.c">
+      </ContextState>
+      <ContextState
          contextName = "sc_audio_player_sdl_callback:audio_player.c">
          <PersistentStrings>
             <PersistentString
@@ -25,10 +36,10 @@
          </PersistentStrings>
       </ContextState>
       <ContextState
-         contextName = "closure #8 in closure #1 in MainContentView.body.getter:MainContentView.swift">
+         contextName = "sc_audio_player_frame_sink_open:audio_player.c">
       </ContextState>
       <ContextState
-         contextName = "sc_audio_player_frame_sink_open:audio_player.c">
+         contextName = "closure #8 in closure #1 in MainContentView.body.getter:MainContentView.swift">
       </ContextState>
       <ContextState
          contextName = "-[ScrcpyADBClient buildScrcpyArgs:]:ScrcpyADBClient.m">

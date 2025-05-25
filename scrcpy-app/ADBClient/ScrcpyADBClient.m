@@ -62,6 +62,16 @@ void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keym
     }
 }
 
+void ScrcpyTryResetVideo(void) {
+    static NSTimeInterval lastResetTime = 0;
+    if (NSDate.date.timeIntervalSince1970 - lastResetTime < 1.0) {
+        return;
+    }
+    ScrcpySendKeycodeEvent(SDL_SCANCODE_R, SDLK_r, KMOD_LCTRL | KMOD_SHIFT);
+    NSLog(@"-> [1] Reset video by LCTRL+SHIFT+R");
+    lastResetTime = NSDate.date.timeIntervalSince1970;
+}
+
 @interface ScrcpyADBClient ()
 
 @property (nonatomic, strong)  SDLUIKitDelegate  *sdlDelegate;
@@ -78,7 +88,7 @@ void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keym
 - (instancetype)init {
     self = [super init];
     if (self) {
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onScrcpyStatusUpdated:) name:@"ScrcpyStatusUpdated" object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onScrcpyStatusUpdated:) name:ScrcpyStatusUpdatedNotificationName object:nil];
         // Observe application enter background
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
         // Observe application enter foreground
@@ -181,9 +191,47 @@ void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keym
         @"--shortcut-mod": @"lctrl,rctrl,lalt,ralt",
     }];
     
+    // Check if new display is enabled and add --new-display argument
+    if (self.sessionArguments[@"adbOptions"][@"startNewDisplay"] && 
+        [self.sessionArguments[@"adbOptions"][@"startNewDisplay"] boolValue]) {
+        
+        // Build new display string based on user configuration
+        NSString *displayWidth = self.sessionArguments[@"adbOptions"][@"displayWidth"];
+        NSString *displayHeight = self.sessionArguments[@"adbOptions"][@"displayHeight"];
+        NSString *displayDPI = self.sessionArguments[@"adbOptions"][@"displayDPI"];
+        
+        NSMutableString *newDisplayValue = [NSMutableString string];
+        
+        // Add width and height if provided
+        if (displayWidth && displayWidth.length > 0 && displayHeight && displayHeight.length > 0) {
+            [newDisplayValue appendFormat:@"%@x%@", displayWidth, displayHeight];
+        }
+        
+        // Add DPI if provided  
+        if (displayDPI && displayDPI.length > 0) {
+            if (newDisplayValue.length > 0) {
+                [newDisplayValue appendFormat:@"/%@", displayDPI];
+            } else {
+                [newDisplayValue appendFormat:@"/%@", displayDPI];
+            }
+        }
+        
+        // Use the new display value or default if empty
+        if (newDisplayValue.length > 0) {
+            [args setObject:newDisplayValue forKey:@"--new-display"];
+        } else {
+            [args setObject:@(YES) forKey:@"--new-display"];
+        }
+    }
+    
     // Merge with session arguments
     for (NSString *key in self.sessionArguments[@"adbOptions"]) {
-        if ([@[@"id"] containsObject:key]) {
+        if ([@[@"id", @"startNewDisplay", @"volumeScale"] containsObject:key]) {
+            continue;
+        }
+        
+        // Skip display parameters as they are handled by --new-display
+        if ([@[@"displayWidth", @"displayHeight", @"displayDPI"] containsObject:key]) {
             continue;
         }
         
@@ -382,14 +430,10 @@ void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keym
     // Sync clipboard
     [self syncClipboardWithConnectedDevice];
     
-    // Send key: lalt+shift+r to reset video
-    [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LCTRL | KMOD_SHIFT];
-    NSLog(@"-> [1] Reset video by LALT+SHIFT+R");
-    
-    // Again to make sure triggered
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    // Trigger reset video when app become active
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LCTRL | KMOD_SHIFT];
-        NSLog(@"-> [2] Reset video by LALT+SHIFT+R");
+        NSLog(@"-> [2] Reset video by LCTRL+SHIFT+R");
     });
 }
 

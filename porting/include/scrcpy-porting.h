@@ -19,6 +19,7 @@ enum ScrcpyStatus {
     ScrcpyStatusConnecting,
     ScrcpyStatusConnectingFailed,
     ScrcpyStatusConnected,
+    ScrcpyStatusSDLWindowAppeared,
 };
 void ScrcpyUpdateStatus(enum ScrcpyStatus status);
 

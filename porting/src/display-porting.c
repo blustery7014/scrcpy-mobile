@@ -32,7 +32,7 @@ int SDL_UpdateYUVTexture_hijack(SDL_Texture * texture,
                                                  const Uint8 *Uplane, int Upitch,
                                                  const Uint8 *Vplane, int Vpitch)
 {
-    if (ScrcpyEnableHardwareDecoding() == 1) {
+    if (ScrcpyEnableHardwareDecoding() >= 1) {
         // For hardware decoding with layer render, we skip render SDL texture
         return 0;
     }
@@ -41,7 +41,7 @@ int SDL_UpdateYUVTexture_hijack(SDL_Texture * texture,
 
 void SDL_UpdateCommandGeneration(SDL_Renderer * renderer);
 void SDL_RenderPresent_hijack(SDL_Renderer * renderer) {
-    if (ScrcpyEnableHardwareDecoding() == 1) {
+    if (ScrcpyEnableHardwareDecoding() >= 1) {
         // Update renderer_command_generation to fix memory leak when Destory_Texture
         SDL_UpdateCommandGeneration(renderer);
         return;

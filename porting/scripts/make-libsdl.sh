@@ -27,19 +27,19 @@ xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphoneos/arm64 \
 	ARCHS="arm64" \
 	CONFIGURATION=Release \
-    GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
+	GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphoneos;
 xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphonesimulator/x86_64 \
 	ARCHS="x86_64" \
 	CONFIGURATION=Release \
-    GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
+	GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphonesimulator;
 xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphonesimulator/arm64 \
 	ARCHS="arm64" \
 	CONFIGURATION=Release \
-    GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
+	GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphonesimulator;
 
 ls -la $BUILD_DIR/build/*/*/*/libSDL2.a;

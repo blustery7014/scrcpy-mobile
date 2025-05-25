@@ -12,6 +12,7 @@
 #import <libavutil/frame.h>
 #import "ScrcpyRuntime.h"
 #import "scrcpy-porting.h"
+#import "ScrcpyMetalView.h"
 
 typedef enum : NSUInteger {
     // 0: disable hardware decoding
@@ -20,6 +21,8 @@ typedef enum : NSUInteger {
     ScrcpyHardwareDecodingLayerRender = 1,
     // 2: enable hardware decoding with sdl render
     ScrcpyHardwareDecodingSDLRender = 2,
+    // 3: enable hardware decoding with metal view
+    ScrcpyHardwareDecodingMetalView = 3,
 } ScrcpyHardwareDecodingType;
 
 float ScrcpyRenderScreenScale(void)
@@ -42,31 +45,59 @@ float ScrpyAudioVolumeScale(float update_scale)
 
 AVSampleBufferDisplayLayer *GetSampleBufferDisplayLayer(void)
 {
-    static AVSampleBufferDisplayLayer *displayLayer = nil;
-    if (displayLayer != nil && displayLayer.superlayer != nil) {
+    @autoreleasepool {
+        static AVSampleBufferDisplayLayer *displayLayer = nil;
+        if (displayLayer != nil && displayLayer.superlayer != nil) {
+            return displayLayer;
+        }
+        
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            @autoreleasepool {
+                [displayLayer removeFromSuperlayer];
+                displayLayer = [AVSampleBufferDisplayLayer layer];
+                displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+                
+                UIWindow *sdlWindow = GetCurrentWindowScene().keyWindow;
+                
+                // Skip when no SDL window found
+                if (sdlWindow == nil) {
+                    return;
+                }
+                
+                displayLayer.frame = sdlWindow.rootViewController.view.bounds;
+                [sdlWindow.rootViewController.view.layer addSublayer:displayLayer];
+                sdlWindow.rootViewController.view.backgroundColor = UIColor.blackColor;
+                // sometimes failed to set background color, so we append to next runloop
+                displayLayer.backgroundColor = UIColor.blackColor.CGColor;
+            }
+        });
+
         return displayLayer;
+    }
+}
+
+ScrcpyMetalView *GetScrcpyMetalView(void)
+{
+    static ScrcpyMetalView *metalView = nil;
+    if (metalView != nil) {
+        return metalView;
     }
     
     dispatch_sync(dispatch_get_main_queue(), ^{
-        [displayLayer removeFromSuperlayer];
-        displayLayer = [AVSampleBufferDisplayLayer layer];
-        displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
-        
+        [metalView removeFromSuperview];
         UIWindow *sdlWindow = GetCurrentWindowScene().keyWindow;
-        
+        metalView = [[ScrcpyMetalView alloc] init];
+
         // Skip when no SDL window found
         if (sdlWindow == nil) {
             return;
         }
         
-        displayLayer.frame = sdlWindow.rootViewController.view.bounds;
-        [sdlWindow.rootViewController.view.layer addSublayer:displayLayer];
-        sdlWindow.rootViewController.view.backgroundColor = UIColor.blackColor;
-        // sometimes failed to set background color, so we append to next runloop
-        displayLayer.backgroundColor = UIColor.blackColor.CGColor;
+        metalView.frame = sdlWindow.rootViewController.view.bounds;
+        [sdlWindow.rootViewController.view.layer addSublayer:metalView.layer];
     });
 
-    return displayLayer;
+    return metalView;
 }
 
 void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
@@ -78,10 +109,7 @@ void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
         OSStatus result = CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixelBuffer, &videoInfo);
         
         CMSampleBufferRef sampleBuffer = NULL;
-        result = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault,pixelBuffer, true, NULL, NULL, videoInfo, &timing, &sampleBuffer);
-        
-        CFRelease(pixelBuffer);
-        CFRelease(videoInfo);
+        result = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, true, NULL, NULL, videoInfo, &timing, &sampleBuffer);
         
         if (sampleBuffer == NULL) {
             return;
@@ -91,15 +119,27 @@ void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
         CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
         CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
         
+        // Get rendering layer
         AVSampleBufferDisplayLayer *displayLayer = GetSampleBufferDisplayLayer();
         
+        // render sampleBuffer now
+        if (@available(iOS 17.0, *)) {
+            [displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
+        } else {
+            [displayLayer enqueueSampleBuffer:sampleBuffer];
+        }
+
         // After become forground from background, may render fail
         if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
             [displayLayer flush];
+            NSLog(@"Render failed, flush display layer");
         }
         
-        // render sampleBuffer now
-        [displayLayer enqueueSampleBuffer:sampleBuffer];
+        CFRelease(videoInfo);
+        CFRelease(sampleBuffer);
+        
+        sampleBuffer = NULL;
+        dict = NULL;
     }
 }
 
@@ -111,6 +151,12 @@ AVFrame * ScrcpyHandleFrame(AVFrame *frame) {
     // Get CVImageBufferRef
     CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)frame->data[3];
     if (!pixelBuffer) {
+        return frame;
+    }
+    
+    if (ScrcpyEnableHardwareDecoding() == ScrcpyHardwareDecodingMetalView) {
+        ScrcpyMetalView *metalView = GetScrcpyMetalView();
+        [metalView renderPixelBuffer:pixelBuffer];
         return frame;
     }
     
@@ -167,7 +213,7 @@ AVFrame * ScrcpyHandleFrame(AVFrame *frame) {
 
 void ScrcpyUpdateStatus(enum ScrcpyStatus status) {
     // Post notifacation
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyStatusUpdated" object:nil userInfo:@{
+    [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyStatusUpdatedNotificationName object:nil userInfo:@{
         @"status": @(status)
     }];
 }

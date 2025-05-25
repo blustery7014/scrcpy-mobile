@@ -72,6 +72,31 @@ struct SessionCreateView: View {
                         Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...50, step: 0.1)
                     }
                     Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
+                    
+                    Toggle("Start New Display", isOn: $sessionModel.adbOptions.startNewDisplay)
+                    
+                    if sessionModel.adbOptions.startNewDisplay {
+                        HStack {
+                            Text("Size:")
+                            TextField("Width", text: $sessionModel.adbOptions.displayWidth)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.center)
+                            Text("x")
+                                .foregroundColor(.secondary)
+                            TextField("Height", text: $sessionModel.adbOptions.displayHeight)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.center)
+                            Button("Sync iPhone Size") {
+                                setLocalScreenSize()
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                            .frame(minWidth: 140)
+                            .multilineTextAlignment(.center)
+                        }
+                        TextField("Display DPI", text: $sessionModel.adbOptions.displayDPI)
+                            .keyboardType(.numberPad)
+                    }
                 }
             }
 
@@ -100,6 +125,39 @@ struct SessionCreateView: View {
             }
         }
         .navigationBarTitle("Create Session", displayMode: .inline)
+    }
+    
+    private func setLocalScreenSize() {
+        // Set display dimensions based on current device screen
+        let screen = UIScreen.main
+        let bounds = screen.bounds
+        let scale = screen.scale
+        
+        // Calculate pixel dimensions (points * scale = pixels)
+        let pixelWidth = bounds.width * scale
+        let pixelHeight = bounds.height * scale
+        
+        // Set the display dimensions to match local screen
+        sessionModel.adbOptions.displayWidth = String(Int(pixelWidth))
+        sessionModel.adbOptions.displayHeight = String(Int(pixelHeight))
+    }
+    
+    private func setDefaultDisplayDimensions() {
+        // Set default display dimensions based on current device screen
+        let screen = UIScreen.main
+        let bounds = screen.bounds
+        
+        // Calculate pixel dimensions (points * scale = pixels)
+        let pixelWidth = bounds.width
+        let pixelHeight = bounds.height
+        
+        // Set default values if they're empty
+        if sessionModel.adbOptions.displayWidth.isEmpty {
+            sessionModel.adbOptions.displayWidth = String(Int(pixelWidth))
+        }
+        if sessionModel.adbOptions.displayHeight.isEmpty {
+            sessionModel.adbOptions.displayHeight = String(Int(pixelHeight))
+        }
     }
 }
 

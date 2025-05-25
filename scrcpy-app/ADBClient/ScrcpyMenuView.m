@@ -43,12 +43,19 @@ static const CGFloat kMenuAnimationSpringDamping = 0.6f;
 static const CGFloat kMenuAnimationSpringVelocity = 0.5f;
 static const CGFloat kFadeTimerInterval = 3.0f;
 
+// Position Constants
+static const CGFloat kDefaultPositionRatioX = 0.8f; // 右下方
+static const CGFloat kDefaultPositionRatioY = 0.8f; // 右下方
+
+// Dynamic Island avoidance constants
+static const CGFloat kDynamicIslandWidth = 100.0f;
+
 @interface ScrcpyMenuView () <ScrcpyMenuMaskViewDelegate>
 
 // UI Elements
 @property (nonatomic, strong) UIView *capsuleView;
-@property (nonatomic, strong) UIView *capsuleBackgroundView;  // 新增：胶囊背景视图
-@property (nonatomic, strong) UIImageView *capsuleHandleIcon; // 新增：胶囊图标视图
+@property (nonatomic, strong) UIView *capsuleBackgroundView;
+@property (nonatomic, strong) UIImageView *capsuleHandleIcon;
 @property (nonatomic, strong) UIView *menuView;
 @property (nonatomic, strong) ScrcpyMenuMaskView *maskView;
 @property (nonatomic, strong) UIButton *backButton;
@@ -60,15 +67,18 @@ static const CGFloat kFadeTimerInterval = 3.0f;
 
 // State
 @property (nonatomic, assign) BOOL isExpanded;
-@property (nonatomic, assign) CGPoint lastPositionRatio; // 修改为比例值
+@property (nonatomic, assign) CGPoint positionRatio; // 相对于屏幕中心的比例 (-1 to 1)
 @property (nonatomic, strong) NSTimer *fadeTimer;
 @property (nonatomic, weak) UIWindow *activeWindow;
 
-// Add new property for safe area insets
-@property (nonatomic, assign) UIEdgeInsets safeAreaInsets;
-
-// Add new private method declaration
+// Private method declarations
 - (void)savePositionRatio:(CGPoint)ratio;
+- (CGPoint)loadPositionRatio;
+- (void)updatePositionFromRatio;
+- (void)updateRatioFromPosition;
+- (CGRect)getDynamicIslandRect:(UIWindow *)window;
+- (BOOL)doesCapsuleOverlapDynamicIsland:(UIWindow *)window;
+- (CGPoint)adjustPositionToAvoidDynamicIsland:(UIWindow *)window;
 
 @end
 
@@ -78,7 +88,6 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     self = [super initWithFrame:frame];
     if (self) {
         _isExpanded = NO;
-        _lastPositionRatio = CGPointZero;
         
         LOG_POSITION(@"Initializing menu view with frame: (%.1f, %.1f, %.1f, %.1f)",
                      frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
@@ -86,33 +95,22 @@ static const CGFloat kFadeTimerInterval = 3.0f;
         // 设置为可接收用户交互事件
         self.userInteractionEnabled = YES;
         
-        // 注册屏幕旋转通知
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(orientationDidChange:)
-                                                     name:UIDeviceOrientationDidChangeNotification
-                                                   object:nil];
-        
-        // Load saved position ratio if available
-        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        CGFloat savedRatioX = [defaults floatForKey:@"ScrappyMenuLastPositionRatioX"];
-        CGFloat savedRatioY = [defaults floatForKey:@"ScrappyMenuLastPositionRatioY"];
-        
-        LOG_POSITION(@"Loading saved position ratio: (%.3f, %.3f)", savedRatioX, savedRatioY);
-        
-        // Only restore position if we have valid saved values
-        if (savedRatioX >= 0 && savedRatioX <= 1 && savedRatioY >= 0 && savedRatioY <= 1) {
-            LOG_POSITION(@"Using saved position ratio");
-            _lastPositionRatio = CGPointMake(savedRatioX, savedRatioY);
-            [self updatePositionFromRatio];
-        } else {
-            LOG_POSITION(@"Using default position ratio (0.95, 0.9)");
-            _lastPositionRatio = CGPointMake(0.95, 0.9);
-            [self updatePositionFromRatio];
-        }
+        // Load saved position ratio or use default
+        _positionRatio = [self loadPositionRatio];
+        LOG_POSITION(@"Loaded position ratio: (%.3f, %.3f)", _positionRatio.x, _positionRatio.y);
         
         [self setupViews];
         [self setupGestures];
         [self startFadeTimer];
+        
+        // Set initial frame size based on capsule dimensions
+        self.frame = CGRectMake(0, 0, kCapsuleWidth, kCapsuleHeight);
+        
+        // Register for orientation change notifications
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(orientationDidChange:)
+                                                     name:UIDeviceOrientationDidChangeNotification
+                                                   object:nil];
     }
     return self;
 }
@@ -121,98 +119,175 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+- (void)orientationDidChange:(NSNotification *)notification {
+    LOG_POSITION(@"Device orientation changed, updating layout");
+    // Update layout after a short delay to ensure the rotation animation is complete
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self updateLayout];
+    });
+}
+
+#pragma mark - Position Management
+
+- (CGPoint)loadPositionRatio {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    CGFloat savedRatioX = [defaults floatForKey:@"ScrcpyMenuPositionRatioX"];
+    CGFloat savedRatioY = [defaults floatForKey:@"ScrcpyMenuPositionRatioY"];
+    
+    // Check if we have valid saved values (center-relative range: -1 to 1)
+    if (savedRatioX >= -1 && savedRatioX <= 1 && savedRatioY >= -1 && savedRatioY <= 1) {
+        // If both values are zero, it means no saved data, use default
+        if (savedRatioX == 0 && savedRatioY == 0) {
+            LOG_POSITION(@"No saved position, using default (%.3f, %.3f)", kDefaultPositionRatioX, kDefaultPositionRatioY);
+            return CGPointMake(kDefaultPositionRatioX, kDefaultPositionRatioY);
+        }
+        LOG_POSITION(@"Using saved position ratio");
+        return CGPointMake(savedRatioX, savedRatioY);
+    } else {
+        LOG_POSITION(@"Invalid saved position, using default (%.3f, %.3f)", kDefaultPositionRatioX, kDefaultPositionRatioY);
+        return CGPointMake(kDefaultPositionRatioX, kDefaultPositionRatioY);
+    }
+}
+
+- (void)savePositionRatio:(CGPoint)ratio {
+    LOG_POSITION(@"Saving position ratio: (%.3f, %.3f)", ratio.x, ratio.y);
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setFloat:ratio.x forKey:@"ScrcpyMenuPositionRatioX"];
+    [defaults setFloat:ratio.y forKey:@"ScrcpyMenuPositionRatioY"];
+    [defaults synchronize];
+}
+
 - (void)updatePositionFromRatio {
     UIWindow *window = [self activeWindow];
     if (!window) return;
+    
+    LOG_POSITION(@"updatePositionFromRatio called - Current ratio: (%.3f, %.3f)", 
+                 self.positionRatio.x, self.positionRatio.y);
     
     CGRect screenBounds = window.bounds;
     CGFloat screenWidth = screenBounds.size.width;
     CGFloat screenHeight = screenBounds.size.height;
     
-    LOG_POSITION(@"Restoring position from ratio: (%.3f, %.3f)", 
-                 self.lastPositionRatio.x, self.lastPositionRatio.y);
-    LOG_POSITION(@"Current screen size: %.1f x %.1f, Safe area: (%.1f, %.1f, %.1f, %.1f)",
-                 screenWidth, screenHeight,
-                 self.safeAreaInsets.left, self.safeAreaInsets.right,
-                 self.safeAreaInsets.top, self.safeAreaInsets.bottom);
+    LOG_POSITION(@"Screen size: %.1f x %.1f", screenWidth, screenHeight);
     
-    // Calculate available area considering safe area insets
-    CGFloat availableWidth = screenWidth - self.safeAreaInsets.left - self.safeAreaInsets.right;
-    CGFloat availableHeight = screenHeight - self.safeAreaInsets.top - self.safeAreaInsets.bottom;
+    // Calculate screen center
+    CGFloat screenCenterX = screenWidth / 2.0;
+    CGFloat screenCenterY = screenHeight / 2.0;
     
-    // Calculate maximum allowed position
-    CGFloat maxX = availableWidth - self.frame.size.width;
-    CGFloat maxY = availableHeight - self.frame.size.height;
+    // Calculate reachable boundaries (no safe area constraints)
+    CGFloat minFrameX = 0;
+    CGFloat maxFrameX = screenWidth - self.frame.size.width;
+    CGFloat minFrameY = 0;
+    CGFloat maxFrameY = screenHeight - self.frame.size.height;
     
-    LOG_POSITION(@"Available area: %.1f x %.1f, Max position: (%.1f, %.1f)",
-                 availableWidth, availableHeight, maxX, maxY);
+    // Calculate the reachable center positions
+    CGFloat minCenterX = minFrameX + self.frame.size.width / 2.0;
+    CGFloat maxCenterX = maxFrameX + self.frame.size.width / 2.0;
+    CGFloat minCenterY = minFrameY + self.frame.size.height / 2.0;
+    CGFloat maxCenterY = maxFrameY + self.frame.size.height / 2.0;
     
-    // Calculate position using ratio and current screen dimensions
-    CGFloat x = self.safeAreaInsets.left + (maxX * self.lastPositionRatio.x);
-    CGFloat y = self.safeAreaInsets.top + (maxY * self.lastPositionRatio.y);
+    // Calculate maximum offsets from center
+    CGFloat maxOffsetX = MAX(fabs(minCenterX - screenCenterX), fabs(maxCenterX - screenCenterX));
+    CGFloat maxOffsetY = MAX(fabs(minCenterY - screenCenterY), fabs(maxCenterY - screenCenterY));
     
-    // Ensure position is within bounds
-    x = MAX(self.safeAreaInsets.left, MIN(screenWidth - self.safeAreaInsets.right - self.frame.size.width, x));
-    y = MAX(self.safeAreaInsets.top, MIN(screenHeight - self.safeAreaInsets.bottom - self.frame.size.height, y));
+    LOG_POSITION(@"Screen center: (%.1f, %.1f), Max offsets: (%.1f, %.1f)",
+                 screenCenterX, screenCenterY, maxOffsetX, maxOffsetY);
     
-    LOG_POSITION(@"Calculated position: (%.1f, %.1f)", x, y);
+    // Calculate capsule center position using center-relative ratio
+    // Ratio range is -1 to 1, where 0 means center
+    CGFloat capsuleCenterX = screenCenterX + (maxOffsetX * self.positionRatio.x);
+    CGFloat capsuleCenterY = screenCenterY + (maxOffsetY * self.positionRatio.y);
+    
+    LOG_POSITION(@"Target capsule center: (%.1f, %.1f)", capsuleCenterX, capsuleCenterY);
+    
+    // Convert center position to top-left corner position
+    CGFloat x = capsuleCenterX - self.frame.size.width / 2.0;
+    CGFloat y = capsuleCenterY - self.frame.size.height / 2.0;
+    
+    // Ensure position is within screen bounds
+    CGFloat originalX = x, originalY = y;
+    x = MAX(0, MIN(screenWidth - self.frame.size.width, x));
+    y = MAX(0, MIN(screenHeight - self.frame.size.height, y));
+    
+    if (originalX != x || originalY != y) {
+        LOG_POSITION(@"Position was clamped from (%.1f, %.1f) to (%.1f, %.1f)", originalX, originalY, x, y);
+    }
+    
+    LOG_POSITION(@"Final position: (%.1f, %.1f)", x, y);
     
     // Update frame
     self.frame = CGRectMake(x, y, self.frame.size.width, self.frame.size.height);
+    
+    // Check for Dynamic Island overlap and adjust if necessary
+    if ([self doesCapsuleOverlapDynamicIsland:window]) {
+        LOG_POSITION(@"Position overlaps with Dynamic Island, adjusting...");
+        CGPoint adjustedPosition = [self adjustPositionToAvoidDynamicIsland:window];
+        self.frame = CGRectMake(adjustedPosition.x, adjustedPosition.y, self.frame.size.width, self.frame.size.height);
+        LOG_POSITION(@"Position adjusted to: (%.1f, %.1f)", adjustedPosition.x, adjustedPosition.y);
+    }
 }
 
 - (void)updateRatioFromPosition {
     UIWindow *window = [self activeWindow];
     if (!window) return;
     
+    LOG_POSITION(@"updateRatioFromPosition called - Current frame: (%.1f, %.1f, %.1f, %.1f)", 
+                 self.frame.origin.x, self.frame.origin.y, self.frame.size.width, self.frame.size.height);
+    
     CGRect screenBounds = window.bounds;
     CGFloat screenWidth = screenBounds.size.width;
     CGFloat screenHeight = screenBounds.size.height;
     
-    LOG_POSITION(@"Calculating ratio from position - Current frame: (%.1f, %.1f, %.1f, %.1f)", 
-                 self.frame.origin.x, self.frame.origin.y, self.frame.size.width, self.frame.size.height);
-    LOG_POSITION(@"Screen size: %.1f x %.1f, Safe area: (%.1f, %.1f, %.1f, %.1f)",
-                 screenWidth, screenHeight,
-                 self.safeAreaInsets.left, self.safeAreaInsets.right,
-                 self.safeAreaInsets.top, self.safeAreaInsets.bottom);
+    // Calculate screen center
+    CGFloat screenCenterX = screenWidth / 2.0;
+    CGFloat screenCenterY = screenHeight / 2.0;
     
-    // Calculate available area considering safe area insets
-    CGFloat availableWidth = screenWidth - self.safeAreaInsets.left - self.safeAreaInsets.right;
-    CGFloat availableHeight = screenHeight - self.safeAreaInsets.top - self.safeAreaInsets.bottom;
+    // Calculate current capsule center
+    CGFloat capsuleCenterX = self.frame.origin.x + self.frame.size.width / 2.0;
+    CGFloat capsuleCenterY = self.frame.origin.y + self.frame.size.height / 2.0;
     
-    // Calculate maximum allowed position
-    CGFloat maxX = availableWidth - self.frame.size.width;
-    CGFloat maxY = availableHeight - self.frame.size.height;
+    // Calculate reachable boundaries (no safe area constraints)
+    CGFloat minFrameX = 0;
+    CGFloat maxFrameX = screenWidth - self.frame.size.width;
+    CGFloat minFrameY = 0;
+    CGFloat maxFrameY = screenHeight - self.frame.size.height;
     
-    LOG_POSITION(@"Available area: %.1f x %.1f, Max position: (%.1f, %.1f)",
-                 availableWidth, availableHeight, maxX, maxY);
+    // Calculate the reachable center positions
+    CGFloat minCenterX = minFrameX + self.frame.size.width / 2.0;
+    CGFloat maxCenterX = maxFrameX + self.frame.size.width / 2.0;
+    CGFloat minCenterY = minFrameY + self.frame.size.height / 2.0;
+    CGFloat maxCenterY = maxFrameY + self.frame.size.height / 2.0;
     
-    // Calculate ratio considering safe area and ensure it's within bounds
+    // Calculate maximum offsets from center
+    CGFloat maxOffsetX = MAX(fabs(minCenterX - screenCenterX), fabs(maxCenterX - screenCenterX));
+    CGFloat maxOffsetY = MAX(fabs(minCenterY - screenCenterY), fabs(maxCenterY - screenCenterY));
+    
+    LOG_POSITION(@"Screen center: (%.1f, %.1f), Capsule center: (%.1f, %.1f)", screenCenterX, screenCenterY, capsuleCenterX, capsuleCenterY);
+    LOG_POSITION(@"Reachable center range - X: [%.1f, %.1f], Y: [%.1f, %.1f]", minCenterX, maxCenterX, minCenterY, maxCenterY);
+    LOG_POSITION(@"Max offsets: (%.1f, %.1f)", maxOffsetX, maxOffsetY);
+    
+    // Calculate center-relative ratio
     CGFloat ratioX = 0;
     CGFloat ratioY = 0;
     
-    if (maxX > 0) {
-        ratioX = (self.frame.origin.x - self.safeAreaInsets.left) / maxX;
-        ratioX = MAX(0, MIN(1, ratioX));
+    if (maxOffsetX > 0) {
+        ratioX = (capsuleCenterX - screenCenterX) / maxOffsetX;
+        ratioX = MAX(-1, MIN(1, ratioX));
     }
     
-    if (maxY > 0) {
-        ratioY = (self.frame.origin.y - self.safeAreaInsets.top) / maxY;
-        ratioY = MAX(0, MIN(1, ratioY));
+    if (maxOffsetY > 0) {
+        ratioY = (capsuleCenterY - screenCenterY) / maxOffsetY;
+        ratioY = MAX(-1, MIN(1, ratioY));
     }
     
-    LOG_POSITION(@"Calculated ratio: (%.3f, %.3f)", ratioX, ratioY);
+    LOG_POSITION(@"Calculated center-relative ratio: (%.3f, %.3f)", ratioX, ratioY);
+    LOG_POSITION(@"Previous ratio was: (%.3f, %.3f)", self.positionRatio.x, self.positionRatio.y);
     
-    // Store the ratio
-    self.lastPositionRatio = CGPointMake(ratioX, ratioY);
-    [self savePositionRatio:self.lastPositionRatio];
-}
-
-// 处理屏幕旋转
-- (void)orientationDidChange:(NSNotification *)notification {
-    LOG_POSITION(@"Orientation changed, updating position");
-    // 只更新布局，不保存位置
-    [self updateLayout];
+    // Store the center-relative ratio
+    self.positionRatio = CGPointMake(ratioX, ratioY);
+    [self savePositionRatio:self.positionRatio];
+    
+    LOG_POSITION(@"Stored new center-relative ratio: (%.3f, %.3f)", ratioX, ratioY);
 }
 
 - (void)setupViews {
@@ -360,17 +435,51 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     // 拖动时恢复胶囊背景正常展示透明度
     self.capsuleBackgroundView.alpha = kCapsuleAlphaNormal;
     
-    CGPoint translation = [gesture translationInView:self.superview];
+    // 确保使用正确的坐标系（相对于父视图）
+    UIView *referenceView = self.superview;
+    if (!referenceView) {
+        // Fallback to active window if no superview
+        referenceView = [self activeWindow];
+    }
     
-    if (gesture.state == UIGestureRecognizerStateChanged) {
-        CGPoint newCenter = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
-        self.center = newCenter;
-        [gesture setTranslation:CGPointZero inView:self.superview];
+    CGPoint translation = [gesture translationInView:referenceView];
+    
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        LOG_POSITION(@"Pan gesture began at position: (%.1f, %.1f)", self.frame.origin.x, self.frame.origin.y);
+        LOG_POSITION(@"Current ratio: (%.3f, %.3f)", 
+                     self.positionRatio.x, self.positionRatio.y);
+    } else if (gesture.state == UIGestureRecognizerStateChanged) {
+        // Calculate new position based on current frame origin instead of center to avoid compound errors
+        CGFloat newX = self.frame.origin.x + translation.x;
+        CGFloat newY = self.frame.origin.y + translation.y;
+        
+        // Update frame directly
+        self.frame = CGRectMake(newX, newY, self.frame.size.width, self.frame.size.height);
+        [gesture setTranslation:CGPointZero inView:referenceView];
+        
         if (self.isExpanded) {
             [self updateMenuPosition];
         }
+        
+        LOG_POSITION(@"Dragging to position: (%.1f, %.1f)", newX, newY);
     } else if (gesture.state == UIGestureRecognizerStateEnded) {
         LOG_POSITION(@"Pan gesture ended, saving position");
+        
+        // Check for Dynamic Island overlap and adjust if necessary
+        UIWindow *window = [self activeWindow];
+        if (window && [self doesCapsuleOverlapDynamicIsland:window]) {
+            LOG_POSITION(@"Dragged position overlaps with Dynamic Island, adjusting...");
+            CGPoint adjustedPosition = [self adjustPositionToAvoidDynamicIsland:window];
+            
+            // Animate to the adjusted position
+            [UIView animateWithDuration:0.3 
+                             animations:^{
+                self.frame = CGRectMake(adjustedPosition.x, adjustedPosition.y, self.frame.size.width, self.frame.size.height);
+            }];
+            
+            LOG_POSITION(@"Position adjusted to: (%.1f, %.1f)", adjustedPosition.x, adjustedPosition.y);
+        }
+        
         // 计算并保存新的位置比例
         [self updateRatioFromPosition];
         
@@ -456,9 +565,8 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     CGRect capsuleFrameInWindow = [self.capsuleView convertRect:self.capsuleView.bounds toView:window];
     
     // Calculate available space above and below
-    CGFloat spaceAbove = capsuleFrameInWindow.origin.y - self.safeAreaInsets.top;
-    CGFloat spaceBelow = screenBounds.size.height - self.safeAreaInsets.bottom - 
-                        (capsuleFrameInWindow.origin.y + capsuleFrameInWindow.size.height);
+    CGFloat spaceAbove = capsuleFrameInWindow.origin.y;
+    CGFloat spaceBelow = screenBounds.size.height - (capsuleFrameInWindow.origin.y + capsuleFrameInWindow.size.height);
     
     // Determine menu vertical position
     CGFloat menuY;
@@ -470,9 +578,9 @@ static const CGFloat kFadeTimerInterval = 3.0f;
         menuY = capsuleFrameInWindow.origin.y + capsuleFrameInWindow.size.height + kMenuVerticalSpacing;
     }
     
-    // Ensure menu stays within safe area vertically
-    menuY = MAX(self.safeAreaInsets.top + kMenuHorizontalPadding, 
-                MIN(screenBounds.size.height - self.safeAreaInsets.bottom - menuHeight - kMenuHorizontalPadding, menuY));
+    // Ensure menu stays within screen bounds vertically
+    menuY = MAX(kMenuHorizontalPadding, 
+                MIN(screenBounds.size.height - menuHeight - kMenuHorizontalPadding, menuY));
     
     // Calculate menu horizontal position
     CGFloat menuX;
@@ -493,9 +601,29 @@ static const CGFloat kFadeTimerInterval = 3.0f;
         menuX = (screenBounds.size.width - menuWidth) / 2.0f;
     }
     
-    // Ensure menu stays within safe area horizontally
-    menuX = MAX(self.safeAreaInsets.left + kMenuHorizontalPadding,
-                MIN(screenBounds.size.width - self.safeAreaInsets.right - menuWidth - kMenuHorizontalPadding, menuX));
+    // Ensure menu stays within screen bounds horizontally
+    menuX = MAX(kMenuHorizontalPadding,
+                MIN(screenBounds.size.width - menuWidth - kMenuHorizontalPadding, menuX));
+    
+    // Avoid Dynamic Island area when positioning menu
+    CGRect dynamicIslandRect = [self getDynamicIslandRect:window];
+    if (dynamicIslandRect.size.height > 0) {
+        CGRect proposedMenuRect = CGRectMake(menuX, menuY, menuWidth, menuHeight);
+        
+        // Check if menu would overlap with Dynamic Island
+        if (CGRectIntersectsRect(proposedMenuRect, dynamicIslandRect)) {
+            LOG_POSITION(@"Menu would overlap with Dynamic Island, adjusting position");
+            
+            // Move menu below Dynamic Island
+            CGFloat dynamicIslandBottom = dynamicIslandRect.origin.y + dynamicIslandRect.size.height;
+            menuY = MAX(menuY, dynamicIslandBottom + kMenuVerticalSpacing);
+            
+            // Ensure menu still fits on screen
+            menuY = MIN(menuY, screenBounds.size.height - menuHeight - kMenuHorizontalPadding);
+            
+            LOG_POSITION(@"Menu position adjusted to avoid Dynamic Island: Y = %.1f", menuY);
+        }
+    }
     
     // Update menu frame
     self.menuView.frame = CGRectMake(menuX, menuY, menuWidth, menuHeight);
@@ -751,19 +879,9 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     UIWindow *window = [self activeWindow];
     if (!window) return;
     
-    // Update safe area insets
-    if (@available(iOS 11.0, *)) {
-        self.safeAreaInsets = window.safeAreaInsets;
-    } else {
-        self.safeAreaInsets = UIEdgeInsetsZero;
-    }
+    LOG_POSITION(@"addToActiveWindow called");
     
-    // If no saved position, set default position (bottom right)
-    if (CGPointEqualToPoint(self.lastPositionRatio, CGPointZero)) {
-        self.lastPositionRatio = CGPointMake(0.95, 0.9);
-    }
-    
-    // Update layout
+    // Update layout based on current position ratio
     [self updateLayout];
     
     // 确保userInteractionEnabled为YES
@@ -790,19 +908,13 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     [window addSubview:self];
 }
 
-// Add new method to update layout
 - (void)updateLayout {
     UIWindow *window = [self activeWindow];
     if (!window) return;
     
-    // Update safe area insets
-    if (@available(iOS 11.0, *)) {
-        self.safeAreaInsets = window.safeAreaInsets;
-    } else {
-        self.safeAreaInsets = UIEdgeInsetsZero;
-    }
+    LOG_POSITION(@"updateLayout called");
     
-    // Update position based on saved ratio
+    // Update position based on current ratio
     [self updatePositionFromRatio];
     
     // If menu is expanded, update its position too
@@ -811,13 +923,118 @@ static const CGFloat kFadeTimerInterval = 3.0f;
     }
 }
 
-// Add new method implementation
-- (void)savePositionRatio:(CGPoint)ratio {
-    LOG_POSITION(@"Saving position ratio: (%.3f, %.3f)", ratio.x, ratio.y);
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setFloat:ratio.x forKey:@"ScrappyMenuLastPositionRatioX"];
-    [defaults setFloat:ratio.y forKey:@"ScrappyMenuLastPositionRatioY"];
-    [defaults synchronize];
+#pragma mark - Dynamic Island Avoidance
+
+/*
+ * Dynamic Island Avoidance System
+ * 
+ * This system prevents the capsule from overlapping with the Dynamic Island area on supported devices.
+ * 
+ * Dynamic Island Definition:
+ * - Width: 100 points (centered horizontally)
+ * - Height: Equal to safe area top inset
+ * - Position: Top center of the screen
+ * 
+ * Avoidance Strategy:
+ * 1. During layout updates: Check and adjust position if capsule would overlap
+ * 2. During drag operations: Animate to safe position when drag ends in Dynamic Island area
+ * 3. Menu positioning: Ensure expanded menu doesn't overlap with Dynamic Island
+ * 
+ * The system chooses the minimal movement required (left, right, or down) to resolve overlaps.
+ */
+
+- (CGRect)getDynamicIslandRect:(UIWindow *)window {
+    if (!window) return CGRectZero;
+    
+    CGRect screenBounds = window.bounds;
+    CGFloat screenWidth = screenBounds.size.width;
+    
+    // Get safe area insets to determine dynamic island height
+    UIEdgeInsets safeAreaInsets = UIEdgeInsetsZero;
+    if (@available(iOS 11.0, *)) {
+        safeAreaInsets = window.safeAreaInsets;
+    }
+    
+    // Dynamic island area: center width 100, height = safe area top
+    CGFloat dynamicIslandHeight = safeAreaInsets.top;
+    CGFloat dynamicIslandX = (screenWidth - kDynamicIslandWidth) / 2.0;
+    CGFloat dynamicIslandY = 0;
+    
+    CGRect dynamicIslandRect = CGRectMake(dynamicIslandX, dynamicIslandY, kDynamicIslandWidth, dynamicIslandHeight);
+    
+    LOG_POSITION(@"Dynamic Island rect: (%.1f, %.1f, %.1f, %.1f)", 
+                 dynamicIslandRect.origin.x, dynamicIslandRect.origin.y, 
+                 dynamicIslandRect.size.width, dynamicIslandRect.size.height);
+    
+    return dynamicIslandRect;
+}
+
+- (BOOL)doesCapsuleOverlapDynamicIsland:(UIWindow *)window {
+    CGRect dynamicIslandRect = [self getDynamicIslandRect:window];
+    
+    // If dynamic island height is 0 (no safe area top), no overlap possible
+    if (dynamicIslandRect.size.height <= 0) {
+        return NO;
+    }
+    
+    CGRect capsuleRect = self.frame;
+    BOOL overlap = CGRectIntersectsRect(capsuleRect, dynamicIslandRect);
+    
+    if (overlap) {
+        LOG_POSITION(@"Capsule overlaps with Dynamic Island - Capsule: (%.1f, %.1f, %.1f, %.1f), Island: (%.1f, %.1f, %.1f, %.1f)",
+                     capsuleRect.origin.x, capsuleRect.origin.y, capsuleRect.size.width, capsuleRect.size.height,
+                     dynamicIslandRect.origin.x, dynamicIslandRect.origin.y, dynamicIslandRect.size.width, dynamicIslandRect.size.height);
+    }
+    
+    return overlap;
+}
+
+- (CGPoint)adjustPositionToAvoidDynamicIsland:(UIWindow *)window {
+    CGRect dynamicIslandRect = [self getDynamicIslandRect:window];
+    
+    // If no dynamic island area, return current position
+    if (dynamicIslandRect.size.height <= 0) {
+        return self.frame.origin;
+    }
+    
+    CGRect capsuleRect = self.frame;
+    CGRect screenBounds = window.bounds;
+    
+    // Calculate distances to move capsule out of dynamic island area
+    CGFloat moveLeft = dynamicIslandRect.origin.x - (capsuleRect.origin.x + capsuleRect.size.width);
+    CGFloat moveRight = (dynamicIslandRect.origin.x + dynamicIslandRect.size.width) - capsuleRect.origin.x;
+    CGFloat moveDown = (dynamicIslandRect.origin.y + dynamicIslandRect.size.height) - capsuleRect.origin.y;
+    
+    // Choose the movement that requires the least distance
+    CGFloat newX = capsuleRect.origin.x;
+    CGFloat newY = capsuleRect.origin.y;
+    
+    // Consider horizontal movement first (left or right)
+    if (fabs(moveLeft) <= fabs(moveRight)) {
+        // Move left
+        newX = capsuleRect.origin.x + moveLeft;
+        LOG_POSITION(@"Avoiding Dynamic Island by moving left by %.1f", fabs(moveLeft));
+    } else {
+        // Move right
+        newX = capsuleRect.origin.x + moveRight;
+        LOG_POSITION(@"Avoiding Dynamic Island by moving right by %.1f", moveRight);
+    }
+    
+    // If horizontal movement would put capsule out of screen bounds, move down instead
+    if (newX < 0 || newX + capsuleRect.size.width > screenBounds.size.width) {
+        newX = capsuleRect.origin.x; // Keep original X
+        newY = capsuleRect.origin.y + moveDown;
+        LOG_POSITION(@"Horizontal movement out of bounds, moving down by %.1f instead", moveDown);
+    }
+    
+    // Ensure the new position is within screen bounds
+    newX = MAX(0, MIN(screenBounds.size.width - capsuleRect.size.width, newX));
+    newY = MAX(0, MIN(screenBounds.size.height - capsuleRect.size.height, newY));
+    
+    LOG_POSITION(@"Adjusted position to avoid Dynamic Island: (%.1f, %.1f) -> (%.1f, %.1f)",
+                 capsuleRect.origin.x, capsuleRect.origin.y, newX, newY);
+    
+    return CGPointMake(newX, newY);
 }
 
 @end 
