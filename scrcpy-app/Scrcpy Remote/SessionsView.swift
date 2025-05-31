@@ -104,7 +104,7 @@ struct SessionsView: View {
                                             .cornerRadius(15)
                                     }
                                 }
-                                .padding(),
+                                    .padding(),
                                 alignment: .bottomTrailing
                             )
                             .overlay(
@@ -113,9 +113,7 @@ struct SessionsView: View {
                             )
                     }
                     .listRowInsets(EdgeInsets())
-                    .padding(.bottom, session.id == savedSessions.last?.id ? 16 : 8)
-                    .padding(.top, session.id == savedSessions.first?.id ? 16 : 8)
-                    .padding(.horizontal, 12)
+                    .padding(8)
                     .listRowSeparator(.hidden)
                     .contextMenu {
                         Button(action: {
@@ -144,6 +142,7 @@ struct SessionsView: View {
                     }
                 }
                 .listStyle(.plain)
+                .padding(.horizontal, 8)
                 .refreshable {
                     isRefreshing = true
                     // Reset all latency results

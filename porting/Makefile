@@ -52,3 +52,13 @@ scrcpy-server:
 	sed -ibak 's/exit/echo/g' server/scripts/build-wrapper.sh && \
 	ninja -Cx -v && \
 	find . -type f -name "scrcpy-server" -exec cp -v {} ../../../scrcpy-app/ADBClient/scrcpy-server \;
+
+tsnet-forwarder:
+	cd libtsnet && \
+		make build-iphoneos-arm64 && \
+		make build-iphonesimulator-arm64 && \
+		make build-iphonesimulator-x86_64 && \
+		echo  "✅ Build libtsnet-forwarder finished!"
+	cd libtsnet/build && \
+		find . -name "*.a" -exec cp -v {} ../../libs/{} \; && \
+		find include -name "*.h" -exec cp -v {} ../../libs/{} \;
