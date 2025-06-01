@@ -122,6 +122,24 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA4B6E142DEB40C900813661 /* Exceptions for "LatencyTest" folder in "Scrcpy Remote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Makefile,
+				README.md,
+				"tcp-latency-tester",
+				"tcp-latency-tester-cli.m",
+			);
+			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
+		};
+		AA4B6E152DEB40EE00813661 /* Exceptions for "ADBClient" folder in "Scrcpy Remote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Makefile,
+				README.md,
+			);
+			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
+		};
 		AAA4EF5C2D0DF10100D361CA /* Exceptions for "Scrcpy SDL" folder in "Scrcpy Remote" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -147,6 +165,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA4B6E0C2DEB409D00813661 /* LatencyTest */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA4B6E142DEB40C900813661 /* Exceptions for "LatencyTest" folder in "Scrcpy Remote" target */,
+			);
+			path = LatencyTest;
+			sourceTree = "<group>";
+		};
 		AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Scrcpy Remote";
@@ -176,6 +202,9 @@
 		};
 		AAA4EFC72D1072DE00D361CA /* ADBClient */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA4B6E152DEB40EE00813661 /* Exceptions for "ADBClient" folder in "Scrcpy Remote" target */,
+			);
 			path = ADBClient;
 			sourceTree = "<group>";
 		};
@@ -237,6 +266,7 @@
 				AAA4EF592D0DEC9300D361CA /* Scrcpy SDL */,
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
+				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
 				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
 				AAA4EF322D0D277400D361CA /* Frameworks */,
 				AA7EA5272D01F33E00FF7760 /* Products */,
@@ -330,6 +360,7 @@
 				AAA4EFA32D0FBEB000D361CA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EFC72D1072DE00D361CA /* ADBClient */,
 			);
@@ -646,6 +677,7 @@
 				OTHER_LDFLAGS = (
 					"-ladb-full",
 					"-lscrcpy",
+					"-ltsnet-forwarder",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -689,6 +721,7 @@
 				OTHER_LDFLAGS = (
 					"-ladb-full",
 					"-lscrcpy",
+					"-ltsnet-forwarder",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
 				PRODUCT_NAME = "$(TARGET_NAME)";

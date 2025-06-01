@@ -20,6 +20,12 @@ type ForwardCallback struct {
 	OnForwardError   func(remoteAddr string, remotePort int, localPort int, err error)
 }
 
+// ConnectCallback defines the connection status callback interface
+type ConnectCallback struct {
+	OnConnectSuccess func(hostname string, magicDNS string, ipv4 string, ipv6 string)
+	OnConnectError   func(hostname string, err error)
+}
+
 // ForwardInfo stores forwarding information
 type ForwardInfo struct {
 	RemoteAddr string
@@ -31,13 +37,15 @@ type ForwardInfo struct {
 
 // TSNetForwarder tsnet forwarder
 type TSNetForwarder struct {
-	server    *tsnet.Server
-	authKey   string
-	hostname  string
-	forwards  map[string]*ForwardInfo
-	callback  *ForwardCallback
-	mutex     sync.RWMutex
-	isStarted bool
+	server          *tsnet.Server
+	authKey         string
+	hostname        string
+	stateDir        string
+	forwards        map[string]*ForwardInfo
+	callback        *ForwardCallback
+	connectCallback *ConnectCallback
+	mutex           sync.RWMutex
+	isStarted       bool
 }
 
 var globalForwarder *TSNetForwarder
@@ -48,6 +56,7 @@ func GetInstance() *TSNetForwarder {
 	initOnce.Do(func() {
 		globalForwarder = &TSNetForwarder{
 			forwards: make(map[string]*ForwardInfo),
+			stateDir: "/tmp/tsnet-forwarder", // default state directory
 		}
 	})
 	return globalForwarder
@@ -83,6 +92,21 @@ func (f *TSNetForwarder) TsnetUpdateHostname(hostname string) error {
 	return nil
 }
 
+// TsnetUpdateStateDir sets the tsnet state directory
+func (f *TSNetForwarder) TsnetUpdateStateDir(stateDir string) error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	f.stateDir = stateDir
+
+	// If the server is already started, need to reinitialize to use the new state directory
+	if f.isStarted {
+		f.stopServer()
+		return f.startServer()
+	}
+	return nil
+}
+
 // getHostname gets the hostname to use, if not set, use the local hostname
 func (f *TSNetForwarder) getHostname() string {
 	if f.hostname != "" {
@@ -98,20 +122,30 @@ func (f *TSNetForwarder) getHostname() string {
 	return "scrcpy-tsnet-forwarder"
 }
 
+// getStateDir gets the state directory to use
+func (f *TSNetForwarder) getStateDir() string {
+	if f.stateDir != "" {
+		return f.stateDir
+	}
+	return "/tmp/tsnet-forwarder"
+}
+
 // startServer starts the tsnet server
 func (f *TSNetForwarder) startServer() error {
 	if f.isStarted {
 		return nil
 	}
 
-	tsnetData := "/tmp/tsnet-forwarder"
+	tsnetData := f.getStateDir()
+	hostname := f.getHostname()
 
-	// Clean up old tsnet data
+	// First try to reuse existing state if it exists
+	stateExists := false
 	if _, err := os.Stat(tsnetData); !os.IsNotExist(err) {
-		_ = os.RemoveAll(tsnetData)
+		stateExists = true
+		log.Printf("Found existing state directory: %s, attempting to reuse", tsnetData)
 	}
 
-	hostname := f.getHostname()
 	f.server = &tsnet.Server{
 		Dir:      tsnetData,
 		Hostname: hostname,
@@ -119,7 +153,25 @@ func (f *TSNetForwarder) startServer() error {
 	}
 
 	if err := f.server.Start(); err != nil {
-		return fmt.Errorf("failed to start tsnet server: %v", err)
+		// If we have existing state and start failed, try cleaning up and retrying
+		if stateExists {
+			log.Printf("Failed to start with existing state, cleaning up and retrying: %v", err)
+			f.server.Close()
+			_ = os.RemoveAll(tsnetData)
+
+			// Retry with clean state
+			f.server = &tsnet.Server{
+				Dir:      tsnetData,
+				Hostname: hostname,
+				AuthKey:  f.authKey,
+			}
+
+			if err := f.server.Start(); err != nil {
+				return fmt.Errorf("failed to start tsnet server after cleanup: %v", err)
+			}
+		} else {
+			return fmt.Errorf("failed to start tsnet server: %v", err)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -127,13 +179,46 @@ func (f *TSNetForwarder) startServer() error {
 
 	_, err := f.server.Up(ctx)
 	if err != nil {
-		f.server.Close()
-		return fmt.Errorf("failed to bring up tsnet server: %v", err)
+		// If Up failed and we haven't tried cleanup yet, try once more with clean state
+		if stateExists {
+			log.Printf("Failed to bring up with existing state, cleaning up and retrying: %v", err)
+			f.server.Close()
+			_ = os.RemoveAll(tsnetData)
+
+			// Retry with clean state
+			f.server = &tsnet.Server{
+				Dir:      tsnetData,
+				Hostname: hostname,
+				AuthKey:  f.authKey,
+			}
+
+			if err := f.server.Start(); err != nil {
+				return fmt.Errorf("failed to start tsnet server after cleanup: %v", err)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			_, err := f.server.Up(ctx)
+			if err != nil {
+				f.server.Close()
+				return fmt.Errorf("failed to bring up tsnet server after cleanup: %v", err)
+			}
+		} else {
+			f.server.Close()
+			return fmt.Errorf("failed to bring up tsnet server: %v", err)
+		}
 	}
 
 	f.isStarted = true
 	ip4, ip6 := f.server.TailscaleIPs()
-	log.Printf("TSNet server started with hostname '%s' and IPs: %v, %v", hostname, ip4, ip6)
+
+	if stateExists {
+		log.Printf("TSNet server reused existing state with hostname '%s', state dir '%s' and IPs: %v, %v", hostname, tsnetData, ip4, ip6)
+	} else {
+		log.Printf("TSNet server started with hostname '%s', state dir '%s' and IPs: %v, %v", hostname, tsnetData, ip4, ip6)
+	}
+
 	return nil
 }
 
@@ -322,6 +407,89 @@ func (f *TSNetForwarder) TsnetRegisterCallback(callback *ForwardCallback) {
 	f.callback = callback
 }
 
+// TsnetRegisterConnectCallback registers connection callback functions
+func (f *TSNetForwarder) TsnetRegisterConnectCallback(callback *ConnectCallback) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	f.connectCallback = callback
+}
+
+// TsnetConnect connects to Tailscale network and returns connection information via callback
+func (f *TSNetForwarder) TsnetConnect() error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	// Check if authKey is set
+	if f.authKey == "" {
+		err := fmt.Errorf("auth key is not set")
+		if f.connectCallback != nil && f.connectCallback.OnConnectError != nil {
+			f.connectCallback.OnConnectError(f.getHostname(), err)
+		}
+		return err
+	}
+
+	// Check if already started (reuse case)
+	wasAlreadyStarted := f.isStarted
+
+	// Start the server (this will connect to Tailscale)
+	if err := f.startServer(); err != nil {
+		if f.connectCallback != nil && f.connectCallback.OnConnectError != nil {
+			f.connectCallback.OnConnectError(f.getHostname(), err)
+		}
+		return err
+	}
+
+	// Get connection information
+	hostname := f.getHostname()
+	ip4, ip6 := f.server.TailscaleIPs()
+
+	// Generate MagicDNS information (actual format depends on tailnet configuration)
+	magicDNS := f.getMagicDNS(hostname)
+
+	var ipv4Str, ipv6Str string
+	if ip4.IsValid() {
+		ipv4Str = ip4.String()
+	}
+	if ip6.IsValid() {
+		ipv6Str = ip6.String()
+	}
+
+	// Call success callback (always call regardless of new or reused connection)
+	if f.connectCallback != nil && f.connectCallback.OnConnectSuccess != nil {
+		f.connectCallback.OnConnectSuccess(hostname, magicDNS, ipv4Str, ipv6Str)
+	}
+
+	// Log success with appropriate message
+	if wasAlreadyStarted {
+		log.Printf("Reused existing Tailscale connection - Hostname: %s, MagicDNS: %s, IPv4: %s, IPv6: %s",
+			hostname, magicDNS, ipv4Str, ipv6Str)
+	} else {
+		log.Printf("Successfully connected to Tailscale network - Hostname: %s, MagicDNS: %s, IPv4: %s, IPv6: %s",
+			hostname, magicDNS, ipv4Str, ipv6Str)
+	}
+
+	return nil
+}
+
+// TsnetConnectAsync connects to Tailscale network asynchronously
+func (f *TSNetForwarder) TsnetConnectAsync() {
+	go func() {
+		if err := f.TsnetConnect(); err != nil {
+			log.Printf("Async connection failed: %v", err)
+		}
+	}()
+}
+
+// getMagicDNS generates the MagicDNS name for the given hostname
+func (f *TSNetForwarder) getMagicDNS(hostname string) string {
+	// The actual MagicDNS format depends on the tailnet configuration
+	// For most tailnets, it follows the pattern: hostname.tailnet-name.ts.net
+	// Since we can't easily get the tailnet name, we use a generic format
+	// The actual MagicDNS can be different and should be obtained from Tailscale API
+	return hostname + ".tail-scale.ts.net"
+}
+
 // GetForwards gets all current forwarding information
 func (f *TSNetForwarder) GetForwards() map[string]*ForwardInfo {
 	f.mutex.RLock()
@@ -367,6 +535,14 @@ func (f *TSNetForwarder) GetHostname() string {
 	defer f.mutex.RUnlock()
 
 	return f.getHostname()
+}
+
+// GetStateDir gets the currently used state directory
+func (f *TSNetForwarder) GetStateDir() string {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
+
+	return f.getStateDir()
 }
 
 // Cleanup cleans up resources

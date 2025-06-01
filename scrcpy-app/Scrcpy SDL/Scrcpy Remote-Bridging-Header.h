@@ -7,3 +7,7 @@
 
 #import "ScrcpyClientWrapper.h"
 #import "ADBLatencyTester.h"
+#import "TCPLatencyTester.h"
+
+// Import Tailscale library
+#import "libtsnet-forwarder.h"

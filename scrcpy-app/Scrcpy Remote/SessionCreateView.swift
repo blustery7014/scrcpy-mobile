@@ -10,16 +10,69 @@ import SwiftUI
 struct SessionCreateView: View {
     @State var sessionModel = ScrcpySessionModel()
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appSettings: AppSettings
+    @State private var showingTailscaleAuth = false
+    @State private var returnedFromTailscaleAuth = false
+    private let isEditMode: Bool
+    
+    init() {
+        isEditMode = false
+    }
+    
+    init(sessionModel: ScrcpySessionModel) {
+        _sessionModel = State(initialValue: sessionModel)
+        isEditMode = true
+    }
     
     var body: some View {
         Form {
             Section(header: Text("Remote Device")) {
+                TextField("Session Name (Optional)", text: $sessionModel.sessionName)
+                    .autocorrectionDisabled()
                 TextField("Host", text: $sessionModel.host)
                     .textContentType(.URL)
                     .autocorrectionDisabled()
                     .autocapitalization(.none)
                 TextField("Port", text: $sessionModel.port)
                     .keyboardType(.numberPad)
+            }
+            
+            Section(header: Text("Connection Options")) {
+                Toggle("Connect over Tailscale", isOn: $sessionModel.useTailscale)
+                    .onChange(of: sessionModel.useTailscale) { newValue in
+                        if newValue {
+                            // Check if Tailscale Auth Key is set
+                            if appSettings.tailscaleAuthKey.isEmpty {
+                                // If not set, show Tailscale Auth settings
+                                showingTailscaleAuth = true
+                                // Temporarily disable the toggle until auth is set
+                                sessionModel.useTailscale = false
+                            }
+                        }
+                    }
+                
+                if !sessionModel.useTailscale {
+                    Text("Please ensure you have a Tailscale account and the target device is connected to your Tailscale network.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 2)
+                }
+                
+                if sessionModel.useTailscale {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Tailscale Authentication Configured")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                        Text("This session will connect through Tailscale network")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
             }
             
             if sessionModel.deviceType == .vnc {
@@ -124,7 +177,42 @@ struct SessionCreateView: View {
                 .foregroundColor(.secondary)
             }
         }
-        .navigationBarTitle("Create Session", displayMode: .inline)
+        .navigationBarTitle(isEditMode ? "Edit Session" : "Create Session", displayMode: .inline)
+        .sheet(isPresented: $showingTailscaleAuth) {
+            NavigationView {
+                TailscaleAuthSettingsView()
+                    .navigationBarTitle("Tailscale Auth", displayMode: .inline)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                showingTailscaleAuth = false
+                                returnedFromTailscaleAuth = true
+                            }
+                        }
+                    }
+            }
+            .environmentObject(appSettings)
+        }
+        .onChange(of: showingTailscaleAuth) { isShowing in
+            if !isShowing && returnedFromTailscaleAuth {
+                // Check if auth key was set after returning from Tailscale Auth
+                if !appSettings.tailscaleAuthKey.isEmpty {
+                    sessionModel.useTailscale = true
+                }
+                returnedFromTailscaleAuth = false
+            }
+        }
+        .onAppear {
+            // On view appear, if this is edit mode and Tailscale auth key is set,
+            // keep the current useTailscale state. If it's create mode and auth key is set,
+            // we can optionally suggest using Tailscale but don't force it.
+            if isEditMode && sessionModel.useTailscale && appSettings.tailscaleAuthKey.isEmpty {
+                // If editing a session that had Tailscale enabled but auth key is now missing,
+                // disable Tailscale for safety
+                sessionModel.useTailscale = false
+            }
+        }
     }
     
     private func setLocalScreenSize() {

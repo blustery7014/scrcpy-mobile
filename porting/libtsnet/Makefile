@@ -18,6 +18,14 @@ build-c-archive:
 	@echo "Static library built: build/libtsnet-forwarder.a"
 	@echo "Header file built: build/libtsnet-forwarder.h"
 
+# Build C shared library (.so file)
+build-c-shared:
+	@echo "Building C shared library..."
+	@mkdir -p build
+	go build -buildmode=c-shared -o build/libtsnet-forwarder.so ./cmd/c-binding
+	@echo "Shared library built: build/libtsnet-forwarder.so"
+	@echo "Header file built: build/libtsnet-forwarder.h"
+
 # iOS device static library build (ARM64)
 build-iphoneos-arm64:
 	@echo "Building iOS device ARM64 static library..."
@@ -89,6 +97,27 @@ run-example:
 	@echo "Running example program..."
 	go run ./cmd/main
 
+# Build C test program
+build-c-test: build-c-archive
+	@echo "Building C test program..."
+	@mkdir -p build
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		gcc -o build/c-test cmd/main.c build/libtsnet-forwarder.a -lpthread -framework CoreFoundation -framework Security -framework IOKit; \
+	else \
+		gcc -o build/c-test cmd/main.c build/libtsnet-forwarder.a -lpthread; \
+	fi
+	@echo "C test program built: build/c-test"
+
+# Run C test program
+run-c-test: build-c-test
+	@echo "Running C test program..."
+	@if [ -z "$(TS_AUTHKEY)" ]; then \
+		echo "Error: TS_AUTHKEY environment variable is not set"; \
+		echo "Usage: TS_AUTHKEY=your-auth-key make run-c-test"; \
+		exit 1; \
+	fi
+	@./build/c-test "$(TS_AUTHKEY)" "$(shell hostname)-c-test" "/tmp/tsnet-c-test"
+
 # Clean build files
 clean:
 	@echo "Cleaning build files..."
@@ -109,6 +138,7 @@ help:
 	@echo "  build-go                     - Build Go library only"
 	@echo "  build-c-archive              - Build C static library (.a file)"
 	@echo "  build-c-shared               - Build C shared library (.so file)"
+	@echo "  build-c-test                 - Build C test program"
 	@echo ""
 	@echo "iOS specific targets:"
 	@echo "  build-iphoneos-arm64         - Build iOS device ARM64 static library"
@@ -122,9 +152,16 @@ help:
 	@echo "  build-ios-arm64              - Use build-iphoneos-arm64 instead"
 	@echo "  build-ios-simulator          - Use build-iphonesimulator-x86_64 instead"
 	@echo ""
-	@echo "Other targets:"
+	@echo "Test and run targets:"
 	@echo "  test                         - Run Go tests"
 	@echo "  run-example                  - Run example program"
+	@echo "  run-c-test                   - Run C test program (requires TS_AUTHKEY)"
+	@echo ""
+	@echo "Other targets:"
 	@echo "  clean                        - Clean build files"
 	@echo "  deps                         - Install/update dependencies"
 	@echo "  help                         - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  TS_AUTHKEY=tskey-auth-xxxxx make run-c-test"
+	@echo "  make build-c-test && ./build/c-test tskey-auth-xxxxx my-hostname /tmp/tsnet"

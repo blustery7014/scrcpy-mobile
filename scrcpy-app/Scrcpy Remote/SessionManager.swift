@@ -18,9 +18,9 @@ struct VNCSessionOptions: Codable, Identifiable {
     
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(UUID.self, forKey: .id)
-        self.vncUser = try container.decode(String.self, forKey: .vncUser)
-        self.vncPassword = try container.decode(String.self, forKey: .vncPassword)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.vncUser = try container.decodeIfPresent(String.self, forKey: .vncUser) ?? ""
+        self.vncPassword = try container.decodeIfPresent(String.self, forKey: .vncPassword) ?? ""
     }
 }
 
@@ -52,51 +52,23 @@ struct ADBSessionOptions: Codable, Identifiable {
     
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.maxScreenSize = try container.decode(String.self, forKey: .maxScreenSize)
-        self.bitRate = try container.decode(String.self, forKey: .bitRate)
-        self.videoEncoder = try container.decode(String.self, forKey: .videoEncoder)
-        self.maxFPS = try container.decode(String.self, forKey: .maxFPS)
-        do {
-            self.enableAudio = try container.decode(Bool.self, forKey: .enableAudio)
-        } catch {
-            self.enableAudio = false
-        }
-        do {
-            self.videoCodec = try container.decode(ADBCodec.self, forKey: .videoCodec)
-        } catch {
-            self.videoCodec = .h264
-        }
-        do {
-            self.enableClipboardSync = try container.decode(Bool.self, forKey: .enableClipboardSync)
-        } catch {
-            self.enableClipboardSync = true
-        }
-        do {
-            self.volumeScale = try container.decode(Double.self, forKey: .volumeScale)
-        } catch {
-            self.volumeScale = 1.0
-        }
+        
+        // Decode with default values for backward compatibility
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.maxScreenSize = try container.decodeIfPresent(String.self, forKey: .maxScreenSize) ?? ""
+        self.bitRate = try container.decodeIfPresent(String.self, forKey: .bitRate) ?? ""
+        self.videoEncoder = try container.decodeIfPresent(String.self, forKey: .videoEncoder) ?? ""
+        self.maxFPS = try container.decodeIfPresent(String.self, forKey: .maxFPS) ?? "60"
+        self.enableAudio = try container.decodeIfPresent(Bool.self, forKey: .enableAudio) ?? false
+        self.videoCodec = try container.decodeIfPresent(ADBCodec.self, forKey: .videoCodec) ?? .h264
+        self.enableClipboardSync = try container.decodeIfPresent(Bool.self, forKey: .enableClipboardSync) ?? true
+        self.volumeScale = try container.decodeIfPresent(Double.self, forKey: .volumeScale) ?? 1.0
+        
         // 解码新虚拟显示器选项
-        do {
-            self.startNewDisplay = try container.decode(Bool.self, forKey: .startNewDisplay)
-        } catch {
-            self.startNewDisplay = false
-        }
-        do {
-            self.displayWidth = try container.decode(String.self, forKey: .displayWidth)
-        } catch {
-            self.displayWidth = ""
-        }
-        do {
-            self.displayHeight = try container.decode(String.self, forKey: .displayHeight)
-        } catch {
-            self.displayHeight = ""
-        }
-        do {
-            self.displayDPI = try container.decode(String.self, forKey: .displayDPI)
-        } catch {
-            self.displayDPI = "240"
-        }
+        self.startNewDisplay = try container.decodeIfPresent(Bool.self, forKey: .startNewDisplay) ?? false
+        self.displayWidth = try container.decodeIfPresent(String.self, forKey: .displayWidth) ?? ""
+        self.displayHeight = try container.decodeIfPresent(String.self, forKey: .displayHeight) ?? ""
+        self.displayDPI = try container.decodeIfPresent(String.self, forKey: .displayDPI) ?? "240"
     }
 }
 
@@ -111,6 +83,8 @@ struct ScrcpySessionModel: Codable, Identifiable {
     var id = UUID()
     var host: String
     var port: String
+    var sessionName: String = ""
+    var useTailscale: Bool = false
     
     var hostReal: String {
         get {
@@ -139,11 +113,49 @@ struct ScrcpySessionModel: Codable, Identifiable {
     init() {
         host = ""
         port = ""
+        sessionName = ""
+        useTailscale = false
     }
     
     init(host: String, port: String) {
         self.host = host
         self.port = port
+        self.sessionName = ""
+        self.useTailscale = false
+    }
+    
+    init(host: String, port: String, sessionName: String = "") {
+        self.host = host
+        self.port = port
+        self.sessionName = sessionName
+        self.useTailscale = false
+    }
+    
+    // Custom decoder for backward compatibility
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Decode required fields
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.host = try container.decode(String.self, forKey: .host)
+        self.port = try container.decode(String.self, forKey: .port)
+        
+        // Decode optional fields with default values for backward compatibility
+        self.sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName) ?? ""
+        self.useTailscale = try container.decodeIfPresent(Bool.self, forKey: .useTailscale) ?? false
+        
+        // Decode nested objects with error handling
+        do {
+            self.vncOptions = try container.decode(VNCSessionOptions.self, forKey: .vncOptions)
+        } catch {
+            self.vncOptions = VNCSessionOptions()
+        }
+        
+        do {
+            self.adbOptions = try container.decode(ADBSessionOptions.self, forKey: .adbOptions)
+        } catch {
+            self.adbOptions = ADBSessionOptions()
+        }
     }
     
     func toDict() -> [String: Any] {

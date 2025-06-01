@@ -186,6 +186,36 @@ char* ip = tsnet_get_tailscale_ips();
 int count = tsnet_cleanup();
 ```
 
+#### 🔗 Connection Testing
+
+```c
+#include "libtsnet-forwarder.h"
+
+// Set configuration
+update_tsnet_auth_key("your-auth-key");
+tsnet_update_hostname("my-device");
+tsnet_update_state_dir("/tmp/tsnet-state");
+
+// Connect to Tailscale (async)
+tsnet_connect_async();
+
+// Monitor connection status
+int status = tsnet_get_connect_status();
+if (status == 1) {
+    // Connection successful - get information
+    char* hostname = tsnet_get_last_hostname();
+    char* magic_dns = tsnet_get_last_magic_dns();
+    char* ipv4 = tsnet_get_last_ipv4();
+    char* ipv6 = tsnet_get_last_ipv6();
+    
+    printf("Connected: %s (%s)\n", hostname, magic_dns);
+    printf("IPv4: %s, IPv6: %s\n", ipv4, ipv6);
+    
+    // Remember to free allocated strings
+    free(hostname); free(magic_dns); free(ipv4); free(ipv6);
+}
+```
+
 ---
 
 ## 🔨 Build Instructions
@@ -198,11 +228,39 @@ int count = tsnet_cleanup();
 | `make build-go` | Build Go library | `build/` |
 | `make build-c-archive` | Build C static library | `build/libtsnet-forwarder.a` |
 | `make build-c-shared` | Build C shared library | `build/libtsnet.so` |
+| `make build-c-test` | Build C test program | `build/c-test` |
 | `make build-ios-arm64` | Build iOS ARM64 static library | `build/ios/` |
 | `make build-ios-simulator` | Build iOS simulator library | `build/ios/` |
 | `make build-ios-universal` | Build iOS universal library | `build/ios/libtsnet-forwarder.a` |
 | `make test` | Run test suite | - |
 | `make run-example` | Run example program | - |
+| `make run-c-test` | Run C test program | - |
+
+### C Test Program
+
+The project includes a comprehensive C test program that demonstrates all library features:
+
+```bash
+# Quick test with environment variable
+TS_AUTHKEY="your-tailscale-auth-key" make run-c-test
+
+# Manual build and run
+make build-c-test
+./build/c-test "tskey-auth-xxxxxx" "my-hostname" "/tmp/tsnet-test"
+
+# Interactive demo script
+./cmd/demo.sh "tskey-auth-xxxxxx"
+```
+
+The C test program features:
+- ✅ **Complete API Testing** - Tests all C API functions
+- ✅ **Connection Monitoring** - Real-time connection status tracking
+- ✅ **Information Display** - Shows MagicDNS, IPv4, and IPv6 addresses
+- ✅ **Error Handling** - Comprehensive error reporting and timeout management
+- ✅ **Memory Management** - Proper cleanup of allocated resources
+- ✅ **Colorized Output** - User-friendly interface with color-coded messages
+
+See `cmd/README-C-TEST.md` for detailed usage instructions.
 
 ### Build Steps
 
