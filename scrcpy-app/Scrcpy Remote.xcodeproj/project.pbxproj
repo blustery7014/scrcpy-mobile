@@ -140,6 +140,14 @@
 			);
 			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
 		};
+		AA4B6E282DEC67C200813661 /* Exceptions for "ADBClient" folder in "VNCClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyMenuMaskView.m,
+				ScrcpyMenuView.m,
+			);
+			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
+		};
 		AAA4EF5C2D0DF10100D361CA /* Exceptions for "Scrcpy SDL" folder in "Scrcpy Remote" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -204,6 +212,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				AA4B6E152DEB40EE00813661 /* Exceptions for "ADBClient" folder in "Scrcpy Remote" target */,
+				AA4B6E282DEC67C200813661 /* Exceptions for "ADBClient" folder in "VNCClient" target */,
 			);
 			path = ADBClient;
 			sourceTree = "<group>";
@@ -682,7 +691,7 @@
 					"-lscrcpy",
 					"-ltsnet-forwarder",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -729,7 +738,7 @@
 					"-lscrcpy",
 					"-ltsnet-forwarder",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-pro";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

@@ -11,11 +11,13 @@ import SwiftUI
 struct Scrcpy_RemoteApp: App {
     @StateObject private var appSettings = AppSettings()
     @StateObject private var logManager = AppLogManager.shared
+    @StateObject private var schemeManager = AppSchemeManagerV2.shared
     
     var body: some Scene {
         WindowGroup {
             MainContentView()
                 .environmentObject(appSettings)
+                .environmentObject(schemeManager)
                 .onAppear {
                     // 确保在视图显示时应用主题
                     appSettings.applyTheme()
@@ -36,6 +38,20 @@ struct Scrcpy_RemoteApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                     // 当应用将要进入前台时应用主题
                     appSettings.applyTheme()
+                }
+                // 处理 URL scheme
+                .onOpenURL { url in
+                    print("📱 [App] Received URL: \(url)")
+                    _ = schemeManager.handleURL(url)
+                }
+                // 显示 scheme 连接提示
+                .alert("URL Scheme Connection", 
+                       isPresented: $schemeManager.shouldShowConnectionAlert) {
+                    Button("OK") {
+                        schemeManager.shouldShowConnectionAlert = false
+                    }
+                } message: {
+                    Text(schemeManager.connectionMessage)
                 }
         }
     }

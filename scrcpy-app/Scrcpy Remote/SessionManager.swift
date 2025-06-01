@@ -232,6 +232,12 @@ class SessionManager {
         return sessions.first { $0.id == id }
     }
     
+    func getSession(byName name: String) -> ScrcpySessionModel? {
+        // Get session by name
+        let sessions = loadSessions()
+        return sessions.first { $0.sessionName.lowercased() == name.lowercased() }
+    }
+    
     func getSessions(host: String, port: String) -> [ScrcpySessionModel] {
         // Get sessions by host and port
         let sessions = loadSessions()

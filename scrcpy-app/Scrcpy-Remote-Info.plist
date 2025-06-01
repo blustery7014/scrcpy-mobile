@@ -7,5 +7,16 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Scrcpy Remote V2 URL Scheme</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>scrcpy2</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

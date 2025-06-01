@@ -58,6 +58,8 @@ struct SessionsView: View {
     @State private var isRefreshing: Bool = false
     @State private var showingDeleteAlert = false
     @State private var sessionToDelete: ScrcpySession? = nil
+    @State private var showingCopyConfirmation = false
+    @State private var copiedURLScheme = ""
 
     var body: some View {
         NavigationView {
@@ -136,7 +138,13 @@ struct SessionsView: View {
                             Label("Duplicate Session", systemImage: "doc.on.doc.fill")
                         }
                         Button(action: {
+                            // Copy URL scheme to clipboard
+                            let urlScheme = "scrcpy2://\(session.sessionModel.id.uuidString)"
+                            UIPasteboard.general.string = urlScheme
                             
+                            // Show confirmation feedback
+                            copiedURLScheme = urlScheme
+                            showingCopyConfirmation = true
                         }) {
                             Label("Copy URL Scheme", systemImage: "doc.on.doc")
                         }
@@ -186,6 +194,11 @@ struct SessionsView: View {
                     sessionToDelete = nil
                 }
             )
+        }
+        .alert("URL Scheme Copied", isPresented: $showingCopyConfirmation) {
+            Button("OK") { }
+        } message: {
+            Text("URL scheme has been copied to clipboard:\n\n\(copiedURLScheme)")
         }
     }
     

@@ -13,6 +13,8 @@ struct SessionCreateView: View {
     @EnvironmentObject var appSettings: AppSettings
     @State private var showingTailscaleAuth = false
     @State private var returnedFromTailscaleAuth = false
+    @State private var showingValidationError = false
+    @State private var validationErrorMessage = ""
     private let isEditMode: Bool
     
     init() {
@@ -155,11 +157,16 @@ struct SessionCreateView: View {
 
             Section {
                 Button(action: {
-                    // Save session
-                    SessionManager.shared.saveSession(sessionModel)
-                    
-                    // Pop back
-                    dismiss()
+                    // Validate session before saving
+                    if validateSession() {
+                        // Save session
+                        SessionManager.shared.saveSession(sessionModel)
+                        
+                        // Pop back
+                        dismiss()
+                    } else {
+                        showingValidationError = true
+                    }
                 }) {
                     Text("Save Session")
                         .bold()
@@ -193,6 +200,11 @@ struct SessionCreateView: View {
                     }
             }
             .environmentObject(appSettings)
+        }
+        .alert("Validation Error", isPresented: $showingValidationError) {
+            Button("OK") { }
+        } message: {
+            Text(validationErrorMessage)
         }
         .onChange(of: showingTailscaleAuth) { isShowing in
             if !isShowing && returnedFromTailscaleAuth {
@@ -246,6 +258,98 @@ struct SessionCreateView: View {
         if sessionModel.adbOptions.displayHeight.isEmpty {
             sessionModel.adbOptions.displayHeight = String(Int(pixelHeight))
         }
+    }
+    
+    // MARK: - Validation Methods
+    
+    private func validateSession() -> Bool {
+        // Check host
+        if sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            validationErrorMessage = "Please enter a valid host address."
+            return false
+        }
+        
+        // Check port
+        if sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            validationErrorMessage = "Please enter a port number."
+            return false
+        }
+        
+        if !isValidPort(sessionModel.port) {
+            validationErrorMessage = "Please enter a valid port number (1-65535)."
+            return false
+        }
+        
+        // Check device-specific fields
+        if sessionModel.deviceType == .vnc {
+            if sessionModel.vncOptions.vncUser.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                validationErrorMessage = "Please enter a VNC username."
+                return false
+            }
+            if sessionModel.vncOptions.vncPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                validationErrorMessage = "Please enter a VNC password."
+                return false
+            }
+        }
+        
+        if sessionModel.deviceType == .adb {
+            // Validate new display settings if enabled
+            if sessionModel.adbOptions.startNewDisplay {
+                if sessionModel.adbOptions.displayWidth.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                   !isValidPositiveInteger(sessionModel.adbOptions.displayWidth) {
+                    validationErrorMessage = "Please enter a valid display width."
+                    return false
+                }
+                
+                if sessionModel.adbOptions.displayHeight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                   !isValidPositiveInteger(sessionModel.adbOptions.displayHeight) {
+                    validationErrorMessage = "Please enter a valid display height."
+                    return false
+                }
+                
+                if !sessionModel.adbOptions.displayDPI.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                   !isValidPositiveInteger(sessionModel.adbOptions.displayDPI) {
+                    validationErrorMessage = "Please enter a valid display DPI."
+                    return false
+                }
+            }
+            
+            // Validate max FPS if provided
+            if !sessionModel.adbOptions.maxFPS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+               !isValidPositiveInteger(sessionModel.adbOptions.maxFPS) {
+                validationErrorMessage = "Please enter a valid max FPS value."
+                return false
+            }
+            
+            // Validate max screen size if provided
+            if !sessionModel.adbOptions.maxScreenSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+               !isValidPositiveInteger(sessionModel.adbOptions.maxScreenSize) {
+                validationErrorMessage = "Please enter a valid max screen size."
+                return false
+            }
+        }
+        
+        // Check Tailscale configuration
+        if sessionModel.useTailscale && appSettings.tailscaleAuthKey.isEmpty {
+            validationErrorMessage = "Tailscale authentication is required but not configured."
+            return false
+        }
+        
+        return true
+    }
+    
+    private func isValidPort(_ port: String) -> Bool {
+        guard let portNumber = Int(port.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return portNumber >= 1 && portNumber <= 65535
+    }
+    
+    private func isValidPositiveInteger(_ value: String) -> Bool {
+        guard let intValue = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return intValue > 0
     }
 }
 

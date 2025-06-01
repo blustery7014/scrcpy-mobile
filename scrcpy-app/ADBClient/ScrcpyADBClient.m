@@ -325,6 +325,14 @@ void ScrcpyTryResetVideo(void) {
     SDL_Event event;
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
+    
+    // 发送断开连接状态通知
+    [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyStatusUpdatedNotificationName object:nil userInfo:@{
+        @"status": @(0), // ScrcpyStatusDisconnected
+        @"message": @"User disconnected"
+    }];
+    
+    NSLog(@"🔌 [ScrcpyADBClient] Disconnection initiated - status notification sent");
 }
 
 #pragma mark - Scrcpy Events

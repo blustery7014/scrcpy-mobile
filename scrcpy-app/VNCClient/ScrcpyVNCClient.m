@@ -7,10 +7,12 @@
 
 #import "ScrcpyVNCClient.h"
 #import "ScrcpyBlockWrapper.h"
+#import "ScrcpyMenuView.h"
 
 #import <objc/runtime.h>
 #import <SDL2/SDL.h>
 #import <rfb/rfbclient.h>
+#import <rfb/keysym.h>
 
 #define CFRunLoopNormalInterval     0.6f
 #define CFRunLoopHandledSourceInterval 0.0001f
@@ -35,9 +37,15 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
 
 @end
 
+@interface ScrcpyVNCClient () <ScrcpyMenuViewDelegate>
+@property (nonatomic, strong) ScrcpyMenuView *menuView;
+@property (nonatomic, assign) rfbClient *currentClient;
+@property (nonatomic, assign) BOOL isConnected;
+@end
+
 @implementation ScrcpyVNCClient
 
--(instancetype)init
+- (instancetype)init
 {
     self = [super init];
     if (self) {
@@ -45,8 +53,15 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         
         // Mock Delegate Method
         [self.sdlDelegate application:UIApplication.sharedApplication didFinishLaunchingWithOptions:@{}];
+        
+        // 监听断开连接通知
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopVNC) name:ScrcpyRequestDisconnectNotification object:nil];
     }
     return self;
+}
+
+-(void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (UIWindowScene *)currentScene {
@@ -82,6 +97,9 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     cl->canHandleNewFBSize = true;
     cl->listenPort = LISTEN_PORT_OFFSET;
     cl->listen6Port = LISTEN_PORT_OFFSET;
+    
+    // Store reference to current client
+    self.currentClient = cl;
     
     // For block with only 1 argument, do not required to invoke between BlockEntry mapping
     cl->MallocFrameBuffer = (MallocFrameBufferProc)imp_implementationWithBlock(^rfbBool(rfbClient* client){
@@ -197,13 +215,30 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     
     if(!rfbInitClient(cl, &argc, (char **)argv)) {
         cl = NULL; /* rfbInitClient has already freed the client struct */
+        self.currentClient = NULL;
         return;
     }
+    
+    // Mark as connected
+    self.isConnected = YES;
     
     NSLog(@"SDL Window: %@", self.sdlDelegate.window);
     self.sdlDelegate.window.windowScene = self.currentScene;
     NSLog(@"SDL Window Scene: %@", self.sdlDelegate.window.windowScene);
     [self.sdlDelegate.window makeKeyWindow];
+    
+    // Show ScrcpyMenuView after successful connection
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self showMenuView];
+        
+        // 发送连接成功状态通知
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyStatusUpdated" object:nil userInfo:@{
+            @"status": @(1), // ScrcpyStatusConnected
+            @"message": @"VNC connected"
+        }];
+        
+        NSLog(@"🔌 [ScrcpyVNCClient] VNC connection established - menu view shown, status notification sent");
+    });
     
     int x, y, buttonMask = 0;   // Current mouse position
     struct { int sdl; int rfb; } buttonMapping[]={
@@ -215,7 +250,7 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         {0,0}
     };
     
-    while(1) {
+    while(self.isConnected) {
         if(SDL_PollEvent(&e)) {
             /*
              handleSDLEvent() return 0 if user requested window close.
@@ -288,21 +323,38 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
             case SDL_TEXTINPUT:
                 break;
             case SDL_QUIT:
-                rfbClientCleanup(cl);
+                NSLog(@"🔌 [ScrcpyVNCClient] SDL_QUIT event received, breaking VNC loop");
+                self.isConnected = NO;
+                break;
             default:
                 rfbClientLog("ignore SDL event: 0x%x\n", e.type);
             }
         } else {
             int i = WaitForMessage(cl, 500);
             if(i<0) {
+                NSLog(@"🔌 [ScrcpyVNCClient] VNC message wait failed, breaking loop");
+                self.isConnected = NO;
                 break;
             } else {
                 if(!HandleRFBServerMessage(cl)) {
+                    NSLog(@"🔌 [ScrcpyVNCClient] VNC server message handling failed, breaking loop");
+                    self.isConnected = NO;
                     break;
                 }
             }
         }
     }
+    
+    // Hide menu view before cleanup
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self hideMenuView];
+    });
+    
+    // Cleanup VNC client
+    if (cl) {
+        rfbClientCleanup(cl);
+    }
+    self.currentClient = NULL;
     
     // Clear block IMP to free entry for next client
     GetSet_GetCredentialBlockIMP(cl, nil);
@@ -311,5 +363,111 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     NSLog(@"✅ SDL_main end");
 }
 
+- (SDLUIKitDelegate *)sdlDelegate {
+    if (!_sdlDelegate) {
+        _sdlDelegate = [[SDLUIKitDelegate alloc] init];
+    }
+    return _sdlDelegate;
+}
+
+-(void)stopVNC {
+    NSLog(@"🔌 [ScrcpyVNCClient] stopVNC called");
+    
+    // Mark as disconnected
+    self.isConnected = NO;
+    
+    // Call SDL_Quit to send Quit Event
+    SDL_Event event;
+    event.type = SDL_QUIT;
+    SDL_PushEvent(&event);
+    
+    // Hide menu view
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self hideMenuView];
+        
+        // 发送断开连接状态通知
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyStatusUpdated" object:nil userInfo:@{
+            @"status": @(0), // ScrcpyStatusDisconnected
+            @"message": @"VNC disconnected"
+        }];
+        
+        NSLog(@"🔌 [ScrcpyVNCClient] VNC disconnection completed - menu view hidden, status notification sent");
+    });
+}
+
+#pragma mark - Menu View Management
+
+- (void)showMenuView {
+    if (!self.menuView) {
+        self.menuView = [[ScrcpyMenuView alloc] initWithFrame:CGRectZero];
+        self.menuView.delegate = self;
+    }
+    
+    [self.menuView addToActiveWindow];
+    NSLog(@"🎨 [ScrcpyVNCClient] Menu view shown");
+}
+
+- (void)hideMenuView {
+    if (self.menuView) {
+        [self.menuView removeFromSuperview];
+        self.menuView = nil;
+        NSLog(@"🎨 [ScrcpyVNCClient] Menu view hidden");
+    }
+}
+
+#pragma mark - ScrcpyMenuViewDelegate
+
+- (void)didTapBackButton {
+    NSLog(@"🎮 [ScrcpyVNCClient] Back button tapped");
+    // VNC equivalent: Send escape key or back gesture
+    if (self.currentClient && self.isConnected) {
+        // Send Android back key (keycode 4)
+        SendKeyEvent(self.currentClient, XK_Escape, TRUE);
+        usleep(50000); // 50ms delay
+        SendKeyEvent(self.currentClient, XK_Escape, FALSE);
+    }
+}
+
+- (void)didTapHomeButton {
+    NSLog(@"🎮 [ScrcpyVNCClient] Home button tapped");
+    // VNC equivalent: Send home key
+    if (self.currentClient && self.isConnected) {
+        // Send Android home key (Meta key)
+        SendKeyEvent(self.currentClient, XK_Super_L, TRUE);
+        usleep(50000); // 50ms delay
+        SendKeyEvent(self.currentClient, XK_Super_L, FALSE);
+    }
+}
+
+- (void)didTapSwitchButton {
+    NSLog(@"🎮 [ScrcpyVNCClient] Switch button tapped");
+    // VNC equivalent: Send recent apps key
+    if (self.currentClient && self.isConnected) {
+        // Send Alt+Tab for recent apps
+        SendKeyEvent(self.currentClient, XK_Alt_L, TRUE);
+        SendKeyEvent(self.currentClient, XK_Tab, TRUE);
+        usleep(50000); // 50ms delay
+        SendKeyEvent(self.currentClient, XK_Tab, FALSE);
+        SendKeyEvent(self.currentClient, XK_Alt_L, FALSE);
+    }
+}
+
+- (void)didTapKeyboardButton {
+    NSLog(@"🎮 [ScrcpyVNCClient] Keyboard button tapped");
+    // Start text input for VNC
+    SDL_StartTextInput();
+}
+
+- (void)didTapActionsButton {
+    NSLog(@"🎮 [ScrcpyVNCClient] Actions button tapped");
+    // Additional actions can be implemented here
+    // For now, just log the action
+}
+
+- (void)didTapDisconnectButton {
+    NSLog(@"🎮 [ScrcpyVNCClient] Disconnect button tapped");
+    // Initiate VNC disconnection
+    [self stopVNC];
+}
 
 @end
