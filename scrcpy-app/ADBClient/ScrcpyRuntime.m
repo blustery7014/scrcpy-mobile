@@ -13,6 +13,7 @@
 #import "ScrcpyRuntime.h"
 #import "scrcpy-porting.h"
 #import "ScrcpyMetalView.h"
+#import "app/config.h"
 
 typedef enum : NSUInteger {
     // 0: disable hardware decoding
@@ -24,6 +25,11 @@ typedef enum : NSUInteger {
     // 3: enable hardware decoding with metal view
     ScrcpyHardwareDecodingMetalView = 3,
 } ScrcpyHardwareDecodingType;
+
+const char *ScrcpyCoreVersion(void)
+{
+    return SCRCPY_VERSION;
+}
 
 float ScrcpyRenderScreenScale(void)
 {

@@ -137,9 +137,8 @@ void adb_connect_status_updated(const char *serial, const char *status)
         break;
     }
 
-    NSArray <NSString *> *documentPaths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    const char *document_home = documentPaths.lastObject.UTF8String;
-    adb_set_home(document_home);
+    // Setup ADB home directory
+    [self setupADBHomeDirectory];
 
     int returnCode = -1;
     NSString *output = [self executeADBCommandUnderlying:@[@"devices"] returnCode:&returnCode];
@@ -156,6 +155,13 @@ void adb_connect_status_updated(const char *serial, const char *status)
     // Time to profile adb start up
     NSDate *end = [NSDate date];
     NSLog(@"ADB Client setup time: %f", [end timeIntervalSinceDate:start]);
+}
+
+- (void)setupADBHomeDirectory
+{
+    NSString *adbHome = [self getADBHomeDirectory];
+    adb_set_home(adbHome.UTF8String);
+    NSLog(@"ADB home directory set to: %@", adbHome);
 }
 
 - (NSString *)executeADBCommandUnderlying:(NSArray <NSString *>*)commands returnCode:(int*)returnCode
@@ -207,7 +213,7 @@ void adb_connect_status_updated(const char *serial, const char *status)
 
 #pragma mark - Getter & Setter
 
-- (NSArray<NSString *> *)adbDevices
+- (NSArray<ADBDevice *> *)adbDevices
 {
     return [self.devicesInternal copy];
 }
@@ -218,6 +224,209 @@ void adb_connect_status_updated(const char *serial, const char *status)
         _devicesInternal = [NSMutableArray array];
     }
     return _devicesInternal;
+}
+
+#pragma mark - ADB Key Management
+
+- (NSString *)getADBHomeDirectory
+{
+    NSArray <NSString *> *documentPaths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    return documentPaths.lastObject;
+}
+
+- (NSString *)getADBAndroidDirectory
+{
+    NSString *adbHome = [self getADBHomeDirectory];
+    return [adbHome stringByAppendingPathComponent:@".android"];
+}
+
+- (BOOL)ensureADBAndroidDirectoryExists
+{
+    NSString *androidDir = [self getADBAndroidDirectory];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    if (![fileManager fileExistsAtPath:androidDir]) {
+        NSError *error;
+        BOOL success = [fileManager createDirectoryAtPath:androidDir
+                                  withIntermediateDirectories:YES
+                                                   attributes:nil
+                                                        error:&error];
+        if (!success) {
+            NSLog(@"Error creating .android directory: %@", error.localizedDescription);
+            return NO;
+        }
+        NSLog(@"Created .android directory at: %@", androidDir);
+    }
+    return YES;
+}
+
+- (NSString *)readADBPrivateKey
+{
+    NSString *keyPath = [[self getADBAndroidDirectory] stringByAppendingPathComponent:@"adbkey"];
+    NSError *error;
+    NSString *content = [NSString stringWithContentsOfFile:keyPath encoding:NSUTF8StringEncoding error:&error];
+    if (error) {
+        NSLog(@"Error reading ADB private key: %@", error.localizedDescription);
+        return nil;
+    }
+    return content;
+}
+
+- (NSString *)readADBPublicKey
+{
+    NSString *keyPath = [[self getADBAndroidDirectory] stringByAppendingPathComponent:@"adbkey.pub"];
+    NSError *error;
+    NSString *content = [NSString stringWithContentsOfFile:keyPath encoding:NSUTF8StringEncoding error:&error];
+    if (error) {
+        NSLog(@"Error reading ADB public key: %@", error.localizedDescription);
+        return nil;
+    }
+    return content;
+}
+
+- (BOOL)writeADBPrivateKey:(NSString *)privateKey
+{
+    if (!privateKey || privateKey.length == 0) {
+        NSLog(@"Error: Private key content is empty");
+        return NO;
+    }
+    
+    // Ensure .android directory exists
+    if (![self ensureADBAndroidDirectoryExists]) {
+        return NO;
+    }
+    
+    NSString *keyPath = [[self getADBAndroidDirectory] stringByAppendingPathComponent:@"adbkey"];
+    NSError *error;
+    BOOL success = [privateKey writeToFile:keyPath atomically:YES encoding:NSUTF8StringEncoding error:&error];
+    if (!success) {
+        NSLog(@"Error writing ADB private key: %@", error.localizedDescription);
+        return NO;
+    }
+    
+    // Set proper file permissions (0600 - read/write for owner only)
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSDictionary *attributes = @{NSFilePosixPermissions: @(0600)};
+    [fileManager setAttributes:attributes ofItemAtPath:keyPath error:&error];
+    if (error) {
+        NSLog(@"Warning: Could not set file permissions for private key: %@", error.localizedDescription);
+    }
+    
+    NSLog(@"ADB private key saved successfully to: %@", keyPath);
+    return YES;
+}
+
+- (BOOL)writeADBPublicKey:(NSString *)publicKey
+{
+    if (!publicKey || publicKey.length == 0) {
+        NSLog(@"Error: Public key content is empty");
+        return NO;
+    }
+    
+    // Ensure .android directory exists
+    if (![self ensureADBAndroidDirectoryExists]) {
+        return NO;
+    }
+    
+    NSString *keyPath = [[self getADBAndroidDirectory] stringByAppendingPathComponent:@"adbkey.pub"];
+    NSError *error;
+    BOOL success = [publicKey writeToFile:keyPath atomically:YES encoding:NSUTF8StringEncoding error:&error];
+    if (!success) {
+        NSLog(@"Error writing ADB public key: %@", error.localizedDescription);
+        return NO;
+    }
+    
+    // Set proper file permissions (0644 - read/write for owner, read for others)
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSDictionary *attributes = @{NSFilePosixPermissions: @(0644)};
+    [fileManager setAttributes:attributes ofItemAtPath:keyPath error:&error];
+    if (error) {
+        NSLog(@"Warning: Could not set file permissions for public key: %@", error.localizedDescription);
+    }
+    
+    NSLog(@"ADB public key saved successfully to: %@", keyPath);
+    return YES;
+}
+
+- (BOOL)generateNewADBKeyPair
+{
+    // Ensure .android directory exists before generating keys
+    if (![self ensureADBAndroidDirectoryExists]) {
+        return NO;
+    }
+    
+    // Execute ADB keygen command to generate new key pair
+    // The keygen command should create keys in the .android subdirectory
+    NSString *androidDir = [self getADBAndroidDirectory];
+    int returnCode = -1;
+    NSString *output = [self executeADBCommandUnderlying:@[@"keygen", androidDir] returnCode:&returnCode];
+    
+    if (returnCode == 0) {
+        NSLog(@"ADB key pair generated successfully: %@", output);
+        return YES;
+    } else {
+        NSLog(@"Failed to generate ADB key pair. Return code: %d, Output: %@", returnCode, output);
+        return NO;
+    }
+}
+
+- (BOOL)exportADBKeysToDirectory:(NSString *)directoryPath
+{
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSError *error;
+    
+    // Ensure destination directory exists
+    if (![fileManager fileExistsAtPath:directoryPath]) {
+        BOOL created = [fileManager createDirectoryAtPath:directoryPath withIntermediateDirectories:YES attributes:nil error:&error];
+        if (!created) {
+            NSLog(@"Error creating export directory: %@", error.localizedDescription);
+            return NO;
+        }
+    }
+    
+    NSString *androidDir = [self getADBAndroidDirectory];
+    NSString *privateKeySource = [androidDir stringByAppendingPathComponent:@"adbkey"];
+    NSString *publicKeySource = [androidDir stringByAppendingPathComponent:@"adbkey.pub"];
+    
+    NSString *privateKeyDest = [directoryPath stringByAppendingPathComponent:@"adbkey"];
+    NSString *publicKeyDest = [directoryPath stringByAppendingPathComponent:@"adbkey.pub"];
+    
+    // Export private key
+    if ([fileManager fileExistsAtPath:privateKeySource]) {
+        BOOL success = [fileManager copyItemAtPath:privateKeySource toPath:privateKeyDest error:&error];
+        if (!success) {
+            NSLog(@"Error exporting private key: %@", error.localizedDescription);
+            return NO;
+        }
+    } else {
+        NSLog(@"Private key file does not exist at: %@", privateKeySource);
+        return NO;
+    }
+    
+    // Export public key
+    if ([fileManager fileExistsAtPath:publicKeySource]) {
+        BOOL success = [fileManager copyItemAtPath:publicKeySource toPath:publicKeyDest error:&error];
+        if (!success) {
+            NSLog(@"Error exporting public key: %@", error.localizedDescription);
+            return NO;
+        }
+    } else {
+        NSLog(@"Public key file does not exist at: %@", publicKeySource);
+        return NO;
+    }
+    
+    NSLog(@"ADB keys exported successfully to: %@", directoryPath);
+    return YES;
+}
+
+- (BOOL)adbKeyPairExists
+{
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSString *androidDir = [self getADBAndroidDirectory];
+    NSString *privateKeyPath = [androidDir stringByAppendingPathComponent:@"adbkey"];
+    NSString *publicKeyPath = [androidDir stringByAppendingPathComponent:@"adbkey.pub"];
+    
+    return [fileManager fileExistsAtPath:privateKeyPath] && [fileManager fileExistsAtPath:publicKeyPath];
 }
 
 #pragma mark - Utils

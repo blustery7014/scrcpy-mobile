@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum Appearance: String, Codable, CaseIterable, Identifiable {
     case system = "System"
@@ -24,8 +25,23 @@ class AppSettings: ObservableObject {
         }
     }
     
+    // 日志相关设置
+    @AppStorage("settings.logging.enabled")
+    var loggingEnabled: Bool = true {
+        didSet {
+            // 只有在值真正改变时才调用 AppLogManager
+            if loggingEnabled != AppLogManager.shared.isLoggingEnabled {
+                AppLogManager.shared.toggleLogging(loggingEnabled)
+            }
+        }
+    }
+    
     init() {
         applyTheme()
+        
+        // 初始化日志设置，同步状态但不触发 didSet
+        let savedLoggingEnabled = UserDefaults.standard.bool(forKey: "settings.logging.enabled")
+        AppLogManager.shared.isLoggingEnabled = savedLoggingEnabled
         
         // 监听系统外观变化通知
         NotificationCenter.default.addObserver(
@@ -127,7 +143,10 @@ class AppSettings: ObservableObject {
 }
 
 struct SettingsView: View {
-    @State private var showingClearLogsAlert = false
+    @State private var showingClearAllLogsAlert = false
+    @EnvironmentObject var appSettings: AppSettings
+    @StateObject private var logManager = AppLogManager.shared
+    @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
         NavigationView {
@@ -137,7 +156,7 @@ struct SettingsView: View {
                         Text("Appearance")
                     }
                     NavigationLink(destination: AboutView()) {
-                        Text("About")
+                        Text("About Scrcpy Remote")
                     }
                 }
                 Section(header: Text("Networking")) {
@@ -149,39 +168,71 @@ struct SettingsView: View {
                     }
                 }
                 Section(header: Text("ADB Keys Managements")) {
-                    NavigationLink(destination: Text("Coming Soon")) {
+                    NavigationLink(destination: ADBKeysManagementView()) {
                         Text("Manage ADB Keys")
                     }
                 }
-                Section(header: Text("Scrcpy Verbose Logs")) {
-                    NavigationLink(destination: DetailedLogsView()) {
-                        Text("Show Logs")
+                Section(header: Text("Application Logs")) {
+                    Toggle("Enable Log Recording", isOn: $appSettings.loggingEnabled)
+                    
+                    NavigationLink(destination: LogsManagementView()) {
+                        HStack {
+                            Text("Logs Management")
+                            Spacer()
+                            if logManager.logFilesCount > 0 {
+                                Text("(\(logManager.logFilesCount) files)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+                    
+                    NavigationLink(destination: DetailedLogsView()) {
+                        Text("View Current Logs")
+                    }
+                    
                     Button(action: {
-                        // Show confirm alert to clear logs
-                        showingClearLogsAlert = true
+                        showingClearAllLogsAlert = true
                     }) {
-                        Text("Clear Logs")
+                        Text("Clear All Logs")
                             .foregroundColor(.red)
                     }
-                    .alert(isPresented: $showingClearLogsAlert) {
+                    .alert(isPresented: $showingClearAllLogsAlert) {
                         Alert(
-                            title: Text("Clear Logs"),
-                            message: Text("Are you sure you want to clear all logs?"),
-                            primaryButton: .destructive(Text("Clear")) {
-                                // Add your clear logs action here
-                                print("Clear logs")
+                            title: Text("Clear All Logs"),
+                            message: Text("This will permanently delete all log files. This action cannot be undone!"),
+                            primaryButton: .destructive(Text("Clear All")) {
+                                logManager.clearAllLogs()
                             },
                             secondaryButton: .cancel()
                         )
                     }
+                    
+                    if logManager.totalLogFilesSize > 0 {
+                        HStack {
+                            Text("Total logs size:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(ByteCountFormatter.string(fromByteCount: logManager.totalLogFilesSize, countStyle: .file))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
-                Section(header: Text("Please Submit Issue For Bugs or Requests")) {
+                Section(header: Text("Request & Support")) {
                     Link("Submit an Issue", destination: URL(string: "https://github.com/wsvn53/scrcpy-mobile/issues")!)
                         .foregroundColor(.blue)
                 }
             }
             .navigationBarTitle("Settings", displayMode: .inline)
+            .navigationBarItems(trailing: Button("Done") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+        .onAppear {
+            // 初始化日志管理器状态
+            appSettings.loggingEnabled = logManager.isLoggingEnabled
         }
     }
 }
@@ -649,54 +700,745 @@ struct TailscaleAuthSettingsView: View {
 }
 
 struct AboutView: View {
+    @State private var appVersion: String = "Unknown"
+    @State private var scrcpyVersion: String = "Unknown"
+    
     var body: some View {
         ScrollView {
-            VStack {
-                Text("Scrcpy Remote v3.0")
-                    .font(.title3)
-                    .bold()
-                    .padding(.bottom, 2)
-                Text("Scrcpy Remote is a mobile application based on scrcpy v3.2, mainly used for connecting remote screen devices.")
-                    .padding()
-                Text("This application is open source software licensed under the Apache License 2.0, you view our code from:")
-                    .padding()
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .center, spacing: 8) {
+                    Text("Scrcpy Remote v\(appVersion)")
+                        .font(.title3)
+                        .bold()
+                    Text("Based on Scrcpy \(scrcpyVersion)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 15)
                 
-                // Link Source Code
-                Link("→ Scrcpy Remote Source Code", destination: URL(string: "https://github.com/wsvn53/scrcpy-mobile")!)
-                
-                Text("Scrcpy Remote connects through the VNC Port or ADB TCPIP Port, typically only able to connect to local network devices. The software itself does not provide any VPN or network tunneling services.")
-                    .padding()
-                
-                Text("If you encounter problems and need help while using, you can also join our Telegram Channel.")
-                    .padding()
-                
-                // Link Telegram Channel
-                Link("→ Join Out Telegram Channel", destination: URL(string: "https://telegram.org")!)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Scrcpy Remote is a remote desktop tool based on VNC/ADB protocols, typically used for connecting to services with public IP addresses or services within the same local network.")
+                        .font(.body)
+                    
+                    Text("If you cannot connect to your service normally, please first check whether the network connection is working properly.")
+                        .font(.body)
+                        .foregroundColor(.orange)
+                    
+                    Text("Additionally, this app has built-in Tailscale tsnet module, which allows you to establish a virtual network between the app and your target service through Tailscale, then connect to it.")
+                        .font(.body)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("For detailed usage help, please check:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        // Link Tailscale README
+                        Link("→ Tailscale Usage Guide", destination: URL(string: "https://github.com/wsvn53/scrcpy-mobile/blob/main/Tailscale_README.md")!)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    
+                    Text("If you encounter problems and need help while using, you can also join our Telegram Channel.")
+                        .font(.body)
+                    
+                    // Link Telegram Channel
+                    Link("→ Join Our Telegram Channel", destination: URL(string: "https://telegram.org")!)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 
                 Spacer()
             }
-            .padding(.top, 15)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .navigationBarTitle("About", displayMode: .inline)
+        .navigationBarTitle("About Scrcpy Remote", displayMode: .inline)
+        .onAppear {
+            loadVersionInfo()
+        }
+    }
+    
+    private func loadVersionInfo() {
+        // Get app version from bundle
+        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            appVersion = version
+        }
+        
+        // Get Scrcpy core version
+        let coreVersionCString = ScrcpyCoreVersion()
+        if let coreVersionCString = coreVersionCString {
+            scrcpyVersion = String(cString: coreVersionCString)
+        }
+    }
+}
+
+struct LogsManagementView: View {
+    @StateObject private var logManager = AppLogManager.shared
+    @State private var logFiles: [LogFileInfo] = []
+    @State private var showingDeleteAlert = false
+    @State private var selectedLogFile: LogFileInfo?
+    @State private var showingClearOldLogsAlert = false
+    
+    var body: some View {
+        List {
+            Section(header: Text("Log Files Statistics")) {
+                HStack {
+                    Text("Total files:")
+                    Spacer()
+                    Text("\(logManager.logFilesCount)")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Total size:")
+                    Spacer()
+                    Text(ByteCountFormatter.string(fromByteCount: logManager.totalLogFilesSize, countStyle: .file))
+                        .foregroundColor(.secondary)
+                }
+                
+                if logManager.currentLogFileSize > 0 {
+                    HStack {
+                        Text("Current log size:")
+                        Spacer()
+                        Text(ByteCountFormatter.string(fromByteCount: logManager.currentLogFileSize, countStyle: .file))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            Section(header: Text("Quick Actions")) {
+                Button(action: {
+                    showingClearOldLogsAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Clear Old Logs")
+                        Spacer()
+                        Text("Keep Current Only")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .foregroundColor(.orange)
+                .alert(isPresented: $showingClearOldLogsAlert) {
+                    Alert(
+                        title: Text("Clear Old Logs"),
+                        message: Text("This will delete all log files except the current one. Are you sure?"),
+                        primaryButton: .destructive(Text("Clear Old Logs")) {
+                            logManager.clearOldLogs()
+                            refreshLogFiles()
+                        },
+                        secondaryButton: .cancel()
+                    )
+                }
+            }
+            
+            if !logFiles.isEmpty {
+                Section(header: Text("Log Files")) {
+                    ForEach(logFiles) { logFile in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(logFile.fileName)
+                                        .font(.subheadline)
+                                        .fontWeight(logFile.isCurrentLog ? .medium : .regular)
+                                    
+                                    Text(logFile.formattedDate)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                VStack(alignment: .trailing) {
+                                    Text(logFile.formattedFileSize)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    if logFile.isCurrentLog {
+                                        Text("Current")
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.blue)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(4)
+                                    }
+                                }
+                            }
+                            
+                            HStack(spacing: 16) {
+                                NavigationLink(destination: LogFileDetailView(logFile: logFile)) {
+                                    Label("View", systemImage: "doc.text")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    selectedLogFile = logFile
+                                    showingDeleteAlert = true
+                                }) {
+                                    Label("Delete", systemImage: "trash")
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                            .padding(.top, 4)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            } else {
+                Section {
+                    VStack(alignment: .center, spacing: 8) {
+                        Image(systemName: "doc.text")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text("No log files found")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Text("Enable logging in settings to start recording logs")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                }
+            }
+        }
+        .navigationBarTitle("Logs Management", displayMode: .inline)
+        .navigationBarItems(trailing: Button("Refresh") {
+            refreshLogFiles()
+        })
+        .onAppear {
+            refreshLogFiles()
+        }
+        .alert(isPresented: $showingDeleteAlert) {
+            Alert(
+                title: Text("Delete Log File"),
+                message: Text("Are you sure you want to delete \(selectedLogFile?.fileName ?? "this log file")?"),
+                primaryButton: .destructive(Text("Delete")) {
+                    if let logFile = selectedLogFile {
+                        logManager.deleteLogFile(logFile.filePath)
+                        refreshLogFiles()
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+    
+    private func refreshLogFiles() {
+        logFiles = logManager.getLogFilesList()
+    }
+}
+
+struct LogFileDetailView: View {
+    let logFile: LogFileInfo
+    @State private var logContent: String = "Loading..."
+    @State private var isLoading: Bool = true
+    
+    var body: some View {
+        VStack {
+            // 文件信息
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("File:")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text(logFile.fileName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Size:")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text(logFile.formattedFileSize)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Last Modified:")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text(logFile.formattedDate)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+            .padding(.horizontal)
+            
+            // 日志内容或空状态
+            if isLoading {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                    Text("Loading log content...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else if isLogContentEmpty {
+                // 空日志文件提示
+                VStack(alignment: .center, spacing: 16) {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 60))
+                        .foregroundColor(.secondary)
+                    
+                    VStack(spacing: 8) {
+                        Text("Empty Log File")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("This log file contains no content yet.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        if logFile.isCurrentLog {
+                            Text("Start using the app to generate logs.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                // 日志内容
+                ScrollView {
+                    Text(logContent)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding()
+                }
+                .background(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
+                .padding(.horizontal)
+            }
+        }
+        .navigationBarTitle("Log Detail", displayMode: .inline)
+        .navigationBarItems(trailing: 
+            Button(action: {
+                refreshContent()
+            }) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .disabled(isLoading)
+        )
+        .onAppear {
+            loadLogContent()
+        }
+    }
+    
+    // 检查日志内容是否为空
+    private var isLogContentEmpty: Bool {
+        let trimmedContent = logContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedContent.isEmpty || 
+               trimmedContent == "No log file found at: \(logFile.filePath)" ||
+               trimmedContent == "Failed to read log file" ||
+               trimmedContent.hasPrefix("Log file not found")
+    }
+    
+    private func loadLogContent() {
+        isLoading = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let content = AppLogManager.shared.readLogFile(logFile.filePath, lineCount: 2000)
+            DispatchQueue.main.async {
+                self.logContent = content
+                self.isLoading = false
+            }
+        }
+    }
+    
+    private func refreshContent() {
+        loadLogContent()
     }
 }
 
 struct DetailedLogsView: View {
-    @State private var logs: String = "Detailed logs will be shown here."
+    @StateObject private var logManager = AppLogManager.shared
+    @State private var logs: String = "Loading logs..."
+    @State private var isLoading: Bool = true
+    @State private var isAutoRefreshEnabled: Bool = false
+    @State private var refreshTimer: Timer?
 
     var body: some View {
         VStack {
+            // 控制栏
+            HStack {
+                Toggle("Auto Refresh", isOn: $isAutoRefreshEnabled)
+                    .onChange(of: isAutoRefreshEnabled) { enabled in
+                        if enabled {
+                            startAutoRefresh()
+                        } else {
+                            stopAutoRefresh()
+                        }
+                    }
+                
+                Spacer()
+                
+                Button(action: {
+                    loadLogs()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Refresh")
+                    }
+                }
+                .disabled(isLoading)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            
+            // 日志内容
             ScrollView {
                 Text(logs)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
                     .padding()
             }
-            .navigationBarTitle("Detailed Logs", displayMode: .inline)
-            .navigationBarItems(trailing: Button(action: {
-                // Add your share logs action here
+            .background(Color(.systemBackground))
+        }
+        .navigationBarTitle("Current Logs", displayMode: .inline)
+        .navigationBarItems(trailing: 
+            Button(action: {
+                shareContent()
             }) {
                 Image(systemName: "square.and.arrow.up")
-            })
+            }
+        )
+        .onAppear {
+            loadLogs()
         }
+        .onDisappear {
+            stopAutoRefresh()
+        }
+    }
+    
+    private func loadLogs() {
+        isLoading = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let content = logManager.readLatestLogs(lineCount: 1000)
+            DispatchQueue.main.async {
+                self.logs = content.isEmpty ? "No logs available.\n\nTo see logs here:\n1. Enable 'Log Recording' in Settings\n2. Use the app to generate some activity\n3. Come back to view the logs" : content
+                self.isLoading = false
+            }
+        }
+    }
+    
+    private func startAutoRefresh() {
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            if !isLoading {
+                loadLogs()
+            }
+        }
+    }
+    
+    private func stopAutoRefresh() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+    }
+    
+    private func shareContent() {
+        let activityVC = UIActivityViewController(activityItems: [logs], applicationActivities: nil)
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootVC = window.rootViewController {
+            
+            // For iPad
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootVC.present(activityVC, animated: true)
+        }
+    }
+}
+
+struct ADBKeysManagementView: View {
+    @State private var privateKey: String = ""
+    @State private var publicKey: String = ""
+    @State private var showPrivateKey: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var statusMessage: String = ""
+    @State private var statusIsError: Bool = false
+    @State private var showingExportPicker: Bool = false
+    @State private var showingGenerateAlert: Bool = false
+    
+    let adbClient = ADBClient.shared()
+    
+    var body: some View {
+        Form {
+            Section(header: Text("ADB Keys Directory")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ADB Home:")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                    Text(adbClient.getADBHomeDirectory())
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.blue)
+                        .textSelection(.enabled)
+                }
+                .padding(.vertical, 4)
+            }
+            
+            Section(header: Text("Private Key (adbkey)")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Content:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            showPrivateKey.toggle()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: showPrivateKey ? "eye.slash" : "eye")
+                                Text(showPrivateKey ? "Hide" : "Show")
+                            }
+                            .font(.caption)
+                        }
+                    }
+                    
+                    if showPrivateKey {
+                        TextEditor(text: $privateKey)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(minHeight: 100)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                    } else {
+                        Text("••••••••••••••••••••••••••••••••")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                    }
+                }
+            }
+            
+            Section(header: Text("Public Key (adbkey.pub)")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Content:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    TextEditor(text: $publicKey)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 80)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                }
+            }
+            
+            Section {
+                Button(action: {
+                    saveKeys()
+                }) {
+                    HStack {
+                        Image(systemName: "checkmark.circle")
+                        Text("Save Keys")
+                    }
+                }
+                .disabled(isLoading)
+                
+                Button(action: {
+                    showingExportPicker = true
+                }) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Export Keys")
+                    }
+                }
+                .disabled(isLoading || !adbClient.adbKeyPairExists())
+                
+                Button(action: {
+                    showingGenerateAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "key")
+                        Text("Generate New Key Pair")
+                    }
+                }
+                .disabled(isLoading)
+            }
+            
+            if !statusMessage.isEmpty {
+                Section(header: Text("Status")) {
+                    HStack {
+                        Image(systemName: statusIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                            .foregroundColor(statusIsError ? .red : .green)
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundColor(statusIsError ? .red : .primary)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationBarTitle("ADB Keys Management", displayMode: .inline)
+        .onAppear {
+            loadKeys()
+        }
+        .fileExporter(
+            isPresented: $showingExportPicker,
+            document: ADBKeysDocument(),
+            contentType: .folder,
+            defaultFilename: "ADB_Keys"
+        ) { result in
+            switch result {
+            case .success(let url):
+                exportKeys(to: url)
+            case .failure(let error):
+                setStatus("Export failed: \(error.localizedDescription)", isError: true)
+            }
+        }
+        .alert("⚠️ Generate New ADB Key Pair", isPresented: $showingGenerateAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Generate New Keys", role: .destructive) {
+                generateNewKeys()
+            }
+        } message: {
+            Text("This is a destructive operation!\n\n• Your current ADB keys will be permanently deleted\n• All devices previously authorized with your current keys will lose authorization\n• You will need to re-authorize all devices manually\n• This action cannot be undone\n\nAre you sure you want to generate new ADB keys?")
+        }
+    }
+    
+    private func loadKeys() {
+        isLoading = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let loadedPrivateKey = adbClient.readADBPrivateKey() ?? ""
+            let loadedPublicKey = adbClient.readADBPublicKey() ?? ""
+            
+            DispatchQueue.main.async {
+                self.privateKey = loadedPrivateKey
+                self.publicKey = loadedPublicKey
+                self.isLoading = false
+                
+                if loadedPrivateKey.isEmpty && loadedPublicKey.isEmpty {
+                    self.setStatus("No ADB keys found. You may need to generate a new key pair.", isError: false)
+                } else if loadedPrivateKey.isEmpty || loadedPublicKey.isEmpty {
+                    self.setStatus("Incomplete key pair found. Some keys are missing.", isError: true)
+                } else {
+                    self.setStatus("ADB keys loaded successfully", isError: false)
+                }
+            }
+        }
+    }
+    
+    private func saveKeys() {
+        guard !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+              !publicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            setStatus("Both private and public keys must be provided", isError: true)
+            return
+        }
+        
+        isLoading = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let privateSuccess = adbClient.writeADBPrivateKey(self.privateKey)
+            let publicSuccess = adbClient.writeADBPublicKey(self.publicKey)
+            
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if privateSuccess && publicSuccess {
+                    self.setStatus("ADB keys saved successfully", isError: false)
+                } else {
+                    var errorMessage = "Failed to save keys:"
+                    if !privateSuccess { errorMessage += " private key" }
+                    if !publicSuccess { errorMessage += " public key" }
+                    self.setStatus(errorMessage, isError: true)
+                }
+            }
+        }
+    }
+    
+    private func exportKeys(to url: URL) {
+        isLoading = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let success = adbClient.exportADBKeys(toDirectory: url.path)
+            
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if success {
+                    self.setStatus("ADB keys exported successfully to \(url.lastPathComponent)", isError: false)
+                } else {
+                    self.setStatus("Failed to export ADB keys", isError: true)
+                }
+            }
+        }
+    }
+    
+    private func generateNewKeys() {
+        isLoading = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let success = adbClient.generateNewADBKeyPair()
+            
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if success {
+                    self.setStatus("New ADB key pair generated successfully", isError: false)
+                    // Reload the keys after generation
+                    self.loadKeys()
+                } else {
+                    self.setStatus("Failed to generate new ADB key pair", isError: true)
+                }
+            }
+        }
+    }
+    
+    private func setStatus(_ message: String, isError: Bool) {
+        statusMessage = message
+        statusIsError = isError
+        
+        // Auto-clear status after 5 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            if self.statusMessage == message {
+                self.statusMessage = ""
+            }
+        }
+    }
+}
+
+// Helper document type for file export
+struct ADBKeysDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.folder] }
+    
+    init() {}
+    
+    init(configuration: ReadConfiguration) throws {}
+    
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        return FileWrapper(directoryWithFileWrappers: [:])
     }
 }
 

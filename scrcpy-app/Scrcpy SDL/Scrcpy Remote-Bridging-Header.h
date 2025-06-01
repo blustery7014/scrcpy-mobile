@@ -8,6 +8,8 @@
 #import "ScrcpyClientWrapper.h"
 #import "ADBLatencyTester.h"
 #import "TCPLatencyTester.h"
+#import "ADBClient.h"
+#import "ScrcpyRuntime.h"
 
 // Import Tailscale library
 #import "libtsnet-forwarder.h"

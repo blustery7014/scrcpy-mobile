@@ -10,7 +10,6 @@
 #import "ScrcpyADBClient.h"
 #import "ADBClient.h"
 #import "ScrcpyClientWrapper.h"
-#import "scrcpy-porting.h"
 #import <SDL2/SDL.h>
 #import <libavutil/frame.h>
 #import <libavutil/imgutils.h>

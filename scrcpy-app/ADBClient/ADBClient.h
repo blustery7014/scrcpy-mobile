@@ -11,12 +11,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Status Enum
 typedef NS_ENUM(NSInteger, ADBDeviceStatus) {
-    ADBDeviceStatusOffline = 0,
-    ADBDeviceStatusUnauthorized,
+    ADBDeviceStatusUnknown = 0,
     ADBDeviceStatusDevice,
+    ADBDeviceStatusOffline,
+    ADBDeviceStatusUnauthorized,
     ADBDeviceStatusRecovery,
-    ADBDeviceStatusBootloader,
-    ADBDeviceStatusUnknown
+    ADBDeviceStatusBootloader
 };
 
 // Execute ADB Command Callback
@@ -28,13 +28,15 @@ typedef void (^ADBClientCallback)(NSString * _Nullable output, int returnCode);
 @property (nonatomic, copy) NSString *statusText;
 @property (nonatomic, assign) ADBDeviceStatus status;
 
+- (instancetype)initWith:(NSString *)deviceLine;
+
 @end
 
 @interface ADBClient : NSObject
 
-@property (nonatomic, assign, readonly)   int  listenPort;
-@property (nonatomic, assign, readonly)   BOOL isADBLaunched;
-@property (nonatomic, strong, readonly)   NSArray <NSString *>* adbDevices;
+@property (nonatomic, strong, readonly) NSArray <ADBDevice *> *adbDevices;
+@property (nonatomic, assign, readonly) BOOL isADBLaunched;
+@property (nonatomic, assign, readonly) int listenPort;
 
 + (instancetype)shared;
 
@@ -43,6 +45,17 @@ typedef void (^ADBClientCallback)(NSString * _Nullable output, int returnCode);
 
 // Execute ADB Command Async
 - (void)executeADBCommandAsync:(NSArray<NSString *> *)commands callback:(ADBClientCallback)callback;
+
+// ADB Key Management Methods
+- (NSString *)getADBHomeDirectory;
+- (NSString *)getADBAndroidDirectory;
+- (NSString *)readADBPrivateKey;
+- (NSString *)readADBPublicKey;
+- (BOOL)writeADBPrivateKey:(NSString *)privateKey;
+- (BOOL)writeADBPublicKey:(NSString *)publicKey;
+- (BOOL)generateNewADBKeyPair;
+- (BOOL)exportADBKeysToDirectory:(NSString *)directoryPath;
+- (BOOL)adbKeyPairExists;
 
 @end
 

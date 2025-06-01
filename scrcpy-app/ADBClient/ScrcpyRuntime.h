@@ -12,3 +12,4 @@
 #define ScrcpyStatusUpdatedNotificationName @"ScrcpyStatusUpdated"
 
 float ScrpyAudioVolumeScale(float update_scale);
+const char *ScrcpyCoreVersion(void);
