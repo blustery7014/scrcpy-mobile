@@ -16,6 +16,7 @@
 #import "ScrcpyRuntime.h"
 #import "ScrcpyMenuView.h"
 #import "ScrcpyInputMaskView.h"
+#import "ScrcpyCommon.h"
 
 @interface SDL_uikitviewcontroller () <ScrcpyMenuViewDelegate>
 @property (nonatomic, assign)   NSInteger  homeIndicatorHidden;

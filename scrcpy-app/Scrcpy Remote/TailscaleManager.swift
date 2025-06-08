@@ -84,9 +84,8 @@ class TailscaleManager {
     /// - Returns: true if both auth key and hostname are set, false otherwise
     func isConfigurationValid() -> Bool {
         let authKey = UserDefaults.standard.string(forKey: "settings.tailscale.auth_key") ?? ""
-        let hostname = UserDefaults.standard.string(forKey: "settings.tailscale.hostname") ?? ""
         
-        return !authKey.isEmpty && !hostname.isEmpty
+        return !authKey.isEmpty
     }
     
     /// Get current configuration status for debugging

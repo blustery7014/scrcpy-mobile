@@ -9,6 +9,7 @@
 #import "ADBLatencyTester.h"
 #import "TCPLatencyTester.h"
 #import "ADBClient.h"
+#import "ScrcpyCommon.h"
 #import "ScrcpyRuntime.h"
 
 // Import Tailscale library

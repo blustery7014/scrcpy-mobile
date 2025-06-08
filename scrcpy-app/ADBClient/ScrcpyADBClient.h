@@ -32,11 +32,6 @@ void ScrcpySendKeycodeEvent(SDL_Scancode scancode, SDL_Keycode keycode, SDL_Keym
 #endif
 
 @interface ScrcpyADBClient : NSObject
-
-- (void)startClient:(NSDictionary *)arguments completion:(void (^)(enum ScrcpyStatus statusCode, NSString *message))completion;
-
--(void)stopScrcpy;
-
 @end
 
 NS_ASSUME_NONNULL_END

@@ -16,6 +16,7 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #import <AVFoundation/AVFoundation.h>
+#import "ScrcpyCommon.h"
 #import "ScrcpyRuntime.h"
 
 // C function implementation
@@ -71,7 +72,7 @@ void ScrcpyTryResetVideo(void) {
     lastResetTime = NSDate.date.timeIntervalSince1970;
 }
 
-@interface ScrcpyADBClient ()
+@interface ScrcpyADBClient () <ScrcpyClientProtocol>
 
 @property (nonatomic, strong)  SDLUIKitDelegate  *sdlDelegate;
 @property (nonatomic, copy) void (^sessionCompletion)(enum ScrcpyStatus, NSString *);
@@ -80,6 +81,10 @@ void ScrcpyTryResetVideo(void) {
 // Property for scrcpy status
 @property (nonatomic, assign) enum ScrcpyStatus scrcpyStatus;
 
+// Background timer to control bakcground activities
+@property (nonatomic, strong) NSTimer *backgroundTimer;
+@property (nonatomic, assign) NSTimeInterval lastBackgroundCheckTime;
+
 @end
 
 @implementation ScrcpyADBClient
@@ -87,18 +92,37 @@ void ScrcpyTryResetVideo(void) {
 - (instancetype)init {
     self = [super init];
     if (self) {
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onScrcpyStatusUpdated:) name:ScrcpyStatusUpdatedNotificationName object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onScrcpyStatusUpdated:)
+                                                     name:ScrcpyStatusUpdatedNotificationName
+                                                   object:nil];
+        
         // Observe application enter background
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onApplicationDidEnterBackground:)
+                                                     name:UIApplicationDidEnterBackgroundNotification
+                                                   object:nil];
+        
         // Observe application enter foreground
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onApplicationDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onApplicationDidBecomeActive:)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+        
         // Observe disconnect event from scrcpy menu view
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopScrcpy) name:ScrcpyRequestDisconnectNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(stopScrcpy)
+                                                     name:ScrcpyRequestDisconnectNotification
+                                                   object:nil];
     }
     return self;
 }
 
 -(void)dealloc {
+    if (_backgroundTimer) {
+        [_backgroundTimer invalidate];
+        _backgroundTimer = nil;
+    }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -113,16 +137,13 @@ void ScrcpyTryResetVideo(void) {
     setenv("SCRCPY_SERVER_PATH", serverPath.UTF8String, 1);
 }
 
-- (void)startClient:(NSDictionary *)arguments completion:(nonnull void (^)(enum ScrcpyStatus, NSString * _Nonnull))completion {
+- (void)startWithArguments:(NSDictionary *)arguments completion:(void (^)(enum ScrcpyStatus, NSString *))completion {
     NSLog(@"🟢 Starting connect ADB device..");
     
     // Init scrcpy status
     self.scrcpyStatus = ScrcpyStatusDisconnected;
     
     [self setupScrcpyEnvs];
-    
-    // Reset audio volume ajust
-    // ScrcpyAudioVolumeScale(1.1);
     
     NSString *host = arguments[@"hostReal"];
     NSString *port = arguments[@"port"];
@@ -138,11 +159,32 @@ void ScrcpyTryResetVideo(void) {
     [ADBClient.shared executeADBCommandAsync:@[@"connect", serial] callback:^(NSString * _Nullable connectResult, int returnCode) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         NSLog(@"ADB Result: %@, %@", connectResult, @(returnCode));
-        NSLog(@"ADB Devices: %@", [ADBClient.shared adbDevices]);
+        NSArray *connectedDevices = [ADBClient.shared adbDevices];
+        NSLog(@"ADB Devices: %@", connectedDevices);
         
-        if (returnCode != 0) {
+        NSString *authTips = @"\n\nPlease check and accpet the adb authorization request on your device.";
+        
+        if (returnCode != 0 || [connectResult containsString:@"failed"]) {
             NSLog(@"❌ ADB connect failed: %@", connectResult);
+            ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed, [connectResult stringByAppendingString:authTips].UTF8String);
             return;
+        }
+        
+        // Check if the device is connected
+        if (connectedDevices.count == 0) {
+            NSLog(@"❌ No ADB devices connected");
+            ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed, "No ADB devices connected");
+            return;
+        }
+        
+        // Check if the serial matches the connected device
+        for (ADBDevice *device in connectedDevices) {
+            if ([device.serial isEqualToString:serial] && device.status != ADBDeviceStatusDevice) {
+                NSLog(@"🦺 ADB device connected status: %@", device);
+                NSString *errorMessage = [NSString stringWithFormat:@"Device connect status:\n%@ -> %@%@", device.serial, device.statusText, authTips];
+                ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed, errorMessage.UTF8String);
+                return;
+            }
         }
         
         // Notify completion when ADB connected
@@ -284,6 +326,9 @@ void ScrcpyTryResetVideo(void) {
 }
 
 - (void)startScrcpy:(NSString *)serial {
+    self.scrcpyStatus = ScrcpyStatusConnecting;
+    ScrcpyUpdateStatus(ScrcpyStatusConnecting, "Connecting to ADB device");
+    
     // Init SDL Delegate
     [self.sdlDelegate application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];
 
@@ -296,14 +341,14 @@ void ScrcpyTryResetVideo(void) {
     SDL_FlushEvents(0, 0xFFFF);
     
     // Update audio volume scale if audio is enabled
-    ScrpyAudioVolumeScale(1.0);
+    ScrcpyAudioVolumeScale(1.0);
     if (self.sessionArguments && self.sessionArguments[@"adbOptions"]) {
         id enableAudio = self.sessionArguments[@"adbOptions"][@"enableAudio"];
         id volumeScale = self.sessionArguments[@"adbOptions"][@"volumeScale"];
         if ([enableAudio isKindOfClass:[NSNumber class]] && [enableAudio boolValue] && 
             [volumeScale isKindOfClass:[NSNumber class]]) {
             double scale = [volumeScale doubleValue];
-            ScrpyAudioVolumeScale(scale);
+            ScrcpyAudioVolumeScale(scale);
         }
     }
     
@@ -326,13 +371,17 @@ void ScrcpyTryResetVideo(void) {
     event.type = SDL_QUIT;
     SDL_PushEvent(&event);
     
-    // 发送断开连接状态通知
-    [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyStatusUpdatedNotificationName object:nil userInfo:@{
-        @"status": @(0), // ScrcpyStatusDisconnected
-        @"message": @"User disconnected"
-    }];
+    // 使用新的 ScrcpyUpdateStatus 函数发送断开连接状态通知
+    ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "User disconnected from ADB client");
     
     NSLog(@"🔌 [ScrcpyADBClient] Disconnection initiated - status notification sent");
+}
+
+#pragma mark - ScrcpyClientProtocol
+
+-(void)disconnect {
+    NSLog(@"🔌 [ScrcpyADBClient] disconnect method called");
+    [self stopScrcpy];
 }
 
 #pragma mark - Scrcpy Events
@@ -418,17 +467,28 @@ void ScrcpyTryResetVideo(void) {
             [UIApplication.sharedApplication endBackgroundTask:taskIdentifier];
             NSLog(@"Background task expired: %lu", (unsigned long)taskIdentifier);
             
-            if (NSDate.date.timeIntervalSince1970 - beginBackgroundTime < 60 * 2) {
+            if (NSDate.date.timeIntervalSince1970 - beginBackgroundTime < 60 * 5) {
                 beginTaskHandler();
+                NSLog(@"Background task expired, but still in background, restart task");
+                return;
             }
+
+            NSLog(@"Background task expired, not in background, stop session");
+            [self stopScrcpy];
         }];
         NSLog(@"Application did enter background with task identifier: %lu", (unsigned long)taskIdentifier);
     };
     beginTaskHandler();
+    
+    // Start background timer to check if still in background
+    [self startBackgroundTimer];
 }
 
 - (void)onApplicationDidBecomeActive:(NSNotification *)notification {
     NSLog(@"Application did become active, reset video");
+    
+    // Stop background timer first
+    [self stopBackgroundTimer];
     
     if (self.scrcpyStatus != ScrcpyStatusSDLWindowCreated) {
         return;
@@ -442,6 +502,44 @@ void ScrcpyTryResetVideo(void) {
         [self sendKeycodeEvent:SDL_SCANCODE_R keycode:SDLK_r keymod:KMOD_LCTRL | KMOD_SHIFT];
         NSLog(@"-> [2] Reset video by LCTRL+SHIFT+R");
     });
+}
+
+#pragma mark - Bacgkround Management
+
+- (void)startBackgroundTimer {
+    [self stopBackgroundTimer];
+    self.lastBackgroundCheckTime = [NSDate date].timeIntervalSince1970;
+    self.backgroundTimer = [NSTimer scheduledTimerWithTimeInterval:10.0
+                                                            target:self
+                                                          selector:@selector(handleBackgroundTimeout)
+                                                          userInfo:nil
+                                                           repeats:YES];
+}
+
+- (void)handleBackgroundTimeout {
+    // Check if still in background and alreay 5 minutes passed
+    NSTimeInterval currentTime = [NSDate date].timeIntervalSince1970;
+    NSLog(@"Background timer fired, passed %f seconds, checking status...", currentTime - self.lastBackgroundCheckTime);
+    
+    if (UIApplication.sharedApplication.applicationState == UIApplicationStateBackground &&
+        currentTime - self.lastBackgroundCheckTime >= 60 * 5) {
+        NSLog(@"App is still in background, stopping scrcpy");
+        [self stopScrcpy];
+        
+        // Stop timer
+        [self stopBackgroundTimer];
+    } else {
+        NSLog(@"App is active or not reach expire time, no action needed");
+    }
+}
+
+- (void)stopBackgroundTimer {
+    if (self.backgroundTimer) {
+        [self.backgroundTimer invalidate];
+        self.backgroundTimer = nil;
+        self.lastBackgroundCheckTime = 0;
+        NSLog(@"Background timer stopped");
+    }
 }
 
 @end

@@ -87,7 +87,7 @@ sc_screen_handle_event(struct sc_screen *screen, SDL_Event *event) {
 SDL_Window *SDL_CreateWindow(const char *title, int x, int y, int w, int h, Uint32 flags);
 SDL_Window *SDL_CreateWindow_hijack(const char *title, int x, int y, int w, int h, Uint32 flags) {
     SDL_Window *window = SDL_CreateWindow(title, x, y, w, h, flags);
-    ScrcpyUpdateStatus(ScrcpyStatusSDLWindowCreated);
+    ScrcpyUpdateStatus(ScrcpyStatusSDLWindowCreated, "SDL Window Created");
     return window;
 }
 

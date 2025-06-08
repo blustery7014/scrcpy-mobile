@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import ActivityKit
+import WidgetKit
 
 @main
 struct Scrcpy_RemoteApp: App {
@@ -24,6 +26,9 @@ struct Scrcpy_RemoteApp: App {
                     
                     // 初始化日志管理器
                     initializeLogManager()
+                    
+                    // 初始化 Live Activity 支持
+                    initializeLiveActivitySupport()
                 }
                 // 注册通知中心观察者，监听前后台切换
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
@@ -59,5 +64,23 @@ struct Scrcpy_RemoteApp: App {
     private func initializeLogManager() {
         // 同步日志管理器和设置的状态
         logManager.toggleLogging(appSettings.loggingEnabled)
+    }
+    
+    private func initializeLiveActivitySupport() {
+        // 检查 Live Activity 支持
+        if #available(iOS 16.1, *) {
+            let authInfo = ActivityAuthorizationInfo()
+            print("🎭 [App] Live Activity authorization status: \(authInfo.areActivitiesEnabled)")
+            
+            // 清理任何遗留的 Live Activities
+            Task {
+                for activity in Activity<ScrcpyLiveActivityAttributes>.activities {
+                    await activity.end(dismissalPolicy: .immediate)
+                    print("🧹 [App] Cleaned up orphaned Live Activity: \(activity.id)")
+                }
+            }
+        } else {
+            print("ℹ️ [App] Live Activities not available on this iOS version")
+        }
     }
 }

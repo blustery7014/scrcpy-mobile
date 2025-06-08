@@ -1,5 +1,5 @@
 //
-//  ScrcpySDLWrapper.h
+//  ScrcpyClientWrapper.h
 //  Scrcpy Remote
 //
 //  Created by Ethan on 12/15/24.
@@ -39,6 +39,9 @@ static inline UIWindowScene * GetCurrentWindowScene(void)
 @interface ScrcpyClientWrapper : NSObject
 
 - (void)startClient:(NSDictionary *)arguments completion:(void (^)(enum ScrcpyStatus statusCode, NSString *message))completion;
+
+// Method for disconnect current active client
+- (void)disconnectCurrentClient;
 
 @end
 

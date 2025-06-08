@@ -161,6 +161,13 @@ struct SessionsView: View {
                 }
                 .listStyle(.plain)
                 .padding(.horizontal, 8)
+                .safeAreaInset(edge: .top) {
+                    Color.clear.frame(height: 2)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 2)
+                }
+                .ignoresSafeArea(.container, edges: [.leading, .trailing])
                 .refreshable {
                     isRefreshing = true
                     // Reset all latency results

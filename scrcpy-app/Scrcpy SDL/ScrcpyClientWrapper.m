@@ -10,10 +10,10 @@
 
 #import <objc/runtime.h>
 #import <SDL2/SDL.h>
-#import <rfb/rfbclient.h>
 
 #import "ScrcpyVNCClient.h"
 #import "ScrcpyADBClient.h"
+#import "ScrcpyCommon.h"
 
 @interface ScrcpyClientWrapper ()
 
@@ -21,6 +21,9 @@
 @property (nonatomic, strong) ScrcpyVNCClient *vncClient;
 // ADB Client
 @property (nonatomic, strong) ScrcpyADBClient *adbClient;
+
+// Track current active client
+@property (nonatomic, weak) id<ScrcpyClientProtocol> currentActiveClient;
 
 @end
 
@@ -62,14 +65,39 @@
 
 - (void)startClient:(NSDictionary *)arguments completion:(nonnull void (^)(enum ScrcpyStatus, NSString * _Nonnull))completion {
     NSLog(@"SDL_main start");
+    NSDictionary *deviceClients = @{
+        @"adb": self.adbClient,
+        @"vnc": self.vncClient
+    };
     
-    if ([arguments[@"deviceType"] isEqualToString:@"vnc"]) {
-        [self.vncClient start:arguments[@"hostReal"]
-                         port:arguments[@"port"]
-                         user:arguments[@"vncOptions"][@"vncUser"]
-                     password:arguments[@"vncOptions"][@"vncPassword"]];
+    NSString *deviceType = arguments[@"deviceType"];
+    if (!deviceType || ![deviceClients.allKeys containsObject:deviceType]) {
+        NSLog(@"Unsupported device type: %@", deviceType);
+        if (completion) {
+            completion(ScrcpyStatusConnectingFailed, @"Unsupported device type");
+        }
+        return;
+    }
+    
+    id<ScrcpyClientProtocol> deviceClient = deviceClients[deviceType];
+    
+    // Track current active client
+    self.currentActiveClient = deviceClient;
+    
+    if ([deviceClient respondsToSelector:@selector(startWithArguments:completion:)]) {
+        [deviceClient startWithArguments:arguments completion:completion];
+    }
+}
+
+- (void)disconnectCurrentClient {
+    NSLog(@"🔌 [ScrcpyClientWrapper] Disconnecting current client");
+    
+    if (self.currentActiveClient && [self.currentActiveClient respondsToSelector:@selector(disconnect)]) {
+        [self.currentActiveClient disconnect];
+        self.currentActiveClient = nil;
+        NSLog(@"✅ [ScrcpyClientWrapper] Current client disconnected");
     } else {
-        [self.adbClient startClient:arguments completion:completion];
+        NSLog(@"ℹ️ [ScrcpyClientWrapper] No active client to disconnect");
     }
 }
 

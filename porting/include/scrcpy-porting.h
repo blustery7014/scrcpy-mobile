@@ -21,7 +21,7 @@ enum ScrcpyStatus {
     ScrcpyStatusConnected,
     ScrcpyStatusSDLWindowAppeared,
 };
-void ScrcpyUpdateStatus(enum ScrcpyStatus status);
+void ScrcpyUpdateStatus(enum ScrcpyStatus status, const char *message);
 
 // Custom audio volume adjust
 float ScrcpyAudioVolumeScale(float volume_scale);

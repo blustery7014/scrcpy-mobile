@@ -140,6 +140,9 @@ class AppSettings: ObservableObject {
     
     @AppStorage("settings.tailscale.auth_key")
     var tailscaleAuthKey: String = ""
+    
+    @AppStorage("settings.live_activity.enabled")
+    var liveActivityEnabled: Bool = true
 }
 
 struct SettingsView: View {
@@ -155,6 +158,25 @@ struct SettingsView: View {
                     NavigationLink(destination: AppearanceSettingsView()) {
                         Text("Appearance")
                     }
+                    
+                    if #available(iOS 16.1, *) {
+                        Toggle("Live Activity in Dynamic Island", isOn: $appSettings.liveActivityEnabled)
+                        
+                        NavigationLink(destination: LiveActivityDebugView()) {
+                            Text("Test Live Activity")
+                        }
+                        
+                        NavigationLink(destination: LiveActivityDebugView()) {
+                            HStack {
+                                Text("Debug Live Activity")
+                                Spacer()
+                                Image(systemName: "ladybug")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                    
                     NavigationLink(destination: AboutView()) {
                         Text("About Scrcpy Remote")
                     }

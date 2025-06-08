@@ -359,7 +359,7 @@ void adb_connect_status_updated(const char *serial, const char *status)
     // The keygen command should create keys in the .android subdirectory
     NSString *androidDir = [self getADBAndroidDirectory];
     int returnCode = -1;
-    NSString *output = [self executeADBCommandUnderlying:@[@"keygen", androidDir] returnCode:&returnCode];
+    NSString *output = [self executeADBCommandUnderlying:@[@"keygen", [androidDir stringByAppendingString:@"/adbkey"]] returnCode:&returnCode];
     
     if (returnCode == 0) {
         NSLog(@"ADB key pair generated successfully: %@", output);

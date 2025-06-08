@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AA4B6E332DEC6CDC00813661 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA4B6E322DEC6CDC00813661 /* Foundation.framework */; };
+		AA4B6E362DEC70B300813661 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */; };
+		AA7AF64D2DF57467002EC51D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64C2DF57467002EC51D /* WidgetKit.framework */; };
+		AA7AF64F2DF57467002EC51D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64E2DF57467002EC51D /* SwiftUI.framework */; };
+		AA7AF6602DF57468002EC51D /* ScrcpyLiveActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AAA176472D13B6A40050862D /* ffmpegkit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF332D0D277400D361CA /* ffmpegkit.xcframework */; };
 		AAA176482D13B6A40050862D /* libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF352D0D277400D361CA /* libswscale.xcframework */; };
 		AAA176492D13B6A40050862D /* libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF342D0D277400D361CA /* libswresample.xcframework */; };
@@ -42,6 +47,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		AA7AF65E2DF57468002EC51D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA7EA51E2D01F33E00FF7760 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA7AF64A2DF57467002EC51D;
+			remoteInfo = ScrcpyLiveActivityWidgetExtension;
+		};
 		AAA4EF522D0DA3B100D361CA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AA7EA51E2D01F33E00FF7760 /* Project object */;
@@ -59,6 +71,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		AA7AF6652DF57468002EC51D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AA7AF6602DF57468002EC51D /* ScrcpyLiveActivityWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AAA4EFAA2D0FBEB000D361CA /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -81,6 +104,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AA4B6E322DEC6CDC00813661 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
+		AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ScrcpyLiveActivityWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA7AF64C2DF57467002EC51D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		AA7AF64E2DF57467002EC51D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Scrcpy Remote.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA8E62322DC6502300999976 /* libfakefs.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libfakefs.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA8E62342DC6502300999976 /* libish_emu.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libish_emu.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -132,21 +160,29 @@
 			);
 			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
 		};
-		AA4B6E152DEB40EE00813661 /* Exceptions for "ADBClient" folder in "Scrcpy Remote" target */ = {
+		AA4B6E3C2DEDD48E00813661 /* Exceptions for "Scrcpy Remote" folder in "VNCClient" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Makefile,
-				README.md,
-			);
-			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
-		};
-		AA4B6E282DEC67C200813661 /* Exceptions for "ADBClient" folder in "VNCClient" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
+				ScrcpyCommon.m,
+				ScrcpyInputMaskView.m,
 				ScrcpyMenuMaskView.m,
 				ScrcpyMenuView.m,
 			);
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
+		};
+		AA7AF6642DF57468002EC51D /* Exceptions for "ScrcpyLiveActivityWidget" folder in "ScrcpyLiveActivityWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AA7AF64A2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension */;
+		};
+		AA7AF66C2DF57674002EC51D /* Exceptions for "ScrcpyLiveActivityWidget" folder in "Scrcpy Remote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyLiveActivityAttributes.swift,
+			);
+			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
 		};
 		AAA4EF5C2D0DF10100D361CA /* Exceptions for "Scrcpy SDL" folder in "Scrcpy Remote" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -181,8 +217,20 @@
 			path = LatencyTest;
 			sourceTree = "<group>";
 		};
+		AA7AF6502DF57467002EC51D /* ScrcpyLiveActivityWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA7AF66C2DF57674002EC51D /* Exceptions for "ScrcpyLiveActivityWidget" folder in "Scrcpy Remote" target */,
+				AA7AF6642DF57468002EC51D /* Exceptions for "ScrcpyLiveActivityWidget" folder in "ScrcpyLiveActivityWidgetExtension" target */,
+			);
+			path = ScrcpyLiveActivityWidget;
+			sourceTree = "<group>";
+		};
 		AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA4B6E3C2DEDD48E00813661 /* Exceptions for "Scrcpy Remote" folder in "VNCClient" target */,
+			);
 			path = "Scrcpy Remote";
 			sourceTree = "<group>";
 		};
@@ -210,16 +258,21 @@
 		};
 		AAA4EFC72D1072DE00D361CA /* ADBClient */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				AA4B6E152DEB40EE00813661 /* Exceptions for "ADBClient" folder in "Scrcpy Remote" target */,
-				AA4B6E282DEC67C200813661 /* Exceptions for "ADBClient" folder in "VNCClient" target */,
-			);
 			path = ADBClient;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		AA7AF6482DF57467002EC51D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA7AF64F2DF57467002EC51D /* SwiftUI.framework in Frameworks */,
+				AA7AF64D2DF57467002EC51D /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA7EA5232D01F33E00FF7760 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -254,6 +307,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA4B6E362DEC70B300813661 /* CoreBluetooth.framework in Frameworks */,
+				AA4B6E332DEC6CDC00813661 /* Foundation.framework in Frameworks */,
 				AAA4EFC22D0FD6D000D361CA /* libz.tbd in Frameworks */,
 				AAA4EFBC2D0FC52000D361CA /* AVFoundation.framework in Frameworks */,
 				AAA4EFBA2D0FC51000D361CA /* CoreHaptics.framework in Frameworks */,
@@ -277,6 +332,7 @@
 				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
 				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
+				AA7AF6502DF57467002EC51D /* ScrcpyLiveActivityWidget */,
 				AAA4EF322D0D277400D361CA /* Frameworks */,
 				AA7EA5272D01F33E00FF7760 /* Products */,
 			);
@@ -288,6 +344,7 @@
 				AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */,
 				AAA4EF4E2D0DA3B100D361CA /* Scrcpy Remote Tests.xctest */,
 				AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */,
+				AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -310,6 +367,8 @@
 		AAA4EF322D0D277400D361CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */,
+				AA4B6E322DEC6CDC00813661 /* Foundation.framework */,
 				AA8E626B2DC655DD00999976 /* libarchive.tbd */,
 				AA8E62322DC6502300999976 /* libfakefs.a */,
 				AA8E62342DC6502300999976 /* libish_emu.a */,
@@ -337,6 +396,8 @@
 				AAA4EF392D0D277400D361CA /* libavutil.xcframework */,
 				AAA4EF342D0D277400D361CA /* libswresample.xcframework */,
 				AAA4EF352D0D277400D361CA /* libswscale.xcframework */,
+				AA7AF64C2DF57467002EC51D /* WidgetKit.framework */,
+				AA7AF64E2DF57467002EC51D /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -354,6 +415,28 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		AA7AF64A2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA7AF6612DF57468002EC51D /* Build configuration list for PBXNativeTarget "ScrcpyLiveActivityWidgetExtension" */;
+			buildPhases = (
+				AA7AF6472DF57467002EC51D /* Sources */,
+				AA7AF6482DF57467002EC51D /* Frameworks */,
+				AA7AF6492DF57467002EC51D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AA7AF6502DF57467002EC51D /* ScrcpyLiveActivityWidget */,
+			);
+			name = ScrcpyLiveActivityWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = ScrcpyLiveActivityWidgetExtension;
+			productReference = AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA7EA5342D01F33F00FF7760 /* Build configuration list for PBXNativeTarget "Scrcpy Remote" */;
@@ -362,11 +445,13 @@
 				AA7EA5232D01F33E00FF7760 /* Frameworks */,
 				AA7EA5242D01F33E00FF7760 /* Resources */,
 				AAA4EFAA2D0FBEB000D361CA /* Embed Frameworks */,
+				AA7AF6652DF57468002EC51D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				AAA4EFA32D0FBEB000D361CA /* PBXTargetDependency */,
+				AA7AF65F2DF57468002EC51D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
@@ -434,9 +519,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1610;
+				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1610;
 				TargetAttributes = {
+					AA7AF64A2DF57467002EC51D = {
+						CreatedOnToolsVersion = 16.2;
+					};
 					AA7EA5252D01F33E00FF7760 = {
 						CreatedOnToolsVersion = 16.1;
 						LastSwiftMigration = 1610;
@@ -471,11 +559,19 @@
 				AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EF4D2D0DA3B100D361CA /* Scrcpy Remote Tests */,
 				AAA4EF9D2D0FBEB000D361CA /* VNCClient */,
+				AA7AF64A2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AA7AF6492DF57467002EC51D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA7EA5242D01F33E00FF7760 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -500,6 +596,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AA7AF6472DF57467002EC51D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA7EA5222D01F33E00FF7760 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -524,6 +627,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		AA7AF65F2DF57468002EC51D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA7AF64A2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension */;
+			targetProxy = AA7AF65E2DF57468002EC51D /* PBXContainerItemProxy */;
+		};
 		AAA4EF532D0DA3B100D361CA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
@@ -537,6 +645,62 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		AA7AF6622DF57468002EC51D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K8Q74NT2BG;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ScrcpyLiveActivityWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ScrcpyLiveActivityWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-ios.ScrcpyLiveActivityWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA7AF6632DF57468002EC51D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K8Q74NT2BG;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ScrcpyLiveActivityWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ScrcpyLiveActivityWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-ios.ScrcpyLiveActivityWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		AA7EA5322D01F33F00FF7760 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -674,6 +838,8 @@
 				);
 				INFOPLIST_FILE = "Scrcpy-Remote-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Screen Remote";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -685,7 +851,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
-				MARKETING_VERSION = 4.0;
+				MARKETING_VERSION = 4.3.2;
 				OTHER_LDFLAGS = (
 					"-ladb-full",
 					"-lscrcpy",
@@ -721,6 +887,8 @@
 				);
 				INFOPLIST_FILE = "Scrcpy-Remote-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Screen Remote";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -732,7 +900,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
-				MARKETING_VERSION = 4.0;
+				MARKETING_VERSION = 4.3.2;
 				OTHER_LDFLAGS = (
 					"-ladb-full",
 					"-lscrcpy",
@@ -814,6 +982,7 @@
 					"-lvncclient",
 					"-lcrypto",
 					"-lSDL2",
+					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.VNCClient;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
@@ -858,6 +1027,7 @@
 					"-lvncclient",
 					"-lcrypto",
 					"-lSDL2",
+					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.VNCClient;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
@@ -873,6 +1043,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AA7AF6612DF57468002EC51D /* Build configuration list for PBXNativeTarget "ScrcpyLiveActivityWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA7AF6622DF57468002EC51D /* Debug */,
+				AA7AF6632DF57468002EC51D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AA7EA5212D01F33E00FF7760 /* Build configuration list for PBXProject "Scrcpy Remote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

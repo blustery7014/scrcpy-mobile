@@ -12,7 +12,6 @@
 #import <libavutil/frame.h>
 #import "ScrcpyRuntime.h"
 #import "scrcpy-porting.h"
-#import "ScrcpyMetalView.h"
 #import "app/config.h"
 
 typedef enum : NSUInteger {
@@ -22,8 +21,6 @@ typedef enum : NSUInteger {
     ScrcpyHardwareDecodingLayerRender = 1,
     // 2: enable hardware decoding with sdl render
     ScrcpyHardwareDecodingSDLRender = 2,
-    // 3: enable hardware decoding with metal view
-    ScrcpyHardwareDecodingMetalView = 3,
 } ScrcpyHardwareDecodingType;
 
 const char *ScrcpyCoreVersion(void)
@@ -42,7 +39,7 @@ int ScrcpyEnableHardwareDecoding(void)
     return TARGET_OS_SIMULATOR ? ScrcpyHardwareDecodingDisabled : ScrcpyHardwareDecodingLayerRender;
 }
 
-float ScrpyAudioVolumeScale(float update_scale)
+float ScrcpyAudioVolumeScale(float update_scale)
 {
     static float volume_scale = 1.0f;
     volume_scale = update_scale > 0 ? update_scale : volume_scale;
@@ -80,30 +77,6 @@ AVSampleBufferDisplayLayer *GetSampleBufferDisplayLayer(void)
 
         return displayLayer;
     }
-}
-
-ScrcpyMetalView *GetScrcpyMetalView(void)
-{
-    static ScrcpyMetalView *metalView = nil;
-    if (metalView != nil) {
-        return metalView;
-    }
-    
-    dispatch_sync(dispatch_get_main_queue(), ^{
-        [metalView removeFromSuperview];
-        UIWindow *sdlWindow = GetCurrentWindowScene().keyWindow;
-        metalView = [[ScrcpyMetalView alloc] init];
-
-        // Skip when no SDL window found
-        if (sdlWindow == nil) {
-            return;
-        }
-        
-        metalView.frame = sdlWindow.rootViewController.view.bounds;
-        [sdlWindow.rootViewController.view.layer addSublayer:metalView.layer];
-    });
-
-    return metalView;
 }
 
 void RenderPixelBufferFrame(CVPixelBufferRef pixelBuffer) {
@@ -159,13 +132,7 @@ AVFrame * ScrcpyHandleFrame(AVFrame *frame) {
     if (!pixelBuffer) {
         return frame;
     }
-    
-    if (ScrcpyEnableHardwareDecoding() == ScrcpyHardwareDecodingMetalView) {
-        ScrcpyMetalView *metalView = GetScrcpyMetalView();
-        [metalView renderPixelBuffer:pixelBuffer];
-        return frame;
-    }
-    
+   
     if (ScrcpyEnableHardwareDecoding() == ScrcpyHardwareDecodingLayerRender) {
         RenderPixelBufferFrame(pixelBuffer);
         return frame;
@@ -215,11 +182,4 @@ AVFrame * ScrcpyHandleFrame(AVFrame *frame) {
     frame->data[3] = NULL;
 
     return frame;
-}
-
-void ScrcpyUpdateStatus(enum ScrcpyStatus status) {
-    // Post notifacation
-    [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyStatusUpdatedNotificationName object:nil userInfo:@{
-        @"status": @(status)
-    }];
 }

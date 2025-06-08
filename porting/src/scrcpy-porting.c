@@ -18,7 +18,7 @@
 #undef SDL_Init
 
 __attribute__((weak))
-void ScrcpyUpdateStatus(enum ScrcpyStatus status) {
+void ScrcpyUpdateStatus(enum ScrcpyStatus status, const char *message) {
     printf("ScrcpyUpdateStatus: %d\n", status);
 }
 
@@ -27,7 +27,7 @@ sc_server_on_connection_failed_hijack(struct sc_server *server, void *userdata) 
     sc_server_on_connection_failed(server, userdata);
 
     // Notify update status
-    ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed);
+    ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed, "Scrcpy connect failed");
 }
 
 static void
@@ -40,7 +40,7 @@ sc_server_on_disconnected_hijack(struct sc_server *server, void *userdata) {
     SDL_PushEvent(&event);
 
     // Notify update status
-    ScrcpyUpdateStatus(ScrcpyStatusDisconnected);
+    ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "Scrcpy disconnected");
 }
 
 static void
@@ -48,7 +48,7 @@ sc_server_on_connected_hijack(struct sc_server *server, void *userdata) {
     sc_server_on_connected(server, userdata);
 
     // Notify update status
-    ScrcpyUpdateStatus(ScrcpyStatusConnected);
+    ScrcpyUpdateStatus(ScrcpyStatusConnected, "Scrcpy connected");
 }
 
 // Handle sc_server_init to change cbs->on_disconnected callback
@@ -85,7 +85,7 @@ int SDL_Init(Uint32 flags);
 int SDL_Init_hijack(Uint32 flags) {
     int ret = SDL_Init(flags);
     if (ret == 0) {
-        ScrcpyUpdateStatus(ScrcpyStatusSDLInited);
+        ScrcpyUpdateStatus(ScrcpyStatusSDLInited, "SDL Inited");
     }
     return ret;
 }

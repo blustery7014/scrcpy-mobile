@@ -9,7 +9,5 @@
 #import <UIKit/UIKit.h>
 #import "ScrcpyClientWrapper.h"
 
-#define ScrcpyStatusUpdatedNotificationName @"ScrcpyStatusUpdated"
-
-float ScrpyAudioVolumeScale(float update_scale);
+float ScrcpyAudioVolumeScale(float update_scale);
 const char *ScrcpyCoreVersion(void);

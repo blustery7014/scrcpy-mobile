@@ -11,7 +11,7 @@
 
 #undef sc_audio_regulator_pull
 
-float ScrpyAudioVolumeScale(float update_scale);
+float ScrcpyAudioVolumeScale(float update_scale);
 
 void sc_audio_regulator_pull(struct sc_audio_regulator *ar, uint8_t *out,
                         uint32_t out_samples);
@@ -19,8 +19,8 @@ void sc_audio_regulator_pull_hijack(struct sc_audio_regulator *ar, uint8_t *out,
                         uint32_t out_samples) {
 	sc_audio_regulator_pull(ar, out, out_samples);
 
-	// Adjust volume
-    float volume_scale = ScrpyAudioVolumeScale(0);
+	// Get adjust volume
+    float volume_scale = ScrcpyAudioVolumeScale(0);
 
     // 处理 AUDIO_F32 格式
     float *samples = (float *)out;
