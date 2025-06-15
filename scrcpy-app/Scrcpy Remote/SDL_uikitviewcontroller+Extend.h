@@ -10,6 +10,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class ScrcpyMenuView;
+@class SessionConnectionManager;
 
 @interface SDL_uikitviewcontroller : UIViewController
 @end

@@ -9,11 +9,15 @@
 #import "ScrcpyBlockWrapper.h"
 #import "ScrcpyMenuView.h"
 #import "ScrcpyCommon.h"
+#import "RenderRegionCalculator.h"
 
 #import <objc/runtime.h>
 #import <SDL2/SDL.h>
+#import <SDL2/SDL_mouse.h>
 #import <rfb/rfbclient.h>
 #import <rfb/keysym.h>
+#import <stdlib.h>
+#import <arpa/inet.h>
 
 #define CFRunLoopNormalInterval     0.5f
 #define CFRunLoopHandledSourceInterval 0.0001f
@@ -38,6 +42,37 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
 // Property for scrcpy status
 @property (nonatomic, assign) enum ScrcpyStatus scrcpyStatus;
 
+// VNC 远程桌面的图像像素大小
+@property (nonatomic, assign) CGSize imagePixelsSize;
+
+// 本机渲染屏幕区域大小
+@property (nonatomic, assign) CGSize renderScreenSize;
+
+// SDL rendering objects (need to access from zoom methods)
+@property (nonatomic, assign) SDL_Renderer *currentRenderer;
+@property (nonatomic, assign) SDL_Texture *currentTexture;
+
+// VNC 光标相关属性
+@property (nonatomic, assign) SDL_Cursor *vncCursor;
+@property (nonatomic, assign) int cursorX;
+@property (nonatomic, assign) int cursorY;
+@property (nonatomic, assign) BOOL cursorVisible;
+
+// VNC 拖拽手势相关属性
+@property (nonatomic, assign) BOOL isDragging;
+@property (nonatomic, assign) CGPoint lastDragLocation;
+@property (nonatomic, assign) int currentMouseX;
+@property (nonatomic, assign) int currentMouseY;
+@property (nonatomic, assign) int buttonMask;
+
+// VNC 拖拽偏移量相关属性
+@property (nonatomic, assign) CGPoint currentDragOffset;
+@property (nonatomic, assign) CGPoint totalDragOffset;
+@property (nonatomic, assign) CGPoint normalizedDragOffset;
+
+// Scale render properties
+@property (nonatomic, strong) RenderRegionResult *currentRenderingRegion;
+
 @end
 
 @implementation ScrcpyVNCClient
@@ -52,16 +87,63 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     if (self) {
         self.sdlDelegate = [[SDLUIKitDelegate alloc] init];
         
+        // 初始化缩放相关属性
+        self.imagePixelsSize = CGSizeZero; // 初始图像像素大小
+        self.currentRenderer = NULL;
+        self.currentTexture = NULL;
+        
+        // 初始化光标相关属性
+        self.vncCursor = NULL;
+        self.cursorX = 0;
+        self.cursorY = 0;
+        self.cursorVisible = NO;
+        
         // 监听断开连接通知
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleDisconnectRequest:)
                                                      name:@"ScrcpyRequestDisconnectNotification"
                                                    object:nil];
+        
+        // 监听VNC缩放通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCZoomNotification:)
+                                                     name:@"ScrcpyVNCZoomNotification"
+                                                   object:nil];
+        
+        // 监听VNC拖拽通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCDragNotification:)
+                                                     name:@"ScrcpyVNCDragNotification"
+                                                   object:nil];
+        
+        // 监听VNC拖拽偏移量通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCDragOffsetNotification:)
+                                                     name:@"ScrcpyVNCDragOffsetNotification"
+                                                   object:nil];
+        
+        // 初始化拖拽相关属性
+        self.isDragging = NO;
+        self.lastDragLocation = CGPointZero;
+        self.currentMouseX = 0;
+        self.currentMouseY = 0;
+        self.buttonMask = 0;
+        
+        // 初始化拖拽偏移量相关属性
+        self.currentDragOffset = CGPointZero;
+        self.totalDragOffset = CGPointZero;
+        self.normalizedDragOffset = CGPointZero;
     }
     return self;
 }
 
 -(void)dealloc {
+    // 清理光标资源
+    if (self.vncCursor) {
+        SDL_FreeCursor(self.vncCursor);
+        self.vncCursor = NULL;
+    }
+    
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -117,6 +199,13 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         {1, rfbButton1Mask}, {2, rfbButton2Mask}, {3, rfbButton3Mask},
         {4, rfbButton4Mask}, {5, rfbButton5Mask}, {0,0}
     };
+    
+    // 鼠标点击状态跟踪
+    BOOL mouseButtonPressed = NO;
+    int pressedButton = 0;
+    int pressedX = 0, pressedY = 0;
+    NSTimeInterval pressTime = 0;
+    const NSTimeInterval clickThreshold = 0.3; // 300ms内认为是点击
 
     while(_connected) {
         if(!SDL_PollEvent(&e)) {
@@ -157,32 +246,71 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
             break;
         case SDL_MOUSEWHEEL:
             break;
-        case SDL_MOUSEBUTTONUP:
-        case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEMOTION: {
-            int state, i;
-            if (e.type == SDL_MOUSEMOTION) {
-                x = e.motion.x;
-                y = e.motion.y;
-                state = e.motion.state;
-            }
-            else {
-                x = e.button.x;
-                y = e.button.y;
-                state = e.button.button;
-                for (i = 0; buttonMapping[i].sdl; i++) {
-                    if (state == buttonMapping[i].sdl) {
-                        state = buttonMapping[i].rfb;
-                        if (e.type == SDL_MOUSEBUTTONDOWN)
-                            buttonMask |= state;
-                        else
-                            buttonMask &= ~state;
-                        break;
-                    }
+        case SDL_MOUSEBUTTONDOWN: {
+            // 记录按下状态，但不立即发送事件
+            x = e.button.x;
+            y = e.button.y;
+            pressedButton = e.button.button;
+            
+            // 映射按钮
+            for (int i = 0; buttonMapping[i].sdl; i++) {
+                if (pressedButton == buttonMapping[i].sdl) {
+                    pressedButton = buttonMapping[i].rfb;
+                    break;
                 }
             }
-            SendPointerEvent(_rfbClient, x, y, buttonMask);
-            buttonMask &= ~(rfbButton4Mask | rfbButton5Mask);
+            
+            mouseButtonPressed = YES;
+            pressedX = x;
+            pressedY = y;
+            pressTime = [[NSDate date] timeIntervalSince1970];
+            
+            NSLog(@"🖱️ [ScrcpyVNCClient] Mouse button down at (%d, %d), button: %d", x, y, pressedButton);
+            break;
+        }
+        case SDL_MOUSEBUTTONUP: {
+            // 检查是否是点击事件
+            if (mouseButtonPressed && pressedButton == e.button.button) {
+                NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+                NSTimeInterval timeDiff = currentTime - pressTime;
+                
+                // 检查时间间隔和位置是否在合理范围内（点击）
+                int moveDistance = abs(e.button.x - pressedX) + abs(e.button.y - pressedY);
+                
+                if (timeDiff <= clickThreshold && moveDistance <= 5) {
+                    // 这是一个点击事件
+                    NSLog(@"🖱️ [ScrcpyVNCClient] Mouse click detected at (%d, %d), button: %d", e.button.x, e.button.y, pressedButton);
+                    
+                    // 发送按下事件
+                    buttonMask |= pressedButton;
+                    SendPointerEvent(_rfbClient, e.button.x, e.button.y, buttonMask);
+                    
+                    // 短暂延迟后发送释放事件
+                    usleep(50000); // 50ms delay
+                    buttonMask &= ~pressedButton;
+                    SendPointerEvent(_rfbClient, e.button.x, e.button.y, buttonMask);
+                } else {
+                    NSLog(@"🖱️ [ScrcpyVNCClient] Mouse drag detected (time: %.3fs, distance: %d), ignoring", timeDiff, moveDistance);
+                }
+            }
+            
+            // 重置状态
+            mouseButtonPressed = NO;
+            pressedButton = 0;
+            break;
+        }
+        case SDL_MOUSEMOTION: {
+            // 只处理鼠标移动，不处理按钮状态
+            x = e.motion.x;
+            y = e.motion.y;
+            
+            // 如果鼠标按钮没有按下，只发送位置更新
+            if (!mouseButtonPressed) {
+                SendPointerEvent(_rfbClient, x, y, 0);
+            } else {
+                // 如果鼠标按钮按下，发送拖拽事件
+                SendPointerEvent(_rfbClient, x, y, pressedButton);
+            }
             break;
         }
                 
@@ -299,8 +427,14 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     _rfbClient->listen6Port = LISTEN_PORT_OFFSET;
     
     _rfbClient->MallocFrameBuffer = (MallocFrameBufferProc)imp_implementationWithBlock(^rfbBool(rfbClient* client){
-        int width=client->width,height=client->height, depth=client->format.bitsPerPixel;
+        int width=client->width, height=client->height, depth=client->format.bitsPerPixel;
 
+        // 保存原始尺寸（仅在第一次时保存）
+        if (self.imagePixelsSize.width == 0 && self.imagePixelsSize.height == 0) {
+            self.imagePixelsSize = CGSizeMake(width, height);
+            NSLog(@"🔍 [ScrcpyVNCClient] Saved original VNC size: %.0dx%.0d", width, height);
+        }
+        
         SDL_FreeSurface(rfbClientGetClientData(client, SDL_Init));
         SDL_Surface* sdl=SDL_CreateRGBSurface(0, width, height, depth, 0, 0, 0, 0);
         if(!sdl) rfbClientErr("resize: error creating surface: %s\n", SDL_GetError());
@@ -316,15 +450,19 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         client->format.redMax = sdl->format->Rmask>>client->format.redShift;
         client->format.greenMax = sdl->format->Gmask>>client->format.greenShift;
         client->format.blueMax = sdl->format->Bmask>>client->format.blueShift;
-        SetFormatAndEncodings(client);
+        
+        // 启用远程光标支持
+        client->appData.useRemoteCursor = TRUE;
+        
+        CustomSetFormatAndEncodings(client);
 
         /* create or resize the window */
         sdlWindow = SDL_CreateWindow(client->desktopName,
-                     SDL_WINDOWPOS_UNDEFINED,
-                     SDL_WINDOWPOS_UNDEFINED,
-                     width,
-                     height,
-                     sdlFlags);
+                                     SDL_WINDOWPOS_UNDEFINED,
+                                     SDL_WINDOWPOS_UNDEFINED,
+                                     width,
+                                     height,
+                                     sdlFlags);
         if(!sdlWindow) rfbClientErr("resize: error creating window: %s\n", SDL_GetError());
 
         // Update status after SDL window creation
@@ -336,6 +474,9 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         if(!sdlRenderer) rfbClientErr("resize: error creating renderer: %s\n", SDL_GetError());
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");  /* make the scaled rendering look smoother. */
         
+        // Store renderer for zoom functionality
+        self.currentRenderer = sdlRenderer;
+        
         NSLog(@"SDL Window: %@", self.sdlDelegate.window);
         self.sdlDelegate.window.windowScene = self.currentScene;
         NSLog(@"SDL Window Scene: %@", self.sdlDelegate.window.windowScene);
@@ -346,14 +487,22 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         self.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
         ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "VNC connection established and window appeared");
         
-        SDL_RenderSetLogicalSize(sdlRenderer, width, height);
-        sdlTexture = SDL_CreateTexture(sdlRenderer,
-                           SDL_PIXELFORMAT_ARGB8888,
-                           SDL_TEXTUREACCESS_STREAMING,
-                           width, height);
+        NSLog(@"🔍 [ScrcpyVNCClient] Skipping logical size setup, using manual aspect ratio calculation");
+
+        sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_ARGB8888,
+                                       SDL_TEXTUREACCESS_STREAMING, width, height);
         
         if(!sdlTexture) rfbClientErr("resize: error creating texture: %s\n", SDL_GetError());
         
+        // Store texture for zoom functionality
+        self.currentTexture = sdlTexture;
+        
+        // 初始化渲染到屏幕中央, 并填充满屏幕
+        int windowWidth, windowHeight;
+        SDL_GetRendererOutputSize(sdlRenderer, &windowWidth, &windowHeight);
+        self.currentRenderingRegion = [RenderRegionCalculator calculateRenderRegionWithScreenSize:self.renderScreenSize
+                                                                                        imageSize:self.imagePixelsSize
+                                                                                      scaleFactor:1.0 centerX:0.5 centerY:0.5];
         return true;
     });
     
@@ -362,17 +511,175 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         SDL_Surface *sdl = rfbClientGetClientData(cl, SDL_Init);
         SDL_Rect r = {x, y, w, h};
         
-        if(SDL_UpdateTexture(sdlTexture, &r, sdl->pixels + y*sdl->pitch + x*4, sdl->pitch) < 0)
+        if(SDL_UpdateTexture(sdlTexture, &r, sdl->pixels + y*sdl->pitch + x*4, sdl->pitch) < 0) {
             rfbClientErr("update: failed to update texture: %s\n", SDL_GetError());
+        }
         
-        if(SDL_RenderClear(sdlRenderer) < 0)
+        // 设置黑色背景并清除
+        SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
+        if(SDL_RenderClear(sdlRenderer) < 0) {
             rfbClientErr("update: failed to clear renderer: %s\n", SDL_GetError());
+        }
         
-        if(SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, NULL) < 0)
+        // 重置渲染器缩放为1.0（我们现在使用源矩形来实现缩放）
+        SDL_RenderSetScale(sdlRenderer, 1.0, 1.0);
+        
+        // 获取窗口尺寸
+        int windowWidth = self.renderScreenSize.width, windowHeight = self.renderScreenSize.height;
+        SDL_GetRendererOutputSize(sdlRenderer, &windowWidth, &windowHeight);
+        
+        SDL_Rect srcRect, targetRect;
+        if (self.currentRenderingRegion) {
+            // 应用拖拽偏移量到源矩形（方向相反：用户向右拖拽时，视图向左移动）
+            CGFloat dragOffsetX = -self.normalizedDragOffset.x * self.imagePixelsSize.width;
+            CGFloat dragOffsetY = -self.normalizedDragOffset.y * self.imagePixelsSize.height;
+            
+            srcRect.x = self.currentRenderingRegion.sourceRect.origin.x + dragOffsetX;
+            srcRect.y = self.currentRenderingRegion.sourceRect.origin.y + dragOffsetY;
+            srcRect.w = self.currentRenderingRegion.sourceRect.size.width;
+            srcRect.h = self.currentRenderingRegion.sourceRect.size.height;
+            
+            // 确保源矩形不超出图像边界
+            srcRect.x = MAX(0, MIN(self.imagePixelsSize.width - srcRect.w, srcRect.x));
+            srcRect.y = MAX(0, MIN(self.imagePixelsSize.height - srcRect.h, srcRect.y));
+            
+            targetRect.x = self.currentRenderingRegion.targetRect.origin.x;
+            targetRect.y = self.currentRenderingRegion.targetRect.origin.y;
+            targetRect.w = self.currentRenderingRegion.targetRect.size.width;
+            targetRect.h = self.currentRenderingRegion.targetRect.size.height;
+        }
+
+        // 统一渲染调用
+        if(SDL_RenderCopy(sdlRenderer, sdlTexture, &srcRect, &targetRect) < 0) {
             rfbClientErr("update: failed to copy texture to renderer: %s\n", SDL_GetError());
+        }
+        
+        // 检查纹理信息
+        Uint32 format;
+        int access;
+        SDL_QueryTexture(sdlTexture, &format, &access, &w, &h);
+        
+        // 更新光标位置（如果光标可见）
+        if (self.cursorVisible && self.vncCursor) {
+            // 获取当前鼠标位置
+            int mouseX, mouseY;
+            SDL_GetMouseState(&mouseX, &mouseY);
+            
+            // 更新光标位置
+            self.cursorX = mouseX;
+            self.cursorY = mouseY;
+        }
         
         SDL_RenderPresent(sdlRenderer);
     }));
+    
+    // 设置光标形状处理回调
+    _rfbClient->GotCursorShape = (GotCursorShapeProc)imp_implementationWithBlock(^void(rfbClient* cl, int xhot, int yhot, int width, int height, int bytesPerPixel){
+        NSLog(@"🖱️ [ScrcpyVNCClient] Received cursor shape: %dx%d, hot spot: (%d,%d), bpp: %d", width, height, xhot, yhot, bytesPerPixel);
+        
+        // 清理之前的光标
+        if (self.vncCursor) {
+            SDL_FreeCursor(self.vncCursor);
+            self.vncCursor = NULL;
+        }
+        
+        // 检查光标数据是否有效
+        if (!cl->rcSource || !cl->rcMask || width <= 0 || height <= 0) {
+            NSLog(@"⚠️ [ScrcpyVNCClient] Invalid cursor data, using default cursor");
+            self.vncCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+            self.cursorVisible = YES;
+            SDL_SetCursor(self.vncCursor);
+            return;
+        }
+        
+        // 创建光标数据数组
+        int dataSize = width * height;
+        Uint8 *cursorData = malloc(dataSize);
+        Uint8 *cursorMask = malloc(dataSize);
+        
+        if (!cursorData || !cursorMask) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate cursor memory");
+            if (cursorData) free(cursorData);
+            if (cursorMask) free(cursorMask);
+            return;
+        }
+        
+        // 转换光标数据格式
+        if (bytesPerPixel == 4) {
+            // 32位颜色数据，需要转换为黑白
+            uint32_t *sourceData = (uint32_t *)cl->rcSource;
+            for (int i = 0; i < dataSize; i++) {
+                uint32_t pixel = sourceData[i];
+                // 简单的亮度计算
+                uint8_t brightness = ((pixel & 0xFF) + ((pixel >> 8) & 0xFF) + ((pixel >> 16) & 0xFF)) / 3;
+                cursorData[i] = (brightness > 128) ? 1 : 0;
+            }
+        } else if (bytesPerPixel == 1) {
+            // 8位灰度数据
+            memcpy(cursorData, cl->rcSource, dataSize);
+        } else {
+            // 其他格式，使用默认光标
+            NSLog(@"⚠️ [ScrcpyVNCClient] Unsupported cursor format: %d bpp", bytesPerPixel);
+            free(cursorData);
+            free(cursorMask);
+            self.vncCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+            self.cursorVisible = YES;
+            SDL_SetCursor(self.vncCursor);
+            return;
+        }
+        
+        // 复制掩码数据
+        memcpy(cursorMask, cl->rcMask, dataSize);
+        
+        // 创建SDL光标
+        self.vncCursor = SDL_CreateCursor(cursorData, cursorMask, width, height, xhot, yhot);
+        
+        if (self.vncCursor) {
+            NSLog(@"✅ [ScrcpyVNCClient] VNC cursor created successfully");
+            self.cursorVisible = YES;
+            SDL_SetCursor(self.vncCursor);
+        } else {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to create VNC cursor: %s", SDL_GetError());
+            self.vncCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+            self.cursorVisible = YES;
+            SDL_SetCursor(self.vncCursor);
+        }
+        
+        // 清理临时数据
+        free(cursorData);
+        free(cursorMask);
+    });
+    
+    // 设置光标位置处理回调
+    _rfbClient->HandleCursorPos = (HandleCursorPosProc)imp_implementationWithBlock(^rfbBool(rfbClient* cl, int x, int y){
+        NSLog(@"🖱️ [ScrcpyVNCClient] Received cursor position: (%d, %d)", x, y);
+        
+        // 更新光标位置
+        self.cursorX = x;
+        self.cursorY = y;
+        
+        // 如果光标可见，更新SDL光标位置
+        if (self.cursorVisible && self.vncCursor) {
+            // 将VNC坐标转换为SDL窗口坐标
+            // 这里需要根据缩放和偏移进行调整
+            int sdlX = x;
+            int sdlY = y;
+            
+            // 应用缩放和偏移
+            if (self.currentRenderingRegion) {
+                CGFloat scaleX = self.currentRenderingRegion.targetRect.size.width / self.currentRenderingRegion.sourceRect.size.width;
+                CGFloat scaleY = self.currentRenderingRegion.targetRect.size.height / self.currentRenderingRegion.sourceRect.size.height;
+                
+                sdlX = (x - self.currentRenderingRegion.sourceRect.origin.x) * scaleX + self.currentRenderingRegion.targetRect.origin.x;
+                sdlY = (y - self.currentRenderingRegion.sourceRect.origin.y) * scaleY + self.currentRenderingRegion.targetRect.origin.y;
+            }
+            
+            // 设置SDL光标位置
+            SDL_WarpMouseInWindow(NULL, sdlX, sdlY);
+        }
+        
+        return TRUE;
+    });
     
     _rfbClient->GetCredential = GetCredentialBlock;
     GetSet_GetCredentialBlockIMP(_rfbClient, imp_implementationWithBlock(^rfbCredential *(rfbClient* cl, int credentialType){
@@ -446,6 +753,27 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     
     // Mark as disconnected
     _connected = NO;
+    
+    // Reset zoom properties
+    self.imagePixelsSize = CGSizeZero;
+    self.currentRenderer = NULL;
+    self.currentTexture = NULL;
+    
+    // 清理光标资源
+    if (self.vncCursor) {
+        SDL_FreeCursor(self.vncCursor);
+        self.vncCursor = NULL;
+    }
+    self.cursorVisible = NO;
+    self.cursorX = 0;
+    self.cursorY = 0;
+    
+    // Reset drag properties
+    self.isDragging = NO;
+    self.lastDragLocation = CGPointZero;
+    self.currentDragOffset = CGPointZero;
+    self.totalDragOffset = CGPointZero;
+    self.normalizedDragOffset = CGPointZero;
     
     // Update status to disconnected
     self.scrcpyStatus = ScrcpyStatusDisconnected;
@@ -676,6 +1004,188 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     } else {
         NSLog(@"ℹ️ [ScrcpyVNCClient] No active VNC connection to disconnect");
     }
+}
+
+#pragma mark - VNC Zoom Handling
+
+- (CGSize)renderScreenSize {
+    if (_renderScreenSize.width > 0 && _renderScreenSize.height > 0) {
+        return _renderScreenSize;
+    }
+    
+    // 获取当前渲染器输出的实际尺寸
+    int width, height;
+    SDL_GetRendererOutputSize(self.currentRenderer, &width, &height);
+    _renderScreenSize = CGSizeMake(width, height);
+    return _renderScreenSize;
+}
+
+/// 处理VNC缩放通知
+/// - Parameter notification: 通知对象，包含缩放比例和是否完成的信息
+- (void)handleVNCZoomNotification:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    CGFloat rawScale = [userInfo[@"scale"] floatValue];
+    CGFloat centerX = [userInfo[@"centerX"] floatValue];
+    CGFloat centerY = [userInfo[@"centerY"] floatValue];
+    BOOL isFinished = [userInfo[@"isFinished"] boolValue];
+    
+    NSLog(@"🔍 [ZoomDebug] Received VNC zoom notification - raw scale: %.3f, center: (%.2f, %.2f), finished: %@",
+          rawScale, centerX, centerY, isFinished ? @"YES" : @"NO");
+    
+    // 检查是否有活跃的VNC连接
+    if (!_connected || !_rfbClient) {
+        NSLog(@"⚠️ [ZoomDebug] No active VNC connection for zoom");
+        return;
+    }
+    
+    // 获取当前 SDL 渲染窗口大小
+    int windowWidth = self.renderScreenSize.width;
+    int windowHeight = self.renderScreenSize.height;
+    SDL_GetRendererOutputSize(self.currentRenderer, &windowWidth, &windowHeight);
+    
+    // 计算缩放后新的源渲染区域
+    self.currentRenderingRegion = [RenderRegionCalculator calculateRenderRegionWithScreenSize:self.renderScreenSize
+                                                                                    imageSize:self.imagePixelsSize
+                                                                                  scaleFactor:rawScale centerX:centerX centerY:centerY];
+    NSLog(@"🔍 [ZoomDebug] Calculated rendering region: sourceRect(%@), targetRect(%@), displaySize(%@), scaledSize(%@)",
+          NSStringFromCGRect(self.currentRenderingRegion.sourceRect),
+          NSStringFromCGRect(self.currentRenderingRegion.targetRect),
+          NSStringFromCGSize(self.currentRenderingRegion.displaySize),
+          NSStringFromCGSize(self.currentRenderingRegion.scaledSize));
+    
+    if (isFinished) {
+        // 缩放手势结束，重置状态
+        NSLog(@"🔍 [ZoomDebug] VNC zoom gesture completed at center: (%.2f, %.2f)", centerX, centerY);
+    }
+}
+
+#pragma mark - VNC Drag Handling
+
+/// 处理VNC拖拽通知
+/// - Parameter notification: 通知对象，包含拖拽状态和位置信息
+- (void)handleVNCDragNotification:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *dragState = userInfo[@"state"];
+    CGPoint location = [userInfo[@"location"] CGPointValue];
+    CGSize viewSize = [userInfo[@"viewSize"] CGSizeValue];
+    CGPoint offset = [userInfo[@"offset"] CGPointValue];
+    
+    NSLog(@"🎯 [ScrcpyVNCClient] Received VNC drag notification - state: %@, location: (%.1f, %.1f), viewSize: (%.1f, %.1f), offset: (%.1f, %.1f)", 
+          dragState, location.x, location.y, viewSize.width, viewSize.height, offset.x, offset.y);
+    
+    // 检查是否有活跃的VNC连接
+    if (!_connected || !_rfbClient) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] No active VNC connection for drag");
+        return;
+    }
+    
+    // 更新拖拽状态
+    if ([dragState isEqualToString:@"began"]) {
+        self.isDragging = YES;
+        self.lastDragLocation = location;
+        self.currentDragOffset = offset;
+    } else if ([dragState isEqualToString:@"changed"]) {
+        self.currentDragOffset = offset;
+    } else if ([dragState isEqualToString:@"ended"] || [dragState isEqualToString:@"cancelled"]) {
+        self.isDragging = NO;
+        // 累积总偏移量
+        self.totalDragOffset = CGPointMake(self.totalDragOffset.x + offset.x, 
+                                          self.totalDragOffset.y + offset.y);
+        NSLog(@"🎯 [ScrcpyVNCClient] Drag ended, total offset: (%.1f, %.1f)", 
+              self.totalDragOffset.x, self.totalDragOffset.y);
+    }
+}
+
+/// 处理VNC拖拽偏移量通知（使用归一化偏移量）
+/// - Parameter notification: 通知对象，包含归一化偏移量信息
+- (void)handleVNCDragOffsetNotification:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    CGPoint normalizedOffset = [userInfo[@"normalizedOffset"] CGPointValue];
+    CGSize viewSize = [userInfo[@"viewSize"] CGSizeValue];
+    
+    NSLog(@"🎯 [ScrcpyVNCClient] Received VNC drag offset notification - normalized offset: (%.3f, %.3f), viewSize: (%.1f, %.1f)", 
+          normalizedOffset.x, normalizedOffset.y, viewSize.width, viewSize.height);
+    
+    // 检查是否有活跃的VNC连接
+    if (!_connected || !_rfbClient) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] No active VNC connection for drag offset");
+        return;
+    }
+    
+    // 更新归一化拖拽偏移量
+    self.normalizedDragOffset = normalizedOffset;
+    
+    // 计算实际的像素偏移量
+    CGFloat pixelOffsetX = normalizedOffset.x * self.imagePixelsSize.width;
+    CGFloat pixelOffsetY = normalizedOffset.y * self.imagePixelsSize.height;
+    
+    NSLog(@"🎯 [ScrcpyVNCClient] Updated normalized drag offset: (%.3f, %.3f) -> pixel offset: (%.1f, %.1f)", 
+          normalizedOffset.x, normalizedOffset.y, pixelOffsetX, pixelOffsetY);
+}
+
+/// 重置拖拽偏移量
+- (void)resetDragOffset {
+    self.currentDragOffset = CGPointZero;
+    self.totalDragOffset = CGPointZero;
+    self.normalizedDragOffset = CGPointZero;
+    self.isDragging = NO;
+    self.lastDragLocation = CGPointZero;
+    
+    NSLog(@"🔄 [ScrcpyVNCClient] Reset drag offset to zero");
+}
+
+#pragma mark - Custom VNC Functions
+
+/**
+ * 自定义的SetFormatAndEncodings函数，确保包含光标编码
+ */
+static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
+    // 首先调用原始的SetFormatAndEncodings函数
+    rfbBool result = SetFormatAndEncodings(client);
+    
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to set format and encodings");
+        return FALSE;
+    }
+    
+    // 发送额外的编码设置，确保包含光标编码
+    uint32_t encodings[] = {
+        rfbEncodingRaw,
+        rfbEncodingCopyRect,
+        rfbEncodingRRE,
+        rfbEncodingCoRRE,
+        rfbEncodingHextile,
+        rfbEncodingZlib,
+        rfbEncodingTight,
+        rfbEncodingXCursor,      // 添加X光标编码
+        rfbEncodingRichCursor,   // 添加富光标编码
+        rfbEncodingPointerPos    // 添加指针位置编码
+    };
+    
+    int numEncodings = sizeof(encodings) / sizeof(encodings[0]);
+    
+    // 发送SetEncodings消息
+    rfbSetEncodingsMsg msg;
+    msg.type = rfbSetEncodings;
+    msg.pad = 0;
+    msg.nEncodings = htons(numEncodings);
+    
+    if (!WriteToRFBServer(client, (char *)&msg, sz_rfbSetEncodingsMsg)) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send SetEncodings message header");
+        return FALSE;
+    }
+    
+    // 发送编码列表
+    for (int i = 0; i < numEncodings; i++) {
+        uint32_t encoding = htonl(encodings[i]);
+        if (!WriteToRFBServer(client, (char *)&encoding, sizeof(encoding))) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to send encoding %d", encodings[i]);
+            return FALSE;
+        }
+    }
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Successfully set encodings including cursor encodings");
+    return TRUE;
 }
 
 @end

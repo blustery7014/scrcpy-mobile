@@ -163,10 +163,6 @@ struct SettingsView: View {
                         Toggle("Live Activity in Dynamic Island", isOn: $appSettings.liveActivityEnabled)
                         
                         NavigationLink(destination: LiveActivityDebugView()) {
-                            Text("Test Live Activity")
-                        }
-                        
-                        NavigationLink(destination: LiveActivityDebugView()) {
                             HStack {
                                 Text("Debug Live Activity")
                                 Spacer()

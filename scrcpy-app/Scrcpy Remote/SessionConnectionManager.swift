@@ -29,8 +29,8 @@ typealias ConnectionStatusCallback = (ScrcpyStatus, String?, Bool) -> Void
 typealias ConnectionErrorCallback = (String, String) -> Void
 
 /// 管理当前连接会话的状态
-class SessionConnectionManager: ObservableObject {
-    static let shared = SessionConnectionManager()
+@objc class SessionConnectionManager: NSObject, ObservableObject {
+    @objc static let shared = SessionConnectionManager()
     
     // MARK: - Connection State
     
@@ -78,7 +78,8 @@ class SessionConnectionManager: ObservableObject {
         }
     }()
     
-    private init() {
+    override private init() {
+        super.init()
         setupNotificationObservers()
     }
     
@@ -642,5 +643,19 @@ class SessionConnectionManager: ObservableObject {
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+    
+    // MARK: - Objective-C Bridge Methods
+    
+    /// 获取当前连接的设备类型，供Objective-C代码调用
+    /// - Returns: 设备类型字符串，"adb"或"vnc"，如果没有连接则返回nil
+    @objc public func getCurrentDeviceType() -> String? {
+        return currentSession?.deviceType.rawValue
+    }
+    
+    /// 检查是否有当前活跃的连接，供Objective-C代码调用
+    /// - Returns: 是否有活跃连接
+    @objc public func hasActiveConnection() -> Bool {
+        return currentSession != nil && connectionStatus.isActive
     }
 } 

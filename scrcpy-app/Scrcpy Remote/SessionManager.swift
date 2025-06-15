@@ -48,6 +48,18 @@ struct ADBSessionOptions: Codable, Identifiable {
     var displayHeight: String = ""
     var displayDPI: String = "240"
     
+    // 连接后关闭远程屏幕选项
+    var turnScreenOff: Bool = true
+    
+    // 保持远程设备唤醒选项
+    var stayAwake: Bool = false
+    
+    // 断开连接后关闭远程屏幕选项
+    var powerOffOnClose: Bool = true
+    
+    // 强制 ADB 转发连接选项
+    var forceAdbForward: Bool = false
+    
     init() { }
     
     init(from decoder: any Decoder) throws {
@@ -69,6 +81,18 @@ struct ADBSessionOptions: Codable, Identifiable {
         self.displayWidth = try container.decodeIfPresent(String.self, forKey: .displayWidth) ?? ""
         self.displayHeight = try container.decodeIfPresent(String.self, forKey: .displayHeight) ?? ""
         self.displayDPI = try container.decodeIfPresent(String.self, forKey: .displayDPI) ?? "240"
+        
+        // 解码连接后关闭远程屏幕选项，默认为 true
+        self.turnScreenOff = try container.decodeIfPresent(Bool.self, forKey: .turnScreenOff) ?? true
+        
+        // 解码保持远程设备唤醒选项，默认为 false
+        self.stayAwake = try container.decodeIfPresent(Bool.self, forKey: .stayAwake) ?? false
+        
+        // 解码断开连接后关闭远程屏幕选项，默认为 true
+        self.powerOffOnClose = try container.decodeIfPresent(Bool.self, forKey: .powerOffOnClose) ?? true
+        
+        // 解码强制 ADB 转发连接选项，默认为 false
+        self.forceAdbForward = try container.decodeIfPresent(Bool.self, forKey: .forceAdbForward) ?? false
     }
 }
 

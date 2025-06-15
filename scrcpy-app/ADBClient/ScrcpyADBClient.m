@@ -203,6 +203,10 @@ void ScrcpyTryResetVideo(void) {
         @"maxFPS": @"--max-fps",
         @"videoCodec": @"--video-codec",
         @"videoBuffer": @"--video-buffer",
+        @"turnScreenOff": @"--turn-screen-off",
+        @"stayAwake": @"--stay-awake",
+        @"powerOffOnClose": @"--power-off-on-close",
+        @"forceAdbForward": @"--force-adb-forward",
     };
     return supportedOptions[key] ?: nil;
 }
@@ -295,9 +299,9 @@ void ScrcpyTryResetVideo(void) {
         id argValue = self.sessionArguments[@"adbOptions"][key];
         
         // Handle boolean values
-        if ([argValue isKindOfClass:[NSNumber class]] && [argValue isKindOfClass:@YES.class]) {
-            if ([argValue boolValue] == NO) {
-                args[argKey] = @(YES);
+        if ([argValue isKindOfClass:[NSNumber class]]) {
+            if ([argValue boolValue] == YES) {
+                [args setObject:@(YES) forKey:argKey];
             }
             continue;
         }

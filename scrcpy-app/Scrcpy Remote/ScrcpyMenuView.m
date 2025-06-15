@@ -50,7 +50,7 @@ static const CGFloat kDefaultPositionRatioY = 0.8f; // 右下方
 // Dynamic Island avoidance constants
 static const CGFloat kDynamicIslandWidth = 100.0f;
 
-@interface ScrcpyMenuView () <ScrcpyMenuMaskViewDelegate>
+@interface ScrcpyMenuView () <ScrcpyMenuMaskViewDelegate, ScrcpyMenuViewDelegate>
 
 // UI Elements
 @property (nonatomic, strong) UIView *capsuleView;
@@ -70,6 +70,21 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 @property (nonatomic, assign) CGPoint positionRatio; // 相对于屏幕中心的比例 (-1 to 1)
 @property (nonatomic, strong) NSTimer *fadeTimer;
 @property (nonatomic, weak) UIWindow *activeWindow;
+@property (nonatomic, assign) ScrcpyDeviceType currentDeviceType;
+@property (nonatomic, assign) BOOL isUpdatingButtonLayout;
+
+// VNC 缩放相关
+@property (nonatomic, assign) CGFloat currentZoomScale;
+@property (nonatomic, assign) CGFloat gestureStartZoomScale;
+@property (nonatomic, strong) UIPinchGestureRecognizer *pinchGesture;
+@property (nonatomic, assign) CGFloat gestureStartCenterX;
+@property (nonatomic, assign) CGFloat gestureStartCenterY;
+
+// VNC 拖拽相关
+@property (nonatomic, strong) UIPanGestureRecognizer *dragGesture;
+@property (nonatomic, assign) CGPoint dragStartLocation;
+@property (nonatomic, assign) CGPoint currentDragOffset;
+@property (nonatomic, assign) CGPoint totalDragOffset;
 
 // Private method declarations
 - (void)savePositionRatio:(CGPoint)ratio;
@@ -88,6 +103,12 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     self = [super initWithFrame:frame];
     if (self) {
         _isExpanded = NO;
+        _currentDeviceType = ScrcpyDeviceTypeADB; // 默认为ADB设备
+        _currentZoomScale = 1.0; // 初始化缩放比例为1.0
+        _gestureStartZoomScale = 1.0; // 初始化手势开始时的缩放比例
+        _dragStartLocation = CGPointZero; // 初始化拖拽开始位置
+        _currentDragOffset = CGPointZero; // 初始化当前拖拽偏移量
+        _totalDragOffset = CGPointZero; // 初始化总拖拽偏移量
         
         LOG_POSITION(@"Initializing menu view with frame: (%.1f, %.1f, %.1f, %.1f)",
                      frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
@@ -117,6 +138,12 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    
+    // 清理Pinch手势
+    [self removePinchGesture];
+    
+    // 清理拖拽手势
+    [self removeDragGesture];
 }
 
 - (void)orientationDidChange:(NSNotification *)notification {
@@ -325,8 +352,15 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     // Menu view (expanded state)
     UIWindow *window = [self activeWindow];
     self.activeWindow = window;
-    CGFloat menuWidth = window.bounds.size.width - (kMenuHorizontalPadding * 2);
-    self.menuView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, menuWidth, kMenuHeight)];
+    
+    // 使用默认宽度初始化菜单视图，稍后会通过updateButtonLayout自动调整
+    CGFloat initialMenuWidth = 6 * kButtonWidth + 5 * kButtonSpacing + kMenuHorizontalPadding * 2; // 按最大按钮数量计算
+    
+    // 确保不超过屏幕宽度
+    CGFloat maxAvailableWidth = window.bounds.size.width - (kMenuHorizontalPadding * 2);
+    initialMenuWidth = MIN(initialMenuWidth, maxAvailableWidth);
+    
+    self.menuView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, initialMenuWidth, kMenuHeight)];
     self.menuView.layer.cornerRadius = kMenuCornerRadius;
     self.menuView.clipsToBounds = YES;
     self.menuView.alpha = 0;
@@ -334,7 +368,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     // Gradient layer for menu
     CAGradientLayer *menuGradientLayer = [CAGradientLayer layer];
-    menuGradientLayer.frame = CGRectMake(0, 0, menuWidth, kMenuHeight);
+    menuGradientLayer.frame = CGRectMake(0, 0, initialMenuWidth, kMenuHeight);
     menuGradientLayer.colors = @[
         (id)[UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:0.85].CGColor,
         (id)[UIColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:0.9].CGColor
@@ -344,33 +378,31 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     [self.menuView.layer insertSublayer:menuGradientLayer atIndex:0];
     self.menuView.layer.masksToBounds = YES;
     
-    // Create buttons
-    CGFloat buttonWidth = kButtonWidth;
-    CGFloat buttonHeight = kButtonHeight;
-    CGFloat spacing = kButtonSpacing;
+    // Create buttons with temporary positions (will be updated by updateButtonLayout)
+    CGRect tempButtonFrame = CGRectMake(0, 0, kButtonWidth, kButtonHeight);
     
     // Back button
-    self.backButton = [self createButtonWithIcon:@"arrow.left" position:CGRectMake(spacing, 0, buttonWidth, buttonHeight)];
+    self.backButton = [self createButtonWithIcon:@"arrow.left" position:tempButtonFrame];
     [self.menuView addSubview:self.backButton];
     
     // Home button
-    self.homeButton = [self createButtonWithIcon:@"house" position:CGRectMake(buttonWidth + spacing, 0, buttonWidth, buttonHeight)];
+    self.homeButton = [self createButtonWithIcon:@"house" position:tempButtonFrame];
     [self.menuView addSubview:self.homeButton];
     
     // Switch button
-    self.switchButton = [self createButtonWithIcon:@"square.stack" position:CGRectMake((buttonWidth + spacing) * 2, 0, buttonWidth, buttonHeight)];
+    self.switchButton = [self createButtonWithIcon:@"square.stack" position:tempButtonFrame];
     [self.menuView addSubview:self.switchButton];
     
     // Keyboard button
-    self.keyboardButton = [self createButtonWithIcon:@"keyboard" position:CGRectMake((buttonWidth + spacing) * 3, 0, buttonWidth, buttonHeight)];
+    self.keyboardButton = [self createButtonWithIcon:@"keyboard" position:tempButtonFrame];
     [self.menuView addSubview:self.keyboardButton];
     
     // Actions button
-    self.actionsButton = [self createButtonWithIcon:@"ellipsis.circle" position:CGRectMake((buttonWidth + spacing) * 4, 0, buttonWidth, buttonHeight)];
+    self.actionsButton = [self createButtonWithIcon:@"ellipsis.circle" position:tempButtonFrame];
     [self.menuView addSubview:self.actionsButton];
     
     // Disconnect button
-    self.disconnectButton = [self createButtonWithIcon:@"xmark.circle" position:CGRectMake((buttonWidth + spacing) * 5, 0, buttonWidth, buttonHeight)];
+    self.disconnectButton = [self createButtonWithIcon:@"xmark.circle" position:tempButtonFrame];
     [self.menuView addSubview:self.disconnectButton];
 }
 
@@ -513,6 +545,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     } else {
         // 展开菜单
         [self updateMenuPosition];
+        // 在菜单位置设置后，重新应用按钮布局
+        [self updateButtonLayout];
         self.menuView.hidden = NO;
         self.menuView.alpha = 0;
         self.menuView.transform = CGAffineTransformMakeScale(0.5, 0.5);
@@ -555,10 +589,19 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     if (!window) return;
     
     CGRect screenBounds = window.bounds;
-    // 限制菜单最大宽度为 400
+    
+    // 计算当前可见按钮数量
+    NSInteger visibleButtonCount = [self visibleButtonCount];
+    
+    // 根据可见按钮数量计算理想菜单宽度
+    CGFloat totalButtonsWidth = visibleButtonCount * kButtonWidth + (visibleButtonCount - 1) * kButtonSpacing;
+    CGFloat menuWidth = totalButtonsWidth + kMenuHorizontalPadding * 2;
+    
+    // 限制菜单最大宽度，并考虑屏幕可用宽度
     CGFloat maxMenuWidth = 400.0f;
     CGFloat availableWidth = screenBounds.size.width - (kMenuHorizontalPadding * 2);
-    CGFloat menuWidth = MIN(maxMenuWidth, availableWidth);
+    menuWidth = MIN(MIN(maxMenuWidth, availableWidth), menuWidth);
+    
     CGFloat menuHeight = self.menuView.frame.size.height;
     
     // Convert capsule frame to window coordinates
@@ -634,26 +677,15 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         ((CAGradientLayer *)self.menuView.layer.sublayers[0]).frame = self.menuView.bounds;
     }
     
-    [self repositionMenuButtons:menuWidth];
-}
-
-- (void)repositionMenuButtons:(CGFloat)menuWidth {
-    NSArray *buttons = @[self.backButton, self.homeButton, self.switchButton, 
-                         self.keyboardButton, self.actionsButton, self.disconnectButton];
+    // 不再调用旧的 repositionMenuButtons，由 updateButtonLayout 处理
+    LOG_POSITION(@"🔧 updateMenuPosition completed, menu frame: (%.2f, %.2f, %.2f, %.2f)", 
+                 self.menuView.frame.origin.x, self.menuView.frame.origin.y, 
+                 self.menuView.frame.size.width, self.menuView.frame.size.height);
     
-    int buttonCount = (int)buttons.count;
-    CGFloat buttonWidth = kButtonWidth;
-    CGFloat totalButtonsWidth = buttonWidth * buttonCount;
-    
-    // 计算间距，使按钮均匀分布
-    CGFloat spacing = (menuWidth - totalButtonsWidth) / (buttonCount + 1);
-    
-    // 重新定位每个按钮
-    for (int i = 0; i < buttonCount; i++) {
-        UIButton *button = buttons[i];
-        CGRect frame = button.frame;
-        frame.origin.x = spacing + (buttonWidth + spacing) * i;
-        button.frame = frame;
+    // 确保按钮布局在菜单位置设置后得到正确应用
+    // 但只在不是从 updateButtonLayout 调用时才执行，避免递归
+    if (!self.isUpdatingButtonLayout) {
+        [self updateButtonLayout];
     }
 }
 
@@ -923,6 +955,252 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     }
 }
 
+#pragma mark - Device Type Configuration
+
+// Helper method to count visible buttons
+- (NSInteger)visibleButtonCount {
+    NSInteger count = 0;
+    if (!self.backButton.hidden) count++;
+    if (!self.homeButton.hidden) count++;
+    if (!self.switchButton.hidden) count++;
+    if (!self.keyboardButton.hidden) count++;
+    if (!self.actionsButton.hidden) count++;
+    if (!self.disconnectButton.hidden) count++;
+    return count;
+}
+
++ (ScrcpyDeviceType)deviceTypeFromString:(NSString *)deviceTypeString {
+    if ([deviceTypeString.lowercaseString isEqualToString:@"vnc"]) {
+        return ScrcpyDeviceTypeVNC;
+    } else if ([deviceTypeString.lowercaseString isEqualToString:@"adb"]) {
+        return ScrcpyDeviceTypeADB;
+    } else {
+        // 默认为ADB类型
+        return ScrcpyDeviceTypeADB;
+    }
+}
+
+- (void)configureForDeviceType:(ScrcpyDeviceType)deviceType {
+    self.currentDeviceType = deviceType;
+    
+    // 根据设备类型配置按钮可见性
+    if (deviceType == ScrcpyDeviceTypeADB) {
+        // ADB设备支持所有按钮
+        self.backButton.hidden = NO;
+        self.homeButton.hidden = NO;
+        self.switchButton.hidden = NO;
+        self.keyboardButton.hidden = NO;
+        self.actionsButton.hidden = NO;
+        self.disconnectButton.hidden = NO;
+        
+        // 移除的Pinch手势（如果存在）
+        [self removePinchGesture];
+        
+        // 移除的拖拽手势（如果存在）
+        [self removeDragGesture];
+        
+        LOG_POSITION(@"Configured menu for ADB device - all buttons visible");
+    } else if (deviceType == ScrcpyDeviceTypeVNC) {
+        // VNC设备只支持部分按钮
+        self.backButton.hidden = YES;
+        self.homeButton.hidden = YES;
+        self.switchButton.hidden = YES;
+        self.keyboardButton.hidden = NO;
+        self.actionsButton.hidden = NO;
+        self.disconnectButton.hidden = NO;
+        
+        // 为VNC设备添加Pinch缩放手势（延迟添加以确保SDL窗口初始化完成）
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self addPinchGesture];
+            [self addDragGesture];
+        });
+        
+        LOG_POSITION(@"Configured menu for VNC device - limited buttons visible and pinch gesture enabled");
+    }
+    
+    // 重新布局按钮
+    [self updateButtonLayout];
+}
+
+- (NSArray<UIButton *> *)getVisibleButtons {
+    NSMutableArray *visibleButtons = [NSMutableArray array];
+    
+    if (!self.backButton.hidden) [visibleButtons addObject:self.backButton];
+    if (!self.homeButton.hidden) [visibleButtons addObject:self.homeButton];
+    if (!self.switchButton.hidden) [visibleButtons addObject:self.switchButton];
+    if (!self.keyboardButton.hidden) [visibleButtons addObject:self.keyboardButton];
+    if (!self.actionsButton.hidden) [visibleButtons addObject:self.actionsButton];
+    if (!self.disconnectButton.hidden) [visibleButtons addObject:self.disconnectButton];
+    
+    return [visibleButtons copy];
+}
+
+- (void)updateButtonLayout {
+    if (!self.menuView) return;
+    
+    // 防止递归调用
+    if (self.isUpdatingButtonLayout) {
+        LOG_POSITION(@"🔧 updateButtonLayout skipped - already updating");
+        return;
+    }
+    self.isUpdatingButtonLayout = YES;
+    
+    // 获取可见的按钮
+    NSArray<UIButton *> *visibleButtons = [self getVisibleButtons];
+    
+    if (visibleButtons.count == 0) {
+        LOG_POSITION(@"No visible buttons to layout");
+        return;
+    }
+    
+    // 详细调试信息
+    LOG_POSITION(@"🔧 Starting updateButtonLayout - Device type: %ld", (long)self.currentDeviceType);
+    LOG_POSITION(@"🔧 Visible buttons count: %ld", (long)visibleButtons.count);
+    
+    for (NSInteger i = 0; i < visibleButtons.count; i++) {
+        UIButton *button = visibleButtons[i];
+        NSString *buttonType = @"unknown";
+        if (button == self.backButton) buttonType = @"back";
+        else if (button == self.homeButton) buttonType = @"home";
+        else if (button == self.switchButton) buttonType = @"switch";
+        else if (button == self.keyboardButton) buttonType = @"keyboard";
+        else if (button == self.actionsButton) buttonType = @"actions";
+        else if (button == self.disconnectButton) buttonType = @"disconnect";
+        
+        LOG_POSITION(@"🔧 Button %ld: %@ (current frame: %.2f, %.2f, %.2f, %.2f)", 
+                     (long)i, buttonType, button.frame.origin.x, button.frame.origin.y, 
+                     button.frame.size.width, button.frame.size.height);
+    }
+    
+    // 计算自适应布局参数
+    CGFloat buttonWidth = kButtonWidth;
+    CGFloat buttonHeight = kButtonHeight;
+    CGFloat spacing = kButtonSpacing;
+    
+    LOG_POSITION(@"🔧 Constants - buttonWidth: %.1f, buttonHeight: %.1f, spacing: %.1f, padding: %.1f", 
+                 buttonWidth, buttonHeight, spacing, kMenuHorizontalPadding);
+    
+    // 计算所有按钮占用的总宽度
+    CGFloat totalButtonsWidth = visibleButtons.count * buttonWidth + (visibleButtons.count - 1) * spacing;
+    
+    // 计算理想的菜单宽度（包含左右边距）
+    CGFloat idealMenuWidth = totalButtonsWidth + kMenuHorizontalPadding * 2;
+    
+    // 获取当前菜单尺寸
+    CGRect currentFrame = self.menuView.frame;
+    CGFloat menuHeight = currentFrame.size.height;
+    
+    LOG_POSITION(@"🔧 Menu calculations - totalButtonsWidth: %.1f, idealMenuWidth: %.1f, menuHeight: %.1f", 
+                 totalButtonsWidth, idealMenuWidth, menuHeight);
+    
+    // 更新菜单视图的宽度
+    self.menuView.frame = CGRectMake(currentFrame.origin.x, currentFrame.origin.y, idealMenuWidth, menuHeight);
+    
+    // 计算按钮容器在菜单中的起始X位置（应该从padding开始）
+    CGFloat containerStartX = kMenuHorizontalPadding;
+    CGFloat containerY = (menuHeight - buttonHeight) / 2.0; // 垂直居中
+    
+    LOG_POSITION(@"🔧 Container position - startX: %.1f, startY: %.1f", containerStartX, containerY);
+    
+    // 布局可见的按钮
+    for (NSInteger i = 0; i < visibleButtons.count; i++) {
+        UIButton *button = visibleButtons[i];
+        CGFloat xPosition = containerStartX + i * (buttonWidth + spacing);
+        
+        // 移除可能存在的约束
+        button.translatesAutoresizingMaskIntoConstraints = YES;
+        
+        // 强制设置按钮frame
+        button.frame = CGRectMake(xPosition, containerY, buttonWidth, buttonHeight);
+        
+        // 确保按钮布局立即生效
+        [button setNeedsLayout];
+        [button layoutIfNeeded];
+        
+        // 验证设置是否生效
+        CGRect actualFrame = button.frame;
+        
+        LOG_POSITION(@"🔧 Button %ld - calculated: (%.2f, %.2f), actual: (%.2f, %.2f, %.2f, %.2f)", 
+                     (long)i, xPosition, containerY, 
+                     actualFrame.origin.x, actualFrame.origin.y, actualFrame.size.width, actualFrame.size.height);
+        
+        // 再次验证（在下一个runloop中）
+        dispatch_async(dispatch_get_main_queue(), ^{
+            CGRect finalFrame = button.frame;
+            if (finalFrame.origin.x != xPosition || finalFrame.origin.y != containerY) {
+                LOG_POSITION(@"⚠️ Button %ld frame changed after layout! Expected: (%.2f, %.2f), Got: (%.2f, %.2f)", 
+                             (long)i, xPosition, containerY, finalFrame.origin.x, finalFrame.origin.y);
+            }
+        });
+    }
+    
+    // 更新gradient layer以匹配新的菜单尺寸
+    for (CALayer *layer in self.menuView.layer.sublayers) {
+        if ([layer isKindOfClass:[CAGradientLayer class]]) {
+            layer.frame = CGRectMake(0, 0, idealMenuWidth, menuHeight);
+            break;
+        }
+    }
+    
+    // 强制更新菜单视图布局
+    [self.menuView setNeedsLayout];
+    [self.menuView layoutIfNeeded];
+    
+    LOG_POSITION(@"Updated button layout: %ld visible buttons, menu width: %.1f, total buttons width: %.1f", 
+                 (long)visibleButtons.count, idealMenuWidth, totalButtonsWidth);
+    
+    // 验证布局是否正确
+    [self validateButtonLayout:visibleButtons];
+    
+    // 最后一次验证按钮位置
+    LOG_POSITION(@"🔧 Final verification:");
+    for (NSInteger i = 0; i < visibleButtons.count; i++) {
+        UIButton *button = visibleButtons[i];
+        CGFloat expectedX = containerStartX + i * (buttonWidth + spacing);
+        CGRect currentFrame = button.frame;
+        
+        if (fabs(currentFrame.origin.x - expectedX) > 0.1 || fabs(currentFrame.origin.y - containerY) > 0.1) {
+            LOG_POSITION(@"❌ Button %ld position mismatch! Expected: (%.2f, %.2f), Got: (%.2f, %.2f)", 
+                         (long)i, expectedX, containerY, currentFrame.origin.x, currentFrame.origin.y);
+        } else {
+                         LOG_POSITION(@"✅ Button %ld position correct: (%.2f, %.2f)", 
+                          (long)i, currentFrame.origin.x, currentFrame.origin.y);
+         }
+     }
+     
+     // 重置更新标志
+     self.isUpdatingButtonLayout = NO;
+ }
+
+- (void)validateButtonLayout:(NSArray<UIButton *> *)visibleButtons {
+    if (visibleButtons.count == 0) return;
+    
+    // 检查按钮是否在菜单范围内
+    CGFloat menuWidth = self.menuView.frame.size.width;
+    UIButton *lastButton = visibleButtons.lastObject;
+    CGFloat lastButtonRightEdge = lastButton.frame.origin.x + lastButton.frame.size.width;
+    
+    if (lastButtonRightEdge > menuWidth - kMenuHorizontalPadding) {
+        LOG_POSITION(@"⚠️ Button layout validation failed: last button exceeds menu bounds");
+        LOG_POSITION(@"Last button right edge: %.1f, menu width: %.1f, padding: %.1f", 
+                     lastButtonRightEdge, menuWidth, kMenuHorizontalPadding);
+    } else {
+        LOG_POSITION(@"✅ Button layout validation passed: all buttons within bounds");
+    }
+    
+    // 检查按钮是否垂直居中
+    CGFloat menuHeight = self.menuView.frame.size.height;
+    CGFloat expectedY = (menuHeight - kButtonHeight) / 2.0;
+    UIButton *firstButton = visibleButtons.firstObject;
+    
+    if (fabs(firstButton.frame.origin.y - expectedY) > 1.0) {
+        LOG_POSITION(@"⚠️ Button vertical alignment validation failed: expected Y: %.1f, actual Y: %.1f", 
+                     expectedY, firstButton.frame.origin.y);
+    } else {
+        LOG_POSITION(@"✅ Button vertical alignment validation passed");
+    }
+}
+
 #pragma mark - Dynamic Island Avoidance
 
 /*
@@ -1035,6 +1313,430 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
                  capsuleRect.origin.x, capsuleRect.origin.y, newX, newY);
     
     return CGPointMake(newX, newY);
+}
+
+#pragma mark - VNC Pinch Gesture Management
+
+- (void)addPinchGesture {
+    // 移除已存在的手势（如果有）
+    [self removePinchGesture];
+    
+    // 获取SDL窗口
+    UIWindow *sdlWindow = [self getSDLWindow];
+    if (!sdlWindow) {
+        LOG_POSITION(@"⚠️ Cannot add pinch gesture - SDL window not found");
+        return;
+    }
+    
+    // 创建Pinch手势识别器
+    self.pinchGesture = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCPinch:)];
+    self.pinchGesture.delegate = self;
+    
+    // 添加到SDL窗口的根视图控制器的视图上
+    UIViewController *rootVC = sdlWindow.rootViewController;
+    if (rootVC && rootVC.view) {
+        [rootVC.view addGestureRecognizer:self.pinchGesture];
+        LOG_POSITION(@"✅ Added pinch gesture to SDL window view");
+    } else {
+        LOG_POSITION(@"⚠️ Cannot add pinch gesture - SDL window root view controller not found");
+    }
+}
+
+- (void)removePinchGesture {
+    if (self.pinchGesture) {
+        [self.pinchGesture.view removeGestureRecognizer:self.pinchGesture];
+        self.pinchGesture = nil;
+        LOG_POSITION(@"🗑️ Removed VNC pinch gesture");
+    }
+}
+
+- (UIWindow *)getSDLWindow {
+    // 尝试通过SDL获取窗口
+    SDL_Window *sdlWindow = SDL_GetMouseFocus();
+    if (sdlWindow) {
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version);
+        if (SDL_GetWindowWMInfo(sdlWindow, &info)) {
+            UIWindow *uiWindow = info.info.uikit.window;
+            if (uiWindow) {
+                return uiWindow;
+            }
+        }
+    }
+    
+    // Fallback: 查找当前活跃的场景中的键窗口
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            for (UIWindow *window in scene.windows) {
+                if (window.isKeyWindow) {
+                    return window;
+                }
+            }
+        }
+    }
+    
+    return nil;
+}
+
+#pragma mark - Pinch Gesture Handler
+
+#define kMinZoomScale   1.0
+#define kMaxZoomScale   4.0
+
+- (void)handleVNCPinch:(UIPinchGestureRecognizer *)gesture {
+    if (self.currentDeviceType != ScrcpyDeviceTypeVNC) {
+        return;
+    }
+    
+    CGFloat gestureScale = gesture.scale;
+    
+    // 计算触摸中心点（归一化坐标 0.0-1.0）
+    CGPoint pinchCenter = [gesture locationInView:gesture.view];
+    CGSize viewSize = gesture.view.bounds.size;
+    CGFloat normalizedX = pinchCenter.x / viewSize.width;
+    CGFloat normalizedY = pinchCenter.y / viewSize.height;
+    
+    // 确保坐标在有效范围内
+    normalizedX = MAX(0.0, MIN(1.0, normalizedX));
+    normalizedY = MAX(0.0, MIN(1.0, normalizedY));
+    
+    switch (gesture.state) {
+        case UIGestureRecognizerStateBegan: {
+            // 记录手势开始时的缩放比例
+            self.currentZoomScale = MAX(self.currentZoomScale, kMinZoomScale); // 当前的缩放比例不低于 1.0
+            self.currentZoomScale = MIN(self.currentZoomScale, kMaxZoomScale); // 当前的缩放比例不低于 3.0
+            self.gestureStartZoomScale = self.currentZoomScale;
+            self.gestureStartCenterX = pinchCenter.x;
+            self.gestureStartCenterY = pinchCenter.y;
+            
+            // 计算归一化的中心点坐标
+            CGFloat normalizedStartX = self.gestureStartCenterX / viewSize.width;
+            CGFloat normalizedStartY = self.gestureStartCenterY / viewSize.height;
+            
+            // 确保坐标在有效范围内
+            normalizedStartX = MAX(0.0, MIN(1.0, normalizedStartX));
+            normalizedStartY = MAX(0.0, MIN(1.0, normalizedStartY));
+            
+            LOG_POSITION(@"🔍 VNC Pinch gesture began - current zoom: %.3f, gesture scale: %.3f, center: (%.3f, %.3f)",
+                         self.currentZoomScale, gestureScale, normalizedStartX, normalizedStartY);
+            
+            // 通知代理缩放手势开始（使用固定的中心点信息）
+            if ([self.delegate respondsToSelector:@selector(didPinchWithScale:centerX:centerY:)]) {
+                [self.delegate didPinchWithScale:self.currentZoomScale centerX:normalizedStartX centerY:normalizedStartY];
+            } else if ([self.delegate respondsToSelector:@selector(didPinchWithScale:)]) {
+                // 兼容性处理
+                [self.delegate didPinchWithScale:self.currentZoomScale];
+            }
+            break;
+        }
+            
+        case UIGestureRecognizerStateChanged: {
+            // 直接使用手势缩放比例，去掉阻尼
+            CGFloat newScale = self.gestureStartZoomScale * gestureScale;
+            
+            // 限制缩放范围
+            newScale = MAX(kMinZoomScale, MIN(kMaxZoomScale, newScale));
+            
+            // 使用手势开始时记录的中心点，避免后续跳动
+            CGFloat normalizedStartX = self.gestureStartCenterX / viewSize.width;
+            CGFloat normalizedStartY = self.gestureStartCenterY / viewSize.height;
+            
+            // 确保坐标在有效范围内
+            normalizedStartX = MAX(0.0, MIN(1.0, normalizedStartX));
+            normalizedStartY = MAX(0.0, MIN(1.0, normalizedStartY));
+            
+            LOG_POSITION(@"🔍 VNC Pinch gesture changed - gesture scale: %.3f, start zoom: %.3f, new scale: %.3f, fixed center: (%.3f, %.3f)", 
+                         gestureScale, self.gestureStartZoomScale, newScale, normalizedStartX, normalizedStartY);
+            
+            // 通知代理进行缩放（使用固定的中心点信息）
+            if ([self.delegate respondsToSelector:@selector(didPinchWithScale:centerX:centerY:)]) {
+                [self.delegate didPinchWithScale:newScale centerX:normalizedStartX centerY:normalizedStartY];
+            } else if ([self.delegate respondsToSelector:@selector(didPinchWithScale:)]) {
+                // 兼容性处理
+                [self.delegate didPinchWithScale:newScale];
+            }
+            break;
+        }
+            
+        case UIGestureRecognizerStateEnded:
+        case UIGestureRecognizerStateCancelled: {
+            // 直接使用手势缩放比例
+            CGFloat finalScale = self.gestureStartZoomScale * gestureScale;
+            finalScale = MAX(kMinZoomScale, MIN(kMaxZoomScale, finalScale));
+            
+            // 更新当前缩放比例
+            self.currentZoomScale = finalScale;
+            
+            // 使用手势开始时记录的中心点，避免后续跳动
+            CGFloat normalizedStartX = self.gestureStartCenterX / viewSize.width;
+            CGFloat normalizedStartY = self.gestureStartCenterY / viewSize.height;
+            
+            // 确保坐标在有效范围内
+            normalizedStartX = MAX(0.0, MIN(1.0, normalizedStartX));
+            normalizedStartY = MAX(0.0, MIN(1.0, normalizedStartY));
+            
+            LOG_POSITION(@"🔍 VNC Pinch gesture ended - gesture scale: %.3f, final scale: %.3f, fixed center: (%.3f, %.3f)", 
+                         gestureScale, finalScale, normalizedStartX, normalizedStartY);
+            
+            // 通知代理缩放结束（使用固定的中心点信息）
+            if ([self.delegate respondsToSelector:@selector(didPinchEndWithFinalScale:centerX:centerY:)]) {
+                [self.delegate didPinchEndWithFinalScale:finalScale centerX:normalizedStartX centerY:normalizedStartY];
+            } else if ([self.delegate respondsToSelector:@selector(didPinchEndWithFinalScale:)]) {
+                // 兼容性处理
+                [self.delegate didPinchEndWithFinalScale:finalScale];
+            }
+            break;
+        }
+            
+        default:
+            break;
+    }
+}
+
+#pragma mark - Drag Gesture Management
+
+- (void)addDragGesture {
+    // 移除已存在的手势（如果有）
+    [self removeDragGesture];
+    
+    // 获取SDL窗口
+    UIWindow *sdlWindow = [self getSDLWindow];
+    if (!sdlWindow) {
+        LOG_POSITION(@"⚠️ Cannot add drag gesture - SDL window not found");
+        return;
+    }
+    
+    // 创建拖拽手势识别器
+    self.dragGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
+    self.dragGesture.delegate = self;
+    self.dragGesture.minimumNumberOfTouches = 2;
+    self.dragGesture.maximumNumberOfTouches = 3;
+    
+    // 添加到SDL窗口的根视图控制器的视图上
+    UIViewController *rootVC = sdlWindow.rootViewController;
+    if (rootVC && rootVC.view) {
+        [rootVC.view addGestureRecognizer:self.dragGesture];
+        LOG_POSITION(@"✅ Added drag gesture to SDL window view");
+    } else {
+        LOG_POSITION(@"⚠️ Cannot add drag gesture - SDL window root view controller not found");
+    }
+}
+
+- (void)removeDragGesture {
+    if (self.dragGesture) {
+        [self.dragGesture.view removeGestureRecognizer:self.dragGesture];
+        self.dragGesture = nil;
+        LOG_POSITION(@"🗑️ Removed VNC drag gesture");
+    }
+}
+
+- (void)resetDragOffset {
+    self.currentDragOffset = CGPointZero;
+    self.totalDragOffset = CGPointZero;
+    self.dragStartLocation = CGPointZero;
+    LOG_POSITION(@"🔄 Reset drag offset to zero");
+}
+
+#pragma mark - UIGestureRecognizerDelegate
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    // 允许Pinch手势与其他手势同时进行，但不与我们自己的手势冲突
+    if (gestureRecognizer == self.pinchGesture) {
+        return YES;
+    }
+    // 允许拖拽手势与其他手势同时进行
+    if (gestureRecognizer == self.dragGesture) {
+        return YES;
+    }
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+    // 确保Pinch手势只在VNC设备时响应
+    if (gestureRecognizer == self.pinchGesture) {
+        return self.currentDeviceType == ScrcpyDeviceTypeVNC;
+    }
+    // 确保拖拽手势只在VNC设备时响应
+    if (gestureRecognizer == self.dragGesture) {
+        return self.currentDeviceType == ScrcpyDeviceTypeVNC;
+    }
+    return YES;
+}
+
+#pragma mark - Drag Gesture Handler
+
+- (void)handleDrag:(UIPanGestureRecognizer *)gesture {
+    if (self.currentDeviceType != ScrcpyDeviceTypeVNC) {
+        return;
+    }
+    
+    // 获取拖拽位置和视图尺寸
+    CGPoint location = [gesture locationInView:gesture.view];
+    CGSize viewSize = gesture.view.bounds.size;
+    
+    switch (gesture.state) {
+        case UIGestureRecognizerStateBegan: {
+            // 记录拖拽开始位置
+            self.dragStartLocation = location;
+            self.currentDragOffset = CGPointZero;
+            
+            LOG_POSITION(@"🎯 VNC Drag gesture began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f)", 
+                         location.x, location.y, viewSize.width, viewSize.height);
+            
+            // 通知代理拖拽开始
+            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
+                [self.delegate didDragWithState:@"began" location:location viewSize:viewSize offset:self.currentDragOffset];
+            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
+                // 兼容性处理
+                [self.delegate didDragWithState:@"began" location:location viewSize:viewSize];
+            }
+            
+            // 调用自己的代理方法实现
+            [self didDragWithState:@"began" location:location viewSize:viewSize offset:self.currentDragOffset];
+            break;
+        }
+            
+        case UIGestureRecognizerStateChanged: {
+            // 计算当前拖拽偏移量（相对于开始位置）
+            CGPoint translation = [gesture translationInView:gesture.view];
+            self.currentDragOffset = translation;
+            
+            // 计算归一化的偏移量（相对于视图尺寸的比例）
+            CGFloat normalizedOffsetX = translation.x / viewSize.width;
+            CGFloat normalizedOffsetY = translation.y / viewSize.height;
+            
+            // 确保归一化偏移量在合理范围内
+            normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
+            normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
+            
+            LOG_POSITION(@"🎯 VNC Drag gesture changed - location: (%.1f, %.1f), translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
+                         location.x, location.y, translation.x, translation.y, normalizedOffsetX, normalizedOffsetY);
+            
+            // 通知代理拖拽移动（包含偏移量信息）
+            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
+                [self.delegate didDragWithState:@"changed" location:location viewSize:viewSize offset:self.currentDragOffset];
+            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
+                // 兼容性处理
+                [self.delegate didDragWithState:@"changed" location:location viewSize:viewSize];
+            }
+            
+            // 调用自己的代理方法实现
+            [self didDragWithState:@"changed" location:location viewSize:viewSize offset:self.currentDragOffset];
+            
+            // 通知代理渲染Rect控制（使用归一化偏移量）
+            if ([self.delegate respondsToSelector:@selector(didDragWithNormalizedOffset:viewSize:)]) {
+                CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
+                [self.delegate didDragWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+            }
+            
+            // 调用自己的代理方法实现
+            CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
+            [self didDragWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+            break;
+        }
+            
+        case UIGestureRecognizerStateEnded: {
+            // 计算最终拖拽偏移量
+            CGPoint translation = [gesture translationInView:gesture.view];
+            self.currentDragOffset = translation;
+            self.totalDragOffset = CGPointMake(self.totalDragOffset.x + translation.x, 
+                                              self.totalDragOffset.y + translation.y);
+            
+            // 计算归一化的最终偏移量
+            CGFloat normalizedOffsetX = translation.x / viewSize.width;
+            CGFloat normalizedOffsetY = translation.y / viewSize.height;
+            normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
+            normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
+            
+            LOG_POSITION(@"🎯 VNC Drag gesture ended - location: (%.1f, %.1f), final translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
+                         location.x, location.y, translation.x, translation.y, normalizedOffsetX, normalizedOffsetY);
+            
+            // 通知代理拖拽结束（包含偏移量信息）
+            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
+                [self.delegate didDragWithState:@"ended" location:location viewSize:viewSize offset:self.currentDragOffset];
+            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
+                // 兼容性处理
+                [self.delegate didDragWithState:@"ended" location:location viewSize:viewSize];
+            }
+            
+            // 调用自己的代理方法实现
+            [self didDragWithState:@"ended" location:location viewSize:viewSize offset:self.currentDragOffset];
+            
+            // 通知代理最终渲染Rect控制（使用归一化偏移量）
+            if ([self.delegate respondsToSelector:@selector(didDragEndWithNormalizedOffset:viewSize:)]) {
+                CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
+                [self.delegate didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+            }
+            
+            // 调用自己的代理方法实现
+            CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
+            [self didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+            break;
+        }
+            
+        case UIGestureRecognizerStateCancelled: {
+            // 重置拖拽偏移量
+            self.currentDragOffset = CGPointZero;
+            
+            LOG_POSITION(@"🎯 VNC Drag gesture cancelled - location: (%.1f, %.1f)", location.x, location.y);
+            
+            // 通知代理拖拽取消
+            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
+                [self.delegate didDragWithState:@"cancelled" location:location viewSize:viewSize offset:self.currentDragOffset];
+            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
+                // 兼容性处理
+                [self.delegate didDragWithState:@"cancelled" location:location viewSize:viewSize];
+            }
+            
+            // 调用自己的代理方法实现
+            [self didDragWithState:@"cancelled" location:location viewSize:viewSize offset:self.currentDragOffset];
+            break;
+        }
+            
+        default:
+            break;
+    }
+}
+
+#pragma mark - ScrcpyMenuViewDelegate Implementation
+
+- (void)didDragWithState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize {
+    // 发送VNC拖拽通知
+    NSDictionary *userInfo = @{
+        @"state": state,
+        @"location": [NSValue valueWithCGPoint:location],
+        @"viewSize": [NSValue valueWithCGSize:viewSize]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragNotification" object:nil userInfo:userInfo];
+}
+
+- (void)didDragWithState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize offset:(CGPoint)offset {
+    // 发送VNC拖拽通知（包含偏移量）
+    NSDictionary *userInfo = @{
+        @"state": state,
+        @"location": [NSValue valueWithCGPoint:location],
+        @"viewSize": [NSValue valueWithCGSize:viewSize],
+        @"offset": [NSValue valueWithCGPoint:offset]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragNotification" object:nil userInfo:userInfo];
+}
+
+- (void)didDragWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize {
+    // 发送VNC拖拽偏移量通知
+    NSDictionary *userInfo = @{
+        @"normalizedOffset": [NSValue valueWithCGPoint:normalizedOffset],
+        @"viewSize": [NSValue valueWithCGSize:viewSize]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragOffsetNotification" object:nil userInfo:userInfo];
+}
+
+- (void)didDragEndWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize {
+    // 发送VNC拖拽结束偏移量通知
+    NSDictionary *userInfo = @{
+        @"normalizedOffset": [NSValue valueWithCGPoint:normalizedOffset],
+        @"viewSize": [NSValue valueWithCGSize:viewSize]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragOffsetNotification" object:nil userInfo:userInfo];
 }
 
 @end 

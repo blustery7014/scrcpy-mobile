@@ -275,6 +275,14 @@ class AppSchemeManagerV2: ObservableObject {
                 session.adbOptions.enableClipboardSync = value == "true"
             case "no-clipboard-autosync":
                 session.adbOptions.enableClipboardSync = value != "true"
+            case "turn-screen-off":
+                session.adbOptions.turnScreenOff = value == "true"
+            case "stay-awake":
+                session.adbOptions.stayAwake = value == "true"
+            case "power-off-on-close":
+                session.adbOptions.powerOffOnClose = value == "true"
+            case "force-adb-forward":
+                session.adbOptions.forceAdbForward = value == "true"
             case "volume-scale":
                 if let volumeValue = value, let volume = Double(volumeValue) {
                     session.adbOptions.volumeScale = volume
@@ -371,6 +379,14 @@ class AppSchemeManagerV2: ObservableObject {
                 session.adbOptions.enableAudio = value == "true"
             case "no-clipboard-autosync":
                 session.adbOptions.enableClipboardSync = value != "true"
+            case "turn-screen-off":
+                session.adbOptions.turnScreenOff = value == "true"
+            case "stay-awake":
+                session.adbOptions.stayAwake = value == "true"
+            case "power-off-on-close":
+                session.adbOptions.powerOffOnClose = value == "true"
+            case "force-adb-forward":
+                session.adbOptions.forceAdbForward = value == "true"
             case "volume-scale":
                 if let volumeValue = value, let volume = Double(volumeValue) {
                     session.adbOptions.volumeScale = volume

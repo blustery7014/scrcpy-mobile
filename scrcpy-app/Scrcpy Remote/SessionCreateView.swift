@@ -59,7 +59,7 @@ struct SessionCreateView: View {
                         .foregroundColor(.secondary)
                         .padding(.top, 2)
                 }
-                
+
                 if sessionModel.useTailscale {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -74,6 +74,10 @@ struct SessionCreateView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 4)
+                }
+                
+                if sessionModel.deviceType == .adb {
+                    Toggle("Force Connect ADB Forward", isOn: $sessionModel.adbOptions.forceAdbForward)
                 }
             }
             
@@ -128,6 +132,12 @@ struct SessionCreateView: View {
                     }
                     Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
                     
+                    Toggle("Turn Remote Screen Off After Connected", isOn: $sessionModel.adbOptions.turnScreenOff)
+                    
+                    Toggle("Turn Remote Screen Off After Disconnected", isOn: $sessionModel.adbOptions.powerOffOnClose)
+                    
+                    Toggle("Keep Remote Device Awake During Use", isOn: $sessionModel.adbOptions.stayAwake)
+
                     Toggle("Start New Display", isOn: $sessionModel.adbOptions.startNewDisplay)
                     
                     if sessionModel.adbOptions.startNewDisplay {

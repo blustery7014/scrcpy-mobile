@@ -17,6 +17,7 @@
 #import "ScrcpyMenuView.h"
 #import "ScrcpyInputMaskView.h"
 #import "ScrcpyCommon.h"
+#import "Scrcpy_Remote-Swift.h"
 
 @interface SDL_uikitviewcontroller () <ScrcpyMenuViewDelegate>
 @property (nonatomic, assign)   NSInteger  homeIndicatorHidden;
@@ -73,6 +74,10 @@ static char inputMaskViewKey;
     __weak typeof(self) weakSelf = self;
     self.menuView = [[ScrcpyMenuView alloc] initWithFrame:CGRectZero]; // Frame will be set correctly during initialization
     self.menuView.delegate = weakSelf;
+    
+    // 根据当前连接的设备类型配置菜单
+    [self configureMenuForCurrentDeviceType];
+    
     [self.menuView addToActiveWindow];
     
     // 监听键盘显示和隐藏的通知
@@ -122,6 +127,27 @@ static char inputMaskViewKey;
     [self.inputMaskView hide];
 }
 
+#pragma mark - Menu Configuration
+
+- (void)configureMenuForCurrentDeviceType {
+    // 获取当前设备类型
+    SessionConnectionManager *connectionManager = [SessionConnectionManager shared];
+    NSString *deviceTypeString = [connectionManager getCurrentDeviceType];
+    
+    // 使用便利方法转换设备类型
+    ScrcpyDeviceType deviceType = [ScrcpyMenuView deviceTypeFromString:deviceTypeString];
+    
+    // 记录日志
+    if (deviceTypeString) {
+        NSLog(@"🎛️ [SDL_uikitviewcontroller] Configuring menu for %@ device", deviceTypeString);
+    } else {
+        NSLog(@"⚠️ [SDL_uikitviewcontroller] No current device type found, using ADB default");
+    }
+    
+    // 配置菜单视图
+    [self.menuView configureForDeviceType:deviceType];
+}
+
 #pragma mark - ScrappyMenuViewDelegate
 
 - (void)didTapBackButton {
@@ -151,6 +177,75 @@ static char inputMaskViewKey;
 - (void)didTapDisconnectButton {
     // Post notification to disconnect
     [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyRequestDisconnectNotification object:nil];
+}
+
+#pragma mark - VNC Zoom Delegate Methods
+
+- (void)didPinchWithScale:(CGFloat)scale {
+    NSLog(@"🔍 [SDL_uikitviewcontroller] VNC pinch with scale: %.2f", scale);
+    
+    // 发送VNC缩放通知给VNCClient处理
+    NSDictionary *userInfo = @{
+        @"scale": @(scale),
+        @"centerX": @(0.5), // 默认屏幕中心，后续可改为实际触摸中心
+        @"centerY": @(0.5),
+        @"isFinished": @(NO)
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCZoomNotification" object:nil userInfo:userInfo];
+}
+
+- (void)didPinchWithScale:(CGFloat)scale centerX:(CGFloat)centerX centerY:(CGFloat)centerY {
+    NSLog(@"🔍 [SDL_uikitviewcontroller] VNC pinch with scale: %.2f, center: (%.3f, %.3f)", scale, centerX, centerY);
+    
+    // 发送VNC缩放通知给VNCClient处理（包含实际触摸中心点）
+    NSDictionary *userInfo = @{
+        @"scale": @(scale),
+        @"centerX": @(centerX),
+        @"centerY": @(centerY),
+        @"isFinished": @(NO)
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCZoomNotification" object:nil userInfo:userInfo];
+}
+
+- (void)didPinchEndWithFinalScale:(CGFloat)finalScale {
+    NSLog(@"🔍 [SDL_uikitviewcontroller] VNC pinch ended with final scale: %.2f", finalScale);
+    
+    // 发送VNC缩放结束通知给VNCClient处理
+    NSDictionary *userInfo = @{
+        @"scale": @(finalScale),
+        @"centerX": @(0.5), // 默认屏幕中心，后续可改为实际触摸中心
+        @"centerY": @(0.5),
+        @"isFinished": @(YES)
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCZoomNotification" object:nil userInfo:userInfo];
+}
+
+- (void)didPinchEndWithFinalScale:(CGFloat)finalScale centerX:(CGFloat)centerX centerY:(CGFloat)centerY {
+    NSLog(@"🔍 [SDL_uikitviewcontroller] VNC pinch ended with final scale: %.2f, center: (%.3f, %.3f)", finalScale, centerX, centerY);
+    
+    // 发送VNC缩放结束通知给VNCClient处理（包含实际触摸中心点）
+    NSDictionary *userInfo = @{
+        @"scale": @(finalScale),
+        @"centerX": @(centerX),
+        @"centerY": @(centerY),
+        @"isFinished": @(YES)
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCZoomNotification" object:nil userInfo:userInfo];
+}
+
+#pragma mark - VNC Drag Gesture Delegate
+
+- (void)didDragWithState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize {
+    NSLog(@"🎯 [SDL_uikitviewcontroller] VNC drag - state: %@, location: (%.1f, %.1f), viewSize: (%.1f, %.1f)", 
+          state, location.x, location.y, viewSize.width, viewSize.height);
+    
+    // 发送VNC拖拽通知给VNCClient处理
+    NSDictionary *userInfo = @{
+        @"state": state,
+        @"location": [NSValue valueWithCGPoint:location],
+        @"viewSize": [NSValue valueWithCGSize:viewSize]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragNotification" object:nil userInfo:userInfo];
 }
 
 @end
