@@ -66,7 +66,8 @@ public struct ScrcpyLiveActivityAttributes: ActivityAttributes {
         
         // 获取状态颜色
         public var statusColor: Color {
-            if isConnected {
+            // 当状态码大于等于 Window Created 状态时，都显示绿色
+            if connectionStatusCode >= 3 { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
                 return .green
             } else if connectionStatus == "Connecting" || connectionStatus.contains("Connecting") {
                 return .orange
@@ -79,7 +80,8 @@ public struct ScrcpyLiveActivityAttributes: ActivityAttributes {
         
         // 获取状态图标
         public var statusIcon: String {
-            if isConnected {
+            // 当状态码大于等于 Window Created 状态时，都显示成功图标
+            if connectionStatusCode >= 3 { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
                 return "checkmark.circle.fill"
             } else if connectionStatus == "Connecting" || connectionStatus.contains("Connecting") {
                 return "arrow.clockwise.circle.fill"
@@ -87,6 +89,16 @@ public struct ScrcpyLiveActivityAttributes: ActivityAttributes {
                 return "xmark.circle.fill"
             } else {
                 return "circle"
+            }
+        }
+        
+        // 获取显示状态文案
+        public var displayStatus: String {
+            // 当状态码大于等于 Window Created 状态时，都显示"已连接"
+            if connectionStatusCode >= 3 { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
+                return "已连接"
+            } else {
+                return connectionStatus
             }
         }
     }

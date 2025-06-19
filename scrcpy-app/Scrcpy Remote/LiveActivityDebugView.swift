@@ -194,7 +194,7 @@ struct LiveActivityDebugView: View {
             port: port,
             connectionStatus: statusMessage.isEmpty ? status.description : statusMessage,
             connectionStatusCode: Int(status.rawValue),
-            isConnected: status.isFullyConnected,
+            isConnected: status.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             startTime: Date(),
             isUsingTailscale: isUsingTailscale
         )
@@ -241,7 +241,7 @@ struct LiveActivityDebugView: View {
             port: port,
             connectionStatus: statusMessage.isEmpty ? status.description : statusMessage,
             connectionStatusCode: Int(status.rawValue),
-            isConnected: status.isFullyConnected,
+            isConnected: status.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             startTime: currentState.startTime,
             isUsingTailscale: isUsingTailscale
         )

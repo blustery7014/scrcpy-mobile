@@ -48,9 +48,9 @@ import Foundation
     /// Whether the status indicates a fully established connection
     public var isFullyConnected: Bool {
         switch self {
-        case .connected, .sdlWindowAppeared:
+        case .sdlWindowCreated, .connected, .sdlWindowAppeared:
             return true
-        case .disconnected, .adbConnected, .sdlInited, .sdlWindowCreated, .connecting, .connectingFailed:
+        case .disconnected, .adbConnected, .sdlInited, .connecting, .connectingFailed:
             return false
         }
     }

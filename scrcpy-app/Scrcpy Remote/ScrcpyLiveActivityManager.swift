@@ -77,7 +77,7 @@ class ScrcpyLiveActivityManager: ObservableObject {
             port: port,
             connectionStatus: initialStatus.description,
             connectionStatusCode: Int(initialStatus.rawValue),
-            isConnected: initialStatus.isFullyConnected,
+            isConnected: initialStatus.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             startTime: self.connectionStartTime!,
             isUsingTailscale: isUsingTailscale
         )
@@ -142,7 +142,7 @@ class ScrcpyLiveActivityManager: ObservableObject {
             port: currentState.port,
             connectionStatus: statusMessage ?? status.description,
             connectionStatusCode: Int(status.rawValue),
-            isConnected: status.isFullyConnected,
+            isConnected: status.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             startTime: actualStartTime,
             isUsingTailscale: currentState.isUsingTailscale
         )
@@ -230,7 +230,7 @@ class ScrcpyLiveActivityManager: ObservableObject {
     /// 更新当前活动（主要用于更新时长）
     private func updateCurrentActivity() {
         guard let activity = currentActivity,
-              activity.contentState.isConnected else {
+              activity.contentState.connectionStatusCode >= 3 else { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             return
         }
         

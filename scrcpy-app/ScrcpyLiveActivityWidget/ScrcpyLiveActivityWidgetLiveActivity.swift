@@ -72,7 +72,7 @@ struct ScrcpyLiveActivityLockScreenView: View {
                 Spacer()
                 
                 // 状态
-                Text(context.state.connectionStatus)
+                Text(context.state.displayStatus)
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(context.state.statusColor)
@@ -80,9 +80,10 @@ struct ScrcpyLiveActivityLockScreenView: View {
             
             // 设备信息
             HStack {
-                Image(systemName: deviceTypeIcon)
-                    .foregroundStyle(deviceTypeColor)
-                    .font(.title3)
+                deviceTypeImage
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 28, height: 28)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.state.sessionName)
@@ -99,7 +100,7 @@ struct ScrcpyLiveActivityLockScreenView: View {
                 Spacer()
                 
                 // 连接时长
-                if context.state.isConnected {
+                if context.state.connectionStatusCode >= 3 { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
                     HStack(spacing: 3) {
                         Image(systemName: "clock.fill")
                             .font(.caption)
@@ -125,25 +126,14 @@ struct ScrcpyLiveActivityLockScreenView: View {
         .padding(.vertical, 12)
     }
     
-    private var deviceTypeIcon: String {
+    private var deviceTypeImage: Image {
         switch context.state.deviceType.lowercased() {
         case "android":
-            return "smartphone"
-        case "ios":
-            return "iphone"
+            return Image("android")
+        case "vnc":
+            return Image("vnc")
         default:
-            return "display"
-        }
-    }
-    
-    private var deviceTypeColor: Color {
-        switch context.state.deviceType.lowercased() {
-        case "android":
-            return .green
-        case "ios":
-            return .blue
-        default:
-            return .purple
+            return Image(systemName: "display")
         }
     }
 }
@@ -176,12 +166,12 @@ struct ScrcpyLiveActivityExpandedTrailingView: View {
     
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
-            Text(context.state.connectionStatus)
+            Text(context.state.displayStatus)
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundStyle(context.state.statusColor)
             
-            if context.state.isConnected {
+            if context.state.connectionStatusCode >= 3 { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
                 Text(context.state.formattedDuration)
                     .font(.caption2)
                     .foregroundStyle(.green)
@@ -232,14 +222,14 @@ struct ScrcpyLiveActivityCompactTrailingView: View {
     let context: ActivityViewContext<ScrcpyLiveActivityAttributes>
     
     var body: some View {
-        if context.state.isConnected {
+        if context.state.connectionStatusCode >= 3 { // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             Text(context.state.formattedDuration)
                 .font(.caption2)
                 .fontWeight(.medium)
                 .foregroundStyle(.green)
                 .monospacedDigit()
         } else {
-            Text(context.state.connectionStatus)
+            Text(context.state.displayStatus)
                 .font(.caption2)
                 .fontWeight(.medium)
                 .foregroundStyle(context.state.statusColor)

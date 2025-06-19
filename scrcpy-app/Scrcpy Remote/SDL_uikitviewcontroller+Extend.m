@@ -90,11 +90,6 @@ static char inputMaskViewKey;
                                              selector:@selector(keyboardWillHide:)
                                                  name:UIKeyboardWillHideNotification
                                                object:nil];
-    
-    // Post nitfication to update scrcpy connect status
-    [[NSNotificationCenter defaultCenter] postNotificationName:ScrcpyStatusUpdatedNotificationName object:nil userInfo:@{
-        @"status": @(ScrcpyStatusSDLWindowAppeared)
-    }];
 }
 
 -(void)viewWillUnload

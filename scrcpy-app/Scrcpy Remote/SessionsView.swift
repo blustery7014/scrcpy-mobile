@@ -23,6 +23,11 @@ struct ScrcpySession: Codable, Identifiable {
         sessionModel.deviceType.rawValue
     }
     
+    // 根据设备类型获取背景图片名称
+    var deviceBackgroundImageName: String {
+        return "\(deviceType)-background"
+    }
+    
     var backgroundColor: LinearGradient {
         // Background color based on UUID to randomize colors
         let colors: [Color] = [.blue, .green, .orange, .pink, .purple, .red, .yellow]
@@ -34,6 +39,28 @@ struct ScrcpySession: Codable, Identifiable {
         let color = colors[abs(index)]
         // Gradient for background
         return LinearGradient(gradient: Gradient(colors: [color.opacity(0.9), color.opacity(0.7)]), startPoint: .top, endPoint: .bottom)
+    }
+    
+    // 根据背景颜色计算 Y 轴偏移
+    var backgroundImageOffset: CGFloat {
+        let colors: [Color] = [.blue, .green, .orange, .pink, .purple, .red, .yellow]
+        let titleNumber = title.unicodeScalars.map { code in
+            Int(code.value)
+        }.reduce(0, +)
+        let index = titleNumber % colors.count
+        let colorIndex = abs(index)
+        
+        // 根据颜色索引返回不同的 Y 轴偏移值
+        switch colorIndex {
+        case 0: return -20  // blue
+        case 1: return -10  // green
+        case 2: return 0    // orange
+        case 3: return 10   // pink
+        case 4: return 20   // purple
+        case 5: return -15  // red
+        case 6: return 15   // yellow
+        default: return 0
+        }
     }
     
     var sessionModel: ScrcpySessionModel = ScrcpySessionModel()
@@ -60,9 +87,14 @@ struct SessionsView: View {
     @State private var sessionToDelete: ScrcpySession? = nil
     @State private var showingCopyConfirmation = false
     @State private var copiedURLScheme = ""
+    
+    // 新增状态管理变量
+    @State private var hasInitialized: Bool = false
+    @State private var lastSessionsHash: Int = 0
+    @State private var autoTestEnabled: Bool = true
 
     var body: some View {
-        NavigationView {
+        Group {
             if savedSessions.isEmpty {
                 VStack {
                     Image(systemName: "inset.filled.rectangle.badge.record")
@@ -83,40 +115,51 @@ struct SessionsView: View {
             } else {
                 List(savedSessions) { session in
                     ZStack {
-                        Image(session.imageName)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 120)
-                            .background(session.backgroundColor)
-                            .clipped()
-                            .cornerRadius(10)
-                            .overlay(
-                                // Left top corner: device type icon + title
-                                HStack(spacing: 4) {
-                                    deviceTypeIcon(for: session)
-                                    Text(session.title)
-                                        .font(.headline)
-                                        .bold()
-                                        .foregroundColor(.white)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding(),
-                                alignment: .topLeading
-                            )
-                            .overlay(
-                                // Right bottom corner: device type text + latency test  
-                                HStack(spacing: 2) {
-                                    latencyTestView(for: session)
-                                }
-                                .padding(),
-                                alignment: .topTrailing
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 0)
-                            )
+                        // 背景图片和渐变色的组合
+                        ZStack {
+                            // 渐变背景色覆盖
+                            session.backgroundColor
+                                .frame(height: 110)
+                            
+                            // 设备背景图片
+                            Image(session.deviceBackgroundImageName)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 110)
+                                .offset(y: session.backgroundImageOffset)
+                                .opacity(0.08)
+                                .clipped()
+                                .foregroundStyle(.clear)
+                        }
+                        .background(Color.clear)
+                        .cornerRadius(10)
+                        .overlay(
+                            // Left top corner: device type icon + title
+                            HStack(spacing: 4) {
+                                deviceTypeIcon(for: session)
+                                Text(session.title)
+                                    .font(.headline)
+                                    .bold()
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(),
+                            alignment: .topLeading
+                        )
+                        .overlay(
+                            // Right bottom corner: device type text + latency test  
+                            HStack(spacing: 2) {
+                                latencyTestView(for: session)
+                            }
+                            .padding(),
+                            alignment: .topTrailing
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 0)
+                        )
                     }
                     .listRowInsets(EdgeInsets())
                     .padding(8)
@@ -169,20 +212,27 @@ struct SessionsView: View {
                 }
                 .ignoresSafeArea(.container, edges: [.leading, .trailing])
                 .refreshable {
-                    isRefreshing = true
-                    // Reset all latency results
-                    latencyResults = [:]
-                    latencyErrors = [:]
-                    // Start testing all sessions sequentially
-                    testSessionsSequentially(sessions: savedSessions)
-                    // Mark refresh as complete
-                    isRefreshing = false
+                    // 手动刷新：重置状态并重新测试所有会话
+                    await performManualRefresh()
                 }
                 .onAppear {
-                    // Auto-test latency for all sessions when view appears
-                    // Using a sequential approach with delays to avoid network congestion
-                    if !savedSessions.isEmpty {
-                        testSessionsSequentially(sessions: savedSessions)
+                    // 智能延迟测试：只在首次加载或会话列表发生变化时进行测试
+                    let currentSessionsHash = savedSessions.map { $0.id }.hashValue
+                    
+                    // 检查是否需要触发自动测试
+                    let shouldTest = shouldTriggerAutoTest(
+                        currentHash: currentSessionsHash,
+                        hasInitialized: hasInitialized,
+                        autoTestEnabled: autoTestEnabled
+                    )
+                    
+                    if shouldTest {
+                        // 执行延迟测试
+                        performAutoLatencyTest()
+                        
+                        // 更新状态
+                        hasInitialized = true
+                        lastSessionsHash = currentSessionsHash
                     }
                 }
             }
@@ -351,8 +401,8 @@ struct SessionsView: View {
                         .font(.system(size: 12))
                 } else if session.sessionModel.useTailscale {
                     // Show "~" for Tailscale sessions that haven't been tested
-                    Text("~")
-                        .font(.system(size: 12, weight: .bold))
+                    Text("Tailscale")
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.white.opacity(0.8))
                 }
             }
@@ -543,6 +593,98 @@ struct SessionsView: View {
             .foregroundColor(.white)
             .background(Color.black.opacity(0.6))
             .cornerRadius(20)
+    }
+    
+    // MARK: - 优化的刷新逻辑辅助方法
+    
+    /// 判断是否应该触发自动延迟测试
+    /// - Parameters:
+    ///   - currentHash: 当前会话列表的哈希值
+    ///   - hasInitialized: 是否已经初始化过
+    ///   - autoTestEnabled: 是否启用自动测试
+    /// - Returns: 是否应该触发测试
+    private func shouldTriggerAutoTest(
+        currentHash: Int,
+        hasInitialized: Bool,
+        autoTestEnabled: Bool
+    ) -> Bool {
+        // 如果自动测试被禁用，不触发
+        guard autoTestEnabled else { return false }
+        
+        // 如果会话列表为空，不触发
+        guard !savedSessions.isEmpty else { return false }
+        
+        // 如果正在测试中，不触发
+        guard testingLatencySessionId == nil else { return false }
+        
+        // 首次加载时触发
+        if !hasInitialized {
+            return true
+        }
+        
+        // 会话列表发生变化时触发
+        if currentHash != lastSessionsHash {
+            return true
+        }
+        
+        // 其他情况不触发
+        return false
+    }
+    
+    /// 执行自动延迟测试
+    private func performAutoLatencyTest() {
+        // 重置测试状态
+        latencyResults = [:]
+        latencyErrors = [:]
+        
+        // 开始顺序测试
+        testSessionsSequentially(sessions: savedSessions)
+    }
+    
+    /// 执行手动刷新
+    @MainActor
+    private func performManualRefresh() async {
+        // 设置刷新状态
+        isRefreshing = true
+        
+        // 重置所有延迟测试结果
+        latencyResults = [:]
+        latencyErrors = [:]
+        
+        // 等待当前测试完成（如果有的话）
+        while testingLatencySessionId != nil {
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+        }
+        
+        // 开始测试所有会话
+        testSessionsSequentially(sessions: savedSessions)
+        
+        // 等待测试完成
+        while testingLatencySessionId != nil {
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+        }
+        
+        // 标记刷新完成
+        isRefreshing = false
+    }
+    
+    /// 启用或禁用自动延迟测试
+    /// - Parameter enabled: 是否启用
+    func setAutoTestEnabled(_ enabled: Bool) {
+        autoTestEnabled = enabled
+    }
+    
+    /// 手动触发延迟测试（用于外部调用）
+    func triggerLatencyTest() {
+        guard autoTestEnabled && !savedSessions.isEmpty else { return }
+        performAutoLatencyTest()
+    }
+    
+    /// 清除所有延迟测试结果
+    func clearLatencyResults() {
+        latencyResults = [:]
+        latencyErrors = [:]
+        testingLatencySessionId = nil
     }
 }
 

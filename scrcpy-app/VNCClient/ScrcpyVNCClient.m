@@ -20,7 +20,7 @@
 #import <arpa/inet.h>
 
 #define CFRunLoopNormalInterval     0.5f
-#define CFRunLoopHandledSourceInterval 0.0001f
+#define CFRunLoopHandledSourceInterval 0.0002f
 
 CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled) {
     static CFTimeInterval nextLoopInterval = CFRunLoopNormalInterval;
@@ -452,7 +452,7 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         client->format.blueMax = sdl->format->Bmask>>client->format.blueShift;
         
         // 启用远程光标支持
-        client->appData.useRemoteCursor = TRUE;
+        client->appData.useRemoteCursor = true;
         
         CustomSetFormatAndEncodings(client);
 
@@ -482,11 +482,7 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         NSLog(@"SDL Window Scene: %@", self.sdlDelegate.window.windowScene);
         [self.sdlDelegate.window makeKeyWindow];
         NSLog(@"SDL Window RootController: %@", self.sdlDelegate.window.rootViewController);
-        
-        // Update status when SDL window appears
-        self.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
-        ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "VNC connection established and window appeared");
-        
+
         NSLog(@"🔍 [ScrcpyVNCClient] Skipping logical size setup, using manual aspect ratio calculation");
 
         sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_ARGB8888,
@@ -571,6 +567,16 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         }
         
         SDL_RenderPresent(sdlRenderer);
+        
+        // 当开始更新图像后, 才认为 SDLWindow 已经出现
+        if (self.scrcpyStatus >= ScrcpyStatusSDLWindowAppeared) {
+            return;
+        }
+        // Update status when SDL window appears, delay 1s to ensure window is ready
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            self.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
+            ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "VNC connection established and window appeared");
+        });
     }));
     
     // 设置光标形状处理回调

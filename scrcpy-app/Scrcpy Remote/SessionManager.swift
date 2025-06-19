@@ -55,7 +55,7 @@ struct ADBSessionOptions: Codable, Identifiable {
     var stayAwake: Bool = false
     
     // 断开连接后关闭远程屏幕选项
-    var powerOffOnClose: Bool = true
+    var powerOffOnClose: Bool = false
     
     // 强制 ADB 转发连接选项
     var forceAdbForward: Bool = false
@@ -295,5 +295,69 @@ class SessionManager {
     func clearSessions() {
         // Clear all saved sessions
         keychain.delete(sessionKey)
+    }
+}
+
+// MARK: - Action Manager
+
+class ActionManager: ObservableObject {
+    static let shared = ActionManager()
+    
+    private let actionsKey = "ScrcpyActions"
+    
+    @Published var actions: [ScrcpyAction] = []
+    
+    private init() {
+        loadActions()
+    }
+    
+    func loadActions() {
+        if let data = UserDefaults.standard.data(forKey: actionsKey) {
+            do {
+                let decoder = JSONDecoder()
+                actions = try decoder.decode([ScrcpyAction].self, from: data)
+                print("📋 [ActionManager] Loaded \(actions.count) actions")
+            } catch {
+                print("❌ [ActionManager] Failed to decode actions: \(error)")
+                actions = []
+            }
+        } else {
+            actions = []
+        }
+    }
+    
+    func saveAction(_ action: ScrcpyAction) {
+        // Update existing action or add new one
+        if let index = actions.firstIndex(where: { $0.id == action.id }) {
+            actions[index] = action
+        } else {
+            actions.append(action)
+        }
+        
+        saveActions()
+    }
+    
+    func deleteAction(id: UUID) {
+        actions.removeAll { $0.id == id }
+        saveActions()
+    }
+    
+    private func saveActions() {
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(actions)
+            UserDefaults.standard.set(data, forKey: actionsKey)
+            print("💾 [ActionManager] Saved \(actions.count) actions")
+        } catch {
+            print("❌ [ActionManager] Failed to encode actions: \(error)")
+        }
+    }
+    
+    func getAction(by id: UUID) -> ScrcpyAction? {
+        return actions.first { $0.id == id }
+    }
+    
+    func getActions(for deviceId: UUID) -> [ScrcpyAction] {
+        return actions.filter { $0.deviceId == deviceId }
     }
 }

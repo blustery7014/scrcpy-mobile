@@ -26,6 +26,8 @@ extension ScrcpyStatus {
     /// 检查连接状态是否为完全连接状态
     var isFullyConnected: Bool {
         switch self {
+        case ScrcpyStatusSDLWindowCreated:
+            return true
         case ScrcpyStatusSDLWindowAppeared:
             return true
         case ScrcpyStatusConnected:

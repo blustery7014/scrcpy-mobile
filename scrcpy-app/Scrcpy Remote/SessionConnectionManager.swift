@@ -140,6 +140,11 @@ typealias ConnectionErrorCallback = (String, String) -> Void
                     print("⏰ [SessionConnectionManager] Connection start time recorded: \(self.connectionStartTime!)")
                 }
                 
+                // 连接成功后，延迟清理回调以避免 ConnectionStatusView 在后台运行
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.cleanupCallbacksAfterSuccess()
+                }
+                
             case ScrcpyStatusDisconnected:
                 print("❌ [SessionConnectionManager] Status: Disconnected - clearing session")
                 if let disconnectMessage = statusMessage, !disconnectMessage.isEmpty {
@@ -152,14 +157,16 @@ typealias ConnectionErrorCallback = (String, String) -> Void
                 print("❌ [SessionConnectionManager] Status: Connection Failed")
                 self.isConnecting = false
                 
-                // 如果有错误消息且存在错误回调，显示错误信息
-                if let errorMessage = statusMessage, !errorMessage.isEmpty,
-                   let errorCallback = self.currentErrorCallback {
-                    print("📝 [SessionConnectionManager] Showing error message: \(errorMessage)")
-                    errorCallback("Connection Failed", errorMessage)
-                } else if let errorCallback = self.currentErrorCallback {
-                    // 使用默认错误消息
-                    errorCallback("Connection Failed", "Failed to connect to device. Please check your network connection and device settings.")
+                // 错误信息现在通过状态回调传递到 ConnectionStatusView，不再调用错误回调
+                if let errorMessage = statusMessage, !errorMessage.isEmpty {
+                    print("📝 [SessionConnectionManager] Error message: \(errorMessage)")
+                } else {
+                    print("📝 [SessionConnectionManager] No specific error message, using default")
+                }
+                
+                // 连接失败后，延迟清理回调
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.cleanupCallbacksAfterFailure()
                 }
                 
             default:
@@ -316,18 +323,6 @@ typealias ConnectionErrorCallback = (String, String) -> Void
                        let sessionId = self.currentSession?.id {
                         _ = SessionNetworking.shared.stopForwarding(for: sessionId)
                     }
-                    
-                    // 注意：错误消息现在主要通过状态更新通知处理
-                    // 这里的备用处理已被注释，避免重复显示错误信息
-                    // 状态更新通知会自动处理 ScrcpyStatusConnectingFailed 的错误显示
-                    /*
-                    if let errorCallback = self.currentErrorCallback {
-                        let errorMessage = message.isEmpty == false ? message : "Failed to connect to device. Please check your connection and try again."
-                        print("📝 [SessionConnectionManager] Backup error handling: \(errorMessage)")
-                        errorCallback("Connection Failed", errorMessage)
-                    }
-                    */
-                    
                 default:
                     print("🔄 [SessionConnectionManager] Connection status: \(statusCode.description)")
                     if !message.isEmpty {
@@ -343,14 +338,19 @@ typealias ConnectionErrorCallback = (String, String) -> Void
     /// - Parameters:
     ///   - title: 错误标题
     ///   - message: 错误消息
-    ///   - errorCallback: 错误回调
+    ///   - errorCallback: 错误回调（现在不再使用）
     private func handleConnectionError(title: String, message: String, errorCallback: ConnectionErrorCallback) {
         print("❌ [SessionConnectionManager] Connection error: \(title) - \(message)")
         
         isConnecting = false
         connectionStatus = ScrcpyStatusConnectingFailed
         
-        errorCallback(title, message)
+        // 通过状态回调传递错误信息到 ConnectionStatusView
+        if let callback = currentConnectionCallback {
+            callback(ScrcpyStatusConnectingFailed, message, false)
+        }
+        
+        print("📝 [SessionConnectionManager] Error message passed to ConnectionStatusView: \(message)")
     }
     
     /// 设置当前连接的会话
@@ -419,6 +419,32 @@ typealias ConnectionErrorCallback = (String, String) -> Void
         } else {
             print("🧹 [SessionConnectionManager] Session cleared - no previous connection")
         }
+    }
+    
+    /// 连接成功后清理回调
+    private func cleanupCallbacksAfterSuccess() {
+        print("🧹 [SessionConnectionManager] Cleaning up callbacks after successful connection")
+        
+        // 清理状态回调，避免 ConnectionStatusView 继续接收更新
+        currentConnectionCallback = nil
+        
+        // 清理错误回调
+        currentErrorCallback = nil
+        
+        print("✅ [SessionConnectionManager] Callbacks cleaned up after successful connection")
+    }
+    
+    /// 连接失败后清理回调
+    private func cleanupCallbacksAfterFailure() {
+        print("🧹 [SessionConnectionManager] Cleaning up callbacks after connection failure")
+        
+        // 清理状态回调
+        currentConnectionCallback = nil
+        
+        // 错误回调已经在显示错误时处理，这里确保清理
+        currentErrorCallback = nil
+        
+        print("❌ [SessionConnectionManager] Callbacks cleaned up after connection failure")
     }
     
     /// 检查是否需要重连到新会话

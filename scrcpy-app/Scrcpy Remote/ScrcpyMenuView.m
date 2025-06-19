@@ -386,11 +386,11 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     [self.menuView addSubview:self.backButton];
     
     // Home button
-    self.homeButton = [self createButtonWithIcon:@"house" position:tempButtonFrame];
+    self.homeButton = [self createButtonWithIcon:@"house.circle" position:tempButtonFrame];
     [self.menuView addSubview:self.homeButton];
     
     // Switch button
-    self.switchButton = [self createButtonWithIcon:@"square.stack" position:tempButtonFrame];
+    self.switchButton = [self createButtonWithIcon:@"square.circle" position:tempButtonFrame];
     [self.menuView addSubview:self.switchButton];
     
     // Keyboard button
@@ -716,9 +716,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     if ([identifier isEqualToString:@"arrow.left"]) {
         [self backButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"house"]) {
+    } else if ([identifier isEqualToString:@"house.circle"]) {
         [self homeButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"square.stack"]) {
+    } else if ([identifier isEqualToString:@"square.circle"]) {
         [self switchButtonTapped:sender];
     } else if ([identifier isEqualToString:@"keyboard"]) {
         [self keyboardButtonTapped:sender];

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import SafariServices
 
 enum Appearance: String, Codable, CaseIterable, Identifiable {
     case system = "System"
@@ -143,13 +144,79 @@ class AppSettings: ObservableObject {
     
     @AppStorage("settings.live_activity.enabled")
     var liveActivityEnabled: Bool = true
+    
+    // 新增：ADB配对历史
+    @AppStorage("settings.adb_pairing_history")
+    var adbPairingHistory: String = ""
+    
+    // 配对历史记录结构
+    struct PairingHistoryItem: Codable, Identifiable {
+        let id = UUID()
+        let hostPort: String
+        let timestamp: Date
+        
+        init(hostPort: String, timestamp: Date = Date()) {
+            self.hostPort = hostPort
+            self.timestamp = timestamp
+        }
+    }
+    
+    // 获取配对历史数组
+    var pairingHistoryArray: [PairingHistoryItem] {
+        if adbPairingHistory.isEmpty {
+            return []
+        }
+        
+        do {
+            let data = Data(adbPairingHistory.utf8)
+            let items = try JSONDecoder().decode([PairingHistoryItem].self, from: data)
+            return items
+        } catch {
+            // 如果解析失败，尝试兼容旧格式（纯字符串数组）
+            let oldFormat = adbPairingHistory.components(separatedBy: ",").filter { !$0.isEmpty }
+            return oldFormat.map { PairingHistoryItem(hostPort: $0) }
+        }
+    }
+    
+    // 添加配对历史
+    func addPairingHistory(_ hostPort: String) {
+        var history = pairingHistoryArray
+        // 移除已存在的相同记录
+        history.removeAll { $0.hostPort == hostPort }
+        // 添加到开头
+        history.insert(PairingHistoryItem(hostPort: hostPort), at: 0)
+        // 限制历史记录数量为10个
+        if history.count > 10 {
+            history = Array(history.prefix(10))
+        }
+        
+        // 保存为JSON格式
+        do {
+            let data = try JSONEncoder().encode(history)
+            adbPairingHistory = String(data: data, encoding: .utf8) ?? ""
+        } catch {
+            print("Failed to encode pairing history: \(error)")
+        }
+    }
+    
+    // 清除配对历史
+    func clearPairingHistory() {
+        adbPairingHistory = ""
+    }
 }
 
 struct SettingsView: View {
     @State private var showingClearAllLogsAlert = false
+    @State private var showingSafariController = false
     @EnvironmentObject var appSettings: AppSettings
     @StateObject private var logManager = AppLogManager.shared
     @Environment(\.presentationMode) var presentationMode
+    
+    // 检查是否有 ADB 类型的会话
+    private var hasADBSessions: Bool {
+        let sessions = SessionManager.shared.loadSessions()
+        return sessions.contains { $0.deviceType == .adb }
+    }
     
     var body: some View {
         NavigationView {
@@ -162,6 +229,7 @@ struct SettingsView: View {
                     if #available(iOS 16.1, *) {
                         Toggle("Live Activity in Dynamic Island", isOn: $appSettings.liveActivityEnabled)
                         
+                        #if DEBUG
                         NavigationLink(destination: LiveActivityDebugView()) {
                             HStack {
                                 Text("Debug Live Activity")
@@ -171,6 +239,7 @@ struct SettingsView: View {
                                     .font(.caption)
                             }
                         }
+                        #endif
                     }
                     
                     NavigationLink(destination: AboutView()) {
@@ -185,9 +254,15 @@ struct SettingsView: View {
                         Text("Tailscale Auth Setting")
                     }
                 }
-                Section(header: Text("ADB Keys Managements")) {
-                    NavigationLink(destination: ADBKeysManagementView()) {
-                        Text("Manage ADB Keys")
+                // 仅当有 ADB 类型的会话时才显示 ADB 管理选项
+                if hasADBSessions {
+                    Section(header: Text("ADB Keys Managements")) {
+                        NavigationLink(destination: ADBKeysManagementView()) {
+                            Text("Manage ADB Keys")
+                        }
+                        NavigationLink(destination: ADBPairingView()) {
+                            Text("Pair ADB with Pairing Code")
+                        }
                     }
                 }
                 Section(header: Text("Application Logs")) {
@@ -239,14 +314,26 @@ struct SettingsView: View {
                     }
                 }
                 Section(header: Text("Request & Support")) {
-                    Link("Submit an Issue", destination: URL(string: "https://github.com/wsvn53/scrcpy-mobile/issues")!)
-                        .foregroundColor(.blue)
+                    Button(action: {
+                        showingSafariController = true
+                    }) {
+                        HStack {
+                            Text("Submit an Issue")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                        }
+                    }
+                    .foregroundColor(.blue)
                 }
             }
             .navigationBarTitle("Settings", displayMode: .inline)
             .navigationBarItems(trailing: Button("Done") {
                 presentationMode.wrappedValue.dismiss()
             })
+        }
+        .sheet(isPresented: $showingSafariController) {
+            SafariView(url: URL(string: "https://github.com/wsvn53/scrcpy-mobile/issues")!)
         }
         .onAppear {
             // 初始化日志管理器状态
@@ -720,6 +807,8 @@ struct TailscaleAuthSettingsView: View {
 struct AboutView: View {
     @State private var appVersion: String = "Unknown"
     @State private var scrcpyVersion: String = "Unknown"
+    @State private var showingSafariController = false
+    @State private var currentSafariURL: URL?
     
     var body: some View {
         ScrollView {
@@ -751,23 +840,74 @@ struct AboutView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        // Link Tailscale README
-                        Link("→ Tailscale Usage Guide", destination: URL(string: "https://github.com/wsvn53/scrcpy-mobile/blob/main/Tailscale_README.md")!)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        // Button for Tailscale README
+                        Button(action: {
+                            currentSafariURL = URL(string: "https://github.com/wsvn53/scrcpy-mobile/blob/main/Tailscale_README.md")
+                            showingSafariController = true
+                        }) {
+                            HStack {
+                                Text("→ Tailscale Usage Guide")
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                        }
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("VNC Client Implementation:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        Text("This app uses LibVNCClient, a cross-platform C library that provides VNC client functionality. LibVNCClient is part of the LibVNCServer/LibVNCClient project, which is free software licensed under the GPL.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Button(action: {
+                            currentSafariURL = URL(string: "https://libvnc.github.io/")
+                            showingSafariController = true
+                        }) {
+                            HStack {
+                                Text("→ LibVNCClient Documentation")
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                        }
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     
                     Text("If you encounter problems and need help while using, you can also join our Telegram Channel.")
                         .font(.body)
                     
-                    // Link Telegram Channel
-                    Link("→ Join Our Telegram Channel", destination: URL(string: "https://telegram.org")!)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // Button for Telegram Channel
+                    Button(action: {
+                        currentSafariURL = URL(string: "https://telegram.org")
+                        showingSafariController = true
+                    }) {
+                        HStack {
+                            Text("→ Join Our Telegram Channel")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                        }
+                    }
+                    .foregroundColor(.blue)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
                 Spacer()
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
+        }
+        .sheet(isPresented: $showingSafariController) {
+            if let url = currentSafariURL {
+                SafariView(url: url)
+            }
         }
         .navigationBarTitle("About Scrcpy Remote", displayMode: .inline)
         .onAppear {
@@ -1460,7 +1600,213 @@ struct ADBKeysDocument: FileDocument {
     }
 }
 
+// MARK: - ADB Pairing View
+struct ADBPairingView: View {
+    @State private var adbPairHostPort: String = ""
+    @State private var adbPairCode: String = ""
+    @State private var isPairing: Bool = false
+    @State private var pairResultMessage: String = ""
+    @State private var pairResultIsError: Bool = false
+    @State private var showingClearHistoryAlert: Bool = false
+    @EnvironmentObject var appSettings: AppSettings
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Instructions")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("To pair your Android device for wireless ADB debugging:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Text("1. Open Android Settings")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("2. Go to Developer Options")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("3. Enable Wireless Debugging")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("4. Tap 'Pair device with pairing code'")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("5. Enter the Host:Port and Pairing Code below")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+            
+            // 配对历史记录
+            if !appSettings.pairingHistoryArray.isEmpty {
+                Section(header: Text("Recent Pairing History")) {
+                    ForEach(appSettings.pairingHistoryArray) { item in
+                        Button(action: {
+                            adbPairHostPort = item.hostPort
+                        }) {
+                            HStack {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundColor(.blue)
+                                    .font(.caption)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.hostPort)
+                                        .foregroundColor(.primary)
+                                        .font(.subheadline)
+                                    
+                                    Text(formatPairingTime(item.timestamp))
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "arrow.up.left")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    
+                    Button(action: {
+                        showingClearHistoryAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                            Text("Clear History")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .alert("Clear Pairing History", isPresented: $showingClearHistoryAlert) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Clear", role: .destructive) {
+                        appSettings.clearPairingHistory()
+                    }
+                } message: {
+                    Text("This will permanently delete all pairing history. This action cannot be undone.")
+                }
+            }
+            
+            Section(header: Text("Pairing Information")) {
+                TextField("Host:Port (e.g., 192.168.1.100:12345)", text: $adbPairHostPort)
+                    .keyboardType(.URL)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .textContentType(.URL)
+                
+                TextField("Pairing Code (6 digits)", text: $adbPairCode)
+                    .keyboardType(.numberPad)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .textContentType(.oneTimeCode)
+            }
+            
+            Section {
+                Button(action: { pairADBDevice() }) {
+                    HStack {
+                        if isPairing {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "link")
+                        }
+                        Text(isPairing ? "Pairing..." : "Pair Device")
+                    }
+                }
+                .disabled(adbPairHostPort.trimmingCharacters(in: .whitespaces).isEmpty || 
+                         adbPairCode.trimmingCharacters(in: .whitespaces).isEmpty || 
+                         isPairing)
+            }
+            
+            if !pairResultMessage.isEmpty {
+                Section(header: Text("Result")) {
+                    HStack {
+                        Image(systemName: pairResultIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                            .foregroundColor(pairResultIsError ? .red : .green)
+                        Text(pairResultMessage)
+                            .font(.subheadline)
+                            .foregroundColor(pairResultIsError ? .red : .green)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationBarTitle("Pair ADB Device", displayMode: .inline)
+    }
+    
+    private func pairADBDevice() {
+        guard !adbPairHostPort.trimmingCharacters(in: .whitespaces).isEmpty,
+              !adbPairCode.trimmingCharacters(in: .whitespaces).isEmpty else {
+            pairResultMessage = "Please enter both Host:Port and Pairing Code."
+            pairResultIsError = true
+            return
+        }
+        
+        isPairing = true
+        pairResultMessage = ""
+        pairResultIsError = false
+        
+        // 调用 ADBClient 进行配对
+        let adbClient = ADBClient.shared()
+        let hostPort = adbPairHostPort.trimmingCharacters(in: .whitespacesAndNewlines)
+        let code = adbPairCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        adbClient.executeADBCommandAsync(["pair", hostPort, code]) { output, returnCode in
+            DispatchQueue.main.async {
+                isPairing = false
+                
+                if returnCode == 0, let output = output, output.lowercased().contains("success") {
+                    pairResultMessage = "Pairing succeeded! You can now connect via ADB wireless."
+                    pairResultIsError = false
+                    
+                    // 添加到配对历史
+                    appSettings.addPairingHistory(hostPort)
+                    
+                    // 清空输入框
+                    adbPairHostPort = ""
+                    adbPairCode = ""
+                } else {
+                    let errorMessage = output ?? "Unknown error"
+                    pairResultMessage = "Pairing failed: \(errorMessage)"
+                    pairResultIsError = true
+                }
+            }
+        }
+    }
+    
+    private func formatPairingTime(_ timestamp: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: timestamp)
+    }
+}
+
 #Preview {
     SettingsView()
         .environmentObject(AppSettings())
+}
+
+// MARK: - SafariView
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let safariViewController = SFSafariViewController(url: url)
+        safariViewController.preferredControlTintColor = UIColor.systemBlue
+        return safariViewController
+    }
+    
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
+        // 不需要更新
+    }
 }
