@@ -24,10 +24,18 @@ struct VNCSessionOptions: Codable, Identifiable {
     }
 }
 
-// Codec Enum for ADB Session
-enum ADBCodec: String, Codable, CaseIterable {
+// Video Codec Enum for ADB Session
+enum ADBVideoCodec: String, Codable, CaseIterable {
     case h264 = "h264"
     case h265 = "h265"
+}
+
+// Audio Codec Enum for ADB Session
+enum ADBAudioCodec: String, Codable, CaseIterable {
+    case opus = "opus"
+    case aac = "aac"
+    case flac = "flac"
+    case raw = "raw"
 }
 
 // ADB Session Model can be saved to AppStorage
@@ -35,8 +43,10 @@ struct ADBSessionOptions: Codable, Identifiable {
     var id = UUID()
     var maxScreenSize: String = ""
     var bitRate: String = ""
-    var videoCodec: ADBCodec = .h264
+    var videoCodec: ADBVideoCodec = .h264
     var videoEncoder: String = ""
+    var audioCodec: ADBAudioCodec = .opus
+    var audioEncoder: String = ""
     var maxFPS: String = "60"
     var enableAudio: Bool = false
     var enableClipboardSync: Bool = true
@@ -70,9 +80,11 @@ struct ADBSessionOptions: Codable, Identifiable {
         self.maxScreenSize = try container.decodeIfPresent(String.self, forKey: .maxScreenSize) ?? ""
         self.bitRate = try container.decodeIfPresent(String.self, forKey: .bitRate) ?? ""
         self.videoEncoder = try container.decodeIfPresent(String.self, forKey: .videoEncoder) ?? ""
+        self.audioCodec = try container.decodeIfPresent(ADBAudioCodec.self, forKey: .audioCodec) ?? .opus
+        self.audioEncoder = try container.decodeIfPresent(String.self, forKey: .audioEncoder) ?? ""
         self.maxFPS = try container.decodeIfPresent(String.self, forKey: .maxFPS) ?? "60"
         self.enableAudio = try container.decodeIfPresent(Bool.self, forKey: .enableAudio) ?? false
-        self.videoCodec = try container.decodeIfPresent(ADBCodec.self, forKey: .videoCodec) ?? .h264
+        self.videoCodec = try container.decodeIfPresent(ADBVideoCodec.self, forKey: .videoCodec) ?? .h264
         self.enableClipboardSync = try container.decodeIfPresent(Bool.self, forKey: .enableClipboardSync) ?? true
         self.volumeScale = try container.decodeIfPresent(Double.self, forKey: .volumeScale) ?? 1.0
         

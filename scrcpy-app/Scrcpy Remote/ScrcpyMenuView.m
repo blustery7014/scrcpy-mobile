@@ -1,9 +1,11 @@
 #import "ScrcpyMenuView.h"
 #import "ScrcpyMenuMaskView.h"
+#import "ScrcpyConstants.h"
 #import <SDL2/SDL_system.h>
 #import <SDL2/SDL_syswm.h>
 #import <SDL2/SDL_mouse.h>
 #import "ScrcpyADBClient.h"
+#import "ScrcpyVNCClient.h"
 
 // Add logging macro
 #define LOG_POSITION(fmt, ...) NSLog(@"[ScrcpyMenuView] " fmt, ##__VA_ARGS__)
@@ -50,6 +52,7 @@ static const CGFloat kDefaultPositionRatioY = 0.8f; // 右下方
 // Dynamic Island avoidance constants
 static const CGFloat kDynamicIslandWidth = 100.0f;
 
+
 @interface ScrcpyMenuView () <ScrcpyMenuMaskViewDelegate, ScrcpyMenuViewDelegate>
 
 // UI Elements
@@ -85,6 +88,11 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 @property (nonatomic, assign) CGPoint dragStartLocation;
 @property (nonatomic, assign) CGPoint currentDragOffset;
 @property (nonatomic, assign) CGPoint totalDragOffset;
+
+// VNC 触摸事件追踪相关
+@property (nonatomic, assign) NSTimeInterval touchStartTime;
+@property (nonatomic, assign) CGPoint touchStartLocation;
+@property (nonatomic, assign) BOOL isDragging;
 
 // Private method declarations
 - (void)savePositionRatio:(CGPoint)ratio;
@@ -158,8 +166,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (CGPoint)loadPositionRatio {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    CGFloat savedRatioX = [defaults floatForKey:@"ScrcpyMenuPositionRatioX"];
-    CGFloat savedRatioY = [defaults floatForKey:@"ScrcpyMenuPositionRatioY"];
+    CGFloat savedRatioX = [defaults floatForKey:kUserDefaultsPositionRatioX];
+    CGFloat savedRatioY = [defaults floatForKey:kUserDefaultsPositionRatioY];
     
     // Check if we have valid saved values (center-relative range: -1 to 1)
     if (savedRatioX >= -1 && savedRatioX <= 1 && savedRatioY >= -1 && savedRatioY <= 1) {
@@ -179,8 +187,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 - (void)savePositionRatio:(CGPoint)ratio {
     LOG_POSITION(@"Saving position ratio: (%.3f, %.3f)", ratio.x, ratio.y);
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setFloat:ratio.x forKey:@"ScrcpyMenuPositionRatioX"];
-    [defaults setFloat:ratio.y forKey:@"ScrcpyMenuPositionRatioY"];
+    [defaults setFloat:ratio.x forKey:kUserDefaultsPositionRatioX];
+    [defaults setFloat:ratio.y forKey:kUserDefaultsPositionRatioY];
     [defaults synchronize];
 }
 
@@ -340,7 +348,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     // Add handle icon to the capsule
     self.capsuleHandleIcon = [[UIImageView alloc] initWithFrame:CGRectMake(kCapsuleHandleIconX, kCapsuleHandleIconY, kCapsuleHandleIconWidth, kCapsuleHandleIconHeight)];
-    self.capsuleHandleIcon.image = [UIImage systemImageNamed:@"ellipsis"];
+    self.capsuleHandleIcon.image = [UIImage systemImageNamed:kIconCapsuleHandle];
     self.capsuleHandleIcon.tintColor = [UIColor colorWithWhite:1.0 alpha:1.0];
     self.capsuleHandleIcon.contentMode = UIViewContentModeScaleAspectFit;
     
@@ -382,27 +390,27 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     CGRect tempButtonFrame = CGRectMake(0, 0, kButtonWidth, kButtonHeight);
     
     // Back button
-    self.backButton = [self createButtonWithIcon:@"arrow.left" position:tempButtonFrame];
+    self.backButton = [self createButtonWithIcon:kIconBackButton position:tempButtonFrame];
     [self.menuView addSubview:self.backButton];
     
     // Home button
-    self.homeButton = [self createButtonWithIcon:@"house.circle" position:tempButtonFrame];
+    self.homeButton = [self createButtonWithIcon:kIconHomeButton position:tempButtonFrame];
     [self.menuView addSubview:self.homeButton];
     
     // Switch button
-    self.switchButton = [self createButtonWithIcon:@"square.circle" position:tempButtonFrame];
+    self.switchButton = [self createButtonWithIcon:kIconSwitchButton position:tempButtonFrame];
     [self.menuView addSubview:self.switchButton];
     
     // Keyboard button
-    self.keyboardButton = [self createButtonWithIcon:@"keyboard" position:tempButtonFrame];
+    self.keyboardButton = [self createButtonWithIcon:kIconKeyboardButton position:tempButtonFrame];
     [self.menuView addSubview:self.keyboardButton];
     
     // Actions button
-    self.actionsButton = [self createButtonWithIcon:@"ellipsis.circle" position:tempButtonFrame];
+    self.actionsButton = [self createButtonWithIcon:kIconActionsButton position:tempButtonFrame];
     [self.menuView addSubview:self.actionsButton];
     
     // Disconnect button
-    self.disconnectButton = [self createButtonWithIcon:@"xmark.circle" position:tempButtonFrame];
+    self.disconnectButton = [self createButtonWithIcon:kIconDisconnectButton position:tempButtonFrame];
     [self.menuView addSubview:self.disconnectButton];
 }
 
@@ -714,17 +722,17 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     // 根据按钮标识调用相应的方法
     NSString *identifier = sender.accessibilityIdentifier;
     
-    if ([identifier isEqualToString:@"arrow.left"]) {
+    if ([identifier isEqualToString:kIconBackButton]) {
         [self backButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"house.circle"]) {
+    } else if ([identifier isEqualToString:kIconHomeButton]) {
         [self homeButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"square.circle"]) {
+    } else if ([identifier isEqualToString:kIconSwitchButton]) {
         [self switchButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"keyboard"]) {
+    } else if ([identifier isEqualToString:kIconKeyboardButton]) {
         [self keyboardButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"ellipsis.circle"]) {
+    } else if ([identifier isEqualToString:kIconActionsButton]) {
         [self actionsButtonTapped:sender];
-    } else if ([identifier isEqualToString:@"xmark.circle"]) {
+    } else if ([identifier isEqualToString:kIconDisconnectButton]) {
         [self disconnectButtonTapped:sender];
     }
 }
@@ -820,20 +828,33 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         }
     }
     
-    return nil; // 不在控制范围内的点击，返回nil
+    // 只有在VNC模式下才拦截其他区域的触摸事件
+    if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
+        return self;
+    }
+    
+    // 非VNC模式下，不拦截其他区域的触摸事件
+    return nil;
 }
 
 // 重写pointInside方法，确定是否应该接收触摸事件
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
-    // 对于胶囊按钮，我们需要精确的命中测试
+    // 检查是否在胶囊视图内（始终需要处理）
     if (CGRectContainsPoint(self.capsuleView.frame, point)) {
         return YES;
     }
     
-    // 如果菜单展开，检查是否在菜单视图内
+    // 如果菜单展开，检查是否在菜单视图内（始终需要处理）
     if (self.isExpanded && !self.menuView.hidden && self.menuView.superview) {
         CGPoint menuPoint = [self convertPoint:point toView:self.menuView];
-        return [self.menuView pointInside:menuPoint withEvent:event];
+        if ([self.menuView pointInside:menuPoint withEvent:event]) {
+            return YES;
+        }
+    }
+    
+    // 只有在VNC模式下才拦截其他区域的触摸事件
+    if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
+        return YES;
     }
     
     return NO;
@@ -843,54 +864,69 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 // 实现这些方法以防止事件向下传递
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    // 不调用super方法来阻止事件传递
-    // 如果点击在菜单或胶囊上，则消费掉事件
     UITouch *touch = [touches anyObject];
     CGPoint point = [touch locationInView:self];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 不向下传递
+        // 菜单区域，不向下传递
+    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
+        // 只在VNC模式下处理VNC鼠标事件
+        [self forwardTouchAsMouseMoveToVNC:point];
+        [super touchesBegan:touches withEvent:event];
     } else {
+        // 非VNC模式，传递给父类处理
         [super touchesBegan:touches withEvent:event];
     }
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    // 不调用super方法来阻止事件传递
     UITouch *touch = [touches anyObject];
     CGPoint point = [touch locationInView:self];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 不向下传递
+        // 菜单区域，不向下传递
+    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
+        // 只在VNC模式下处理VNC鼠标拖拽事件
+        [self forwardTouchAsMouseDragToVNC:point];
+        [super touchesMoved:touches withEvent:event];
     } else {
+        // 非VNC模式，传递给父类处理
         [super touchesMoved:touches withEvent:event];
     }
 }
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    // 不调用super方法来阻止事件传递
     UITouch *touch = [touches anyObject];
     CGPoint point = [touch locationInView:self];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 不向下传递
+        // 菜单区域，不向下传递
+    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
+        // 只在VNC模式下处理VNC鼠标事件结束
+        [self forwardTouchEndAsMouseEventToVNC:point withTouch:touch];
+        [super touchesEnded:touches withEvent:event];
     } else {
+        // 非VNC模式，传递给父类处理
         [super touchesEnded:touches withEvent:event];
     }
 }
 
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    // 不调用super方法来阻止事件传递
     UITouch *touch = [touches anyObject];
     CGPoint point = [touch locationInView:self];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 不向下传递
+        // 菜单区域，不向下传递
+    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
+        // 只在VNC模式下处理VNC触摸取消事件
+        [self forwardTouchCancelToVNC:point];
+        [super touchesCancelled:touches withEvent:event];
     } else {
+        // 非VNC模式，传递给父类处理
         [super touchesCancelled:touches withEvent:event];
     }
 }
@@ -970,9 +1006,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 + (ScrcpyDeviceType)deviceTypeFromString:(NSString *)deviceTypeString {
-    if ([deviceTypeString.lowercaseString isEqualToString:@"vnc"]) {
+    if ([deviceTypeString.lowercaseString isEqualToString:kDeviceTypeVNC]) {
         return ScrcpyDeviceTypeVNC;
-    } else if ([deviceTypeString.lowercaseString isEqualToString:@"adb"]) {
+    } else if ([deviceTypeString.lowercaseString isEqualToString:kDeviceTypeADB]) {
         return ScrcpyDeviceTypeADB;
     } else {
         // 默认为ADB类型
@@ -1059,13 +1095,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     for (NSInteger i = 0; i < visibleButtons.count; i++) {
         UIButton *button = visibleButtons[i];
-        NSString *buttonType = @"unknown";
-        if (button == self.backButton) buttonType = @"back";
-        else if (button == self.homeButton) buttonType = @"home";
-        else if (button == self.switchButton) buttonType = @"switch";
-        else if (button == self.keyboardButton) buttonType = @"keyboard";
-        else if (button == self.actionsButton) buttonType = @"actions";
-        else if (button == self.disconnectButton) buttonType = @"disconnect";
+        NSString *buttonType = kButtonTypeUnknown;
+        if (button == self.backButton) buttonType = kButtonTypeBack;
+        else if (button == self.homeButton) buttonType = kButtonTypeHome;
+        else if (button == self.switchButton) buttonType = kButtonTypeSwitch;
+        else if (button == self.keyboardButton) buttonType = kButtonTypeKeyboard;
+        else if (button == self.actionsButton) buttonType = kButtonTypeActions;
+        else if (button == self.disconnectButton) buttonType = kButtonTypeDisconnect;
         
         LOG_POSITION(@"🔧 Button %ld: %@ (current frame: %.2f, %.2f, %.2f, %.2f)", 
                      (long)i, buttonType, button.frame.origin.x, button.frame.origin.y, 
@@ -1585,14 +1621,14 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 通知代理拖拽开始
             if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:@"began" location:location viewSize:viewSize offset:self.currentDragOffset];
+                [self.delegate didDragWithState:kDragStateBegan location:location viewSize:viewSize offset:self.currentDragOffset];
             } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
                 // 兼容性处理
-                [self.delegate didDragWithState:@"began" location:location viewSize:viewSize];
+                [self.delegate didDragWithState:kDragStateBegan location:location viewSize:viewSize];
             }
             
             // 调用自己的代理方法实现
-            [self didDragWithState:@"began" location:location viewSize:viewSize offset:self.currentDragOffset];
+            [self didDragWithState:kDragStateBegan location:location viewSize:viewSize offset:self.currentDragOffset];
             break;
         }
             
@@ -1614,14 +1650,14 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 通知代理拖拽移动（包含偏移量信息）
             if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:@"changed" location:location viewSize:viewSize offset:self.currentDragOffset];
+                [self.delegate didDragWithState:kDragStateChanged location:location viewSize:viewSize offset:self.currentDragOffset];
             } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
                 // 兼容性处理
-                [self.delegate didDragWithState:@"changed" location:location viewSize:viewSize];
+                [self.delegate didDragWithState:kDragStateChanged location:location viewSize:viewSize];
             }
             
             // 调用自己的代理方法实现
-            [self didDragWithState:@"changed" location:location viewSize:viewSize offset:self.currentDragOffset];
+            [self didDragWithState:kDragStateChanged location:location viewSize:viewSize offset:self.currentDragOffset];
             
             // 通知代理渲染Rect控制（使用归一化偏移量）
             if ([self.delegate respondsToSelector:@selector(didDragWithNormalizedOffset:viewSize:)]) {
@@ -1653,14 +1689,14 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 通知代理拖拽结束（包含偏移量信息）
             if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:@"ended" location:location viewSize:viewSize offset:self.currentDragOffset];
+                [self.delegate didDragWithState:kDragStateEnded location:location viewSize:viewSize offset:self.currentDragOffset];
             } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
                 // 兼容性处理
-                [self.delegate didDragWithState:@"ended" location:location viewSize:viewSize];
+                [self.delegate didDragWithState:kDragStateEnded location:location viewSize:viewSize];
             }
             
             // 调用自己的代理方法实现
-            [self didDragWithState:@"ended" location:location viewSize:viewSize offset:self.currentDragOffset];
+            [self didDragWithState:kDragStateEnded location:location viewSize:viewSize offset:self.currentDragOffset];
             
             // 通知代理最终渲染Rect控制（使用归一化偏移量）
             if ([self.delegate respondsToSelector:@selector(didDragEndWithNormalizedOffset:viewSize:)]) {
@@ -1682,14 +1718,14 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 通知代理拖拽取消
             if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:@"cancelled" location:location viewSize:viewSize offset:self.currentDragOffset];
+                [self.delegate didDragWithState:kDragStateCancelled location:location viewSize:viewSize offset:self.currentDragOffset];
             } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
                 // 兼容性处理
-                [self.delegate didDragWithState:@"cancelled" location:location viewSize:viewSize];
+                [self.delegate didDragWithState:kDragStateCancelled location:location viewSize:viewSize];
             }
             
             // 调用自己的代理方法实现
-            [self didDragWithState:@"cancelled" location:location viewSize:viewSize offset:self.currentDragOffset];
+            [self didDragWithState:kDragStateCancelled location:location viewSize:viewSize offset:self.currentDragOffset];
             break;
         }
             
@@ -1703,40 +1739,175 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 - (void)didDragWithState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize {
     // 发送VNC拖拽通知
     NSDictionary *userInfo = @{
-        @"state": state,
-        @"location": [NSValue valueWithCGPoint:location],
-        @"viewSize": [NSValue valueWithCGSize:viewSize]
+        kKeyState: state,
+        kKeyLocation: [NSValue valueWithCGPoint:location],
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
     };
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragNotification" object:nil userInfo:userInfo];
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDrag object:nil userInfo:userInfo];
 }
 
 - (void)didDragWithState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize offset:(CGPoint)offset {
     // 发送VNC拖拽通知（包含偏移量）
     NSDictionary *userInfo = @{
-        @"state": state,
-        @"location": [NSValue valueWithCGPoint:location],
-        @"viewSize": [NSValue valueWithCGSize:viewSize],
-        @"offset": [NSValue valueWithCGPoint:offset]
+        kKeyState: state,
+        kKeyLocation: [NSValue valueWithCGPoint:location],
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize],
+        kKeyOffset: [NSValue valueWithCGPoint:offset]
     };
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragNotification" object:nil userInfo:userInfo];
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDrag object:nil userInfo:userInfo];
 }
 
 - (void)didDragWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize {
     // 发送VNC拖拽偏移量通知
     NSDictionary *userInfo = @{
-        @"normalizedOffset": [NSValue valueWithCGPoint:normalizedOffset],
-        @"viewSize": [NSValue valueWithCGSize:viewSize]
+        kKeyNormalizedOffset: [NSValue valueWithCGPoint:normalizedOffset],
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
     };
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragOffsetNotification" object:nil userInfo:userInfo];
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDragOffset object:nil userInfo:userInfo];
 }
 
 - (void)didDragEndWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize {
     // 发送VNC拖拽结束偏移量通知
     NSDictionary *userInfo = @{
-        @"normalizedOffset": [NSValue valueWithCGPoint:normalizedOffset],
-        @"viewSize": [NSValue valueWithCGSize:viewSize]
+        kKeyNormalizedOffset: [NSValue valueWithCGPoint:normalizedOffset],
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
     };
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScrcpyVNCDragOffsetNotification" object:nil userInfo:userInfo];
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDragOffset object:nil userInfo:userInfo];
+}
+
+#pragma mark - VNC Touch Event Forwarding
+
+// 获取VNC客户端实例
+- (ScrcpyVNCClient *)getVNCClient {
+    // 通过通知中心发送事件，或者通过单例获取VNC客户端
+    // 这里使用通知方式，因为VNC客户端已经在监听这些通知
+    return nil; // 我们使用通知，不需要直接引用
+}
+
+
+// 转发触摸开始为鼠标移动事件
+- (void)forwardTouchAsMouseMoveToVNC:(CGPoint)location {
+    // 记录触摸开始时间和位置
+    self.touchStartTime = [[NSDate date] timeIntervalSince1970];
+    self.touchStartLocation = location;
+    self.isDragging = NO;
+    
+    NSLog(@"🎯 [ScrcpyMenuView] Touch began at (%.1f, %.1f), forwarding as mouse move", location.x, location.y);
+    NSLog(@"🎯 [ScrcpyMenuView] Touch start time recorded: %.3f", self.touchStartTime);
+    
+    // 发送触摸移动通知到VNC客户端
+    NSDictionary *userInfo = @{
+        kKeyType: kMouseEventTypeMove,
+        kKeyLocation: [NSValue valueWithCGPoint:location],
+        kKeyViewSize: [NSValue valueWithCGSize:self.bounds.size]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+}
+
+// 转发触摸移动为鼠标拖拽事件
+- (void)forwardTouchAsMouseDragToVNC:(CGPoint)location {
+    // 计算移动距离
+    CGFloat deltaX = location.x - self.touchStartLocation.x;
+    CGFloat deltaY = location.y - self.touchStartLocation.y;
+    CGFloat distance = sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    // 如果移动距离超过阈值，认为是拖拽
+    const CGFloat dragThreshold = 5.0;
+    if (distance > dragThreshold) {
+        if (!self.isDragging) {
+            // 开始拖拽
+            self.isDragging = YES;
+            NSLog(@"🎯 [ScrcpyMenuView] Drag started at (%.1f, %.1f)", self.touchStartLocation.x, self.touchStartLocation.y);
+            
+            NSDictionary *userInfo = @{
+                kKeyType: kMouseEventTypeDragStart,
+                kKeyLocation: [NSValue valueWithCGPoint:self.touchStartLocation],
+                kKeyViewSize: [NSValue valueWithCGSize:self.bounds.size]
+            };
+            [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+        }
+        
+        // 继续拖拽
+        NSLog(@"🎯 [ScrcpyMenuView] Dragging to (%.1f, %.1f)", location.x, location.y);
+        
+        NSDictionary *userInfo = @{
+            kKeyType: kMouseEventTypeDrag,
+            kKeyLocation: [NSValue valueWithCGPoint:location],
+            kKeyViewSize: [NSValue valueWithCGSize:self.bounds.size]
+        };
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+    } else {
+        // 移动距离很小，继续作为鼠标移动处理
+        [self forwardTouchAsMouseMoveToVNC:location];
+    }
+}
+
+// 转发触摸结束为鼠标事件
+- (void)forwardTouchEndAsMouseEventToVNC:(CGPoint)location withTouch:(UITouch *)touch {
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    NSTimeInterval touchDuration = currentTime - self.touchStartTime;
+    
+    // 计算移动距离
+    CGFloat deltaX = location.x - self.touchStartLocation.x;
+    CGFloat deltaY = location.y - self.touchStartLocation.y;
+    CGFloat distance = sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    const CGFloat clickThreshold = 5.0;    // 移动距离阈值
+    const NSTimeInterval clickTimeThreshold = 0.5; // 时间阈值
+    
+    if (self.isDragging) {
+        // 结束拖拽
+        NSLog(@"🎯 [ScrcpyMenuView] Drag ended at (%.1f, %.1f)", location.x, location.y);
+        
+        NSDictionary *userInfo = @{
+            kKeyType: kMouseEventTypeDragEnd,
+            kKeyLocation: [NSValue valueWithCGPoint:location],
+            kKeyViewSize: [NSValue valueWithCGSize:self.bounds.size]
+        };
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+        
+        self.isDragging = NO;
+    } else if (distance <= clickThreshold && touchDuration <= clickTimeThreshold) {
+        // 判断为点击事件
+        BOOL isRightClick = (touch.tapCount == 2); // 双击作为右键
+        
+        NSLog(@"🎯 [ScrcpyMenuView] %@ click at (%.1f, %.1f), duration: %.3fs, distance: %.1f", 
+              isRightClick ? kLogLabelRight : kLogLabelLeft, location.x, location.y, touchDuration, distance);
+        
+        NSDictionary *userInfo = @{
+            kKeyType: kMouseEventTypeClick,
+            kKeyLocation: [NSValue valueWithCGPoint:location],
+            kKeyIsRightClick: @(isRightClick),
+            kKeyViewSize: [NSValue valueWithCGSize:self.bounds.size]
+        };
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+    } else {
+        NSLog(@"🎯 [ScrcpyMenuView] Touch ended without click or drag (duration: %.3fs, distance: %.1f)", touchDuration, distance);
+    }
+    
+    // 重置状态
+    self.isDragging = NO;
+    self.touchStartTime = 0;
+    self.touchStartLocation = CGPointZero;
+}
+
+// 转发触摸取消事件
+- (void)forwardTouchCancelToVNC:(CGPoint)location {
+    if (self.isDragging) {
+        NSLog(@"🎯 [ScrcpyMenuView] Touch cancelled during drag at (%.1f, %.1f)", location.x, location.y);
+        
+        NSDictionary *userInfo = @{
+            kKeyType: kMouseEventTypeDragEnd,
+            kKeyLocation: [NSValue valueWithCGPoint:location],
+            kKeyViewSize: [NSValue valueWithCGSize:self.bounds.size]
+        };
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+    }
+    
+    // 重置状态
+    self.isDragging = NO;
+    self.touchStartTime = 0;
+    self.touchStartLocation = CGPointZero;
 }
 
 @end 

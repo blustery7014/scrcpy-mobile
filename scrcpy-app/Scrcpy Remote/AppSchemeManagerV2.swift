@@ -29,6 +29,8 @@ import UIKit
  - max-fps: 最大帧率
  - video-codec: 视频编解码器 (h264/h265)
  - video-encoder: 视频编码器
+ - audio-codec: 音频编解码器 (opus/aac/flac/raw)
+ - audio-encoder: 音频编码器
  - enable-audio/audio: 启用音频 (true/false)
  - clipboard-sync: 启用剪贴板同步 (true/false)
  - no-clipboard-autosync: 禁用剪贴板自动同步 (true/false)
@@ -265,10 +267,16 @@ class AppSchemeManagerV2: ObservableObject {
                 session.adbOptions.maxFPS = value ?? "60"
             case "video-codec":
                 if let codecValue = value {
-                    session.adbOptions.videoCodec = ADBCodec(rawValue: codecValue) ?? session.adbOptions.videoCodec
+                    session.adbOptions.videoCodec = ADBVideoCodec(rawValue: codecValue) ?? session.adbOptions.videoCodec
                 }
             case "video-encoder":
                 session.adbOptions.videoEncoder = value ?? ""
+            case "audio-codec":
+                if let codecValue = value {
+                    session.adbOptions.audioCodec = ADBAudioCodec(rawValue: codecValue) ?? session.adbOptions.audioCodec
+                }
+            case "audio-encoder":
+                session.adbOptions.audioEncoder = value ?? ""
             case "enable-audio", "audio":
                 session.adbOptions.enableAudio = value == "true"
             case "clipboard-sync":
@@ -373,8 +381,16 @@ class AppSchemeManagerV2: ObservableObject {
                 session.adbOptions.maxFPS = value ?? "60"
             case "video-codec":
                 if let codecValue = value {
-                    session.adbOptions.videoCodec = ADBCodec(rawValue: codecValue) ?? .h264
+                    session.adbOptions.videoCodec = ADBVideoCodec(rawValue: codecValue) ?? .h264
                 }
+            case "video-encoder":
+                session.adbOptions.videoEncoder = value ?? ""
+            case "audio-codec":
+                if let codecValue = value {
+                    session.adbOptions.audioCodec = ADBAudioCodec(rawValue: codecValue) ?? .opus
+                }
+            case "audio-encoder":
+                session.adbOptions.audioEncoder = value ?? ""
             case "enable-audio", "audio":
                 session.adbOptions.enableAudio = value == "true"
             case "no-clipboard-autosync":
@@ -427,6 +443,9 @@ class AppSchemeManagerV2: ObservableObject {
             "bit-rate": "--video-bit-rate",
             "max-fps": "--max-fps",
             "video-codec": "--video-codec",
+            "video-encoder": "--video-encoder",
+            "audio-codec": "--audio-codec",
+            "audio-encoder": "--audio-encoder",
             "video-buffer": "--video-buffer",
             "audio-buffer": "--audio-buffer",
             "turn-screen-off": "--turn-screen-off",

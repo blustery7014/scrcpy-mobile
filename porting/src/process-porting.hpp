@@ -29,6 +29,8 @@ sc_exit_code
 sc_process_wait(pid_t pid, bool close);
 bool
 sc_process_terminate(pid_t pid);
+const char *
+scrcpy_process_get_last_output();
 
 #ifdef __cplusplus
 }

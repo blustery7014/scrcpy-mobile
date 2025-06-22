@@ -171,7 +171,7 @@ void adb_connect_status_updated(const char *serial, const char *status)
     // Convert NSArray to char**
     const char **argv = malloc(sizeof(char *) * commands.count);
     for (int i = 0; i < commands.count; i++) {
-        argv[i] = commands[i].UTF8String;
+        argv[i] = [NSString stringWithFormat:@"%@", commands[i]].UTF8String;
     }
     int ret = adb_commandline_porting(&output, &output_size, (int)commands.count, argv);
     if (returnCode) { *returnCode = ret; }
@@ -478,6 +478,158 @@ void adb_connect_status_updated(const char *serial, const char *status)
     
     // Update connected devices
     dispatch_async(dispatch_get_main_queue(), ^{ [self updateDevices]; });
+}
+
+@end
+
+#pragma mark - Action Execution
+
+@implementation ADBClient (ActionExecution)
+
+- (void)executeHomeKeyOnDevice:(NSString *)deviceSerial completion:(ADBClientCallback)completion {
+    NSLog(@"🏠 [ADBClient] Executing home key on device: %@", deviceSerial);
+    
+    NSArray *command = @[@"-s", deviceSerial, @"shell", @"input", @"keyevent", @"KEYCODE_HOME"];
+    
+    [self executeADBCommandAsync:command callback:^(NSString *output, int returnCode) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (returnCode == 0) {
+                NSLog(@"✅ [ADBClient] Home key executed successfully on device: %@", deviceSerial);
+            } else {
+                NSLog(@"❌ [ADBClient] Home key failed on device %@: %@", deviceSerial, output ?: @"Unknown error");
+            }
+            if (completion) completion(output, returnCode);
+        });
+    }];
+}
+
+- (void)executeSwitchKeyOnDevice:(NSString *)deviceSerial completion:(ADBClientCallback)completion {
+    NSLog(@"🔄 [ADBClient] Executing switch key on device: %@", deviceSerial);
+    
+    NSArray *command = @[@"-s", deviceSerial, @"shell", @"input", @"keyevent", @"KEYCODE_APP_SWITCH"];
+    
+    [self executeADBCommandAsync:command callback:^(NSString *output, int returnCode) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (returnCode == 0) {
+                NSLog(@"✅ [ADBClient] Switch key executed successfully on device: %@", deviceSerial);
+            } else {
+                NSLog(@"❌ [ADBClient] Switch key failed on device %@: %@", deviceSerial, output ?: @"Unknown error");
+            }
+            if (completion) completion(output, returnCode);
+        });
+    }];
+}
+
+- (void)executeKeySequence:(NSArray<NSNumber *> *)keys onDevice:(NSString *)deviceSerial interval:(NSInteger)interval completion:(void (^)(NSInteger successCount, NSString *error))completion {
+    NSLog(@"⌨️ [ADBClient] Executing key sequence on device: %@ with %lu keys", deviceSerial, (unsigned long)keys.count);
+    
+    if (keys.count == 0) {
+        if (completion) completion(0, nil);
+        return;
+    }
+    
+    // 保存 weak reference 避免 retain cycle
+    __weak typeof(self) weakSelf = self;
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            if (completion) completion(0, @"ADBClient instance deallocated");
+            return;
+        }
+        
+        NSInteger successCount = 0;
+        NSString *lastError = nil;
+        
+        for (NSUInteger i = 0; i < keys.count; i++) {
+            NSString *key = [keys[i] stringValue];
+            NSArray *command = @[@"-s", deviceSerial, @"shell", @"input", @"keyevent", key];
+            
+            int returnCode = -1;
+            NSString *output = [strongSelf executeADBCommand:command returnCode:&returnCode];
+            
+            if (returnCode == 0) {
+                successCount++;
+            } else {
+                lastError = [NSString stringWithFormat:@"Key input failed on device %@: %@", deviceSerial, output ?: @"Unknown error"];
+                NSLog(@"❌ [ADBClient] Key %@ failed, continuing with remaining keys", key);
+            }
+            
+            if (i < keys.count - 1 && interval > 0) {
+                [NSThread sleepForTimeInterval:interval / 1000.0];
+            }
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (successCount == keys.count) {
+                NSLog(@"✅ [ADBClient] Key sequence executed successfully on device: %@ (%ld/%lu keys)", deviceSerial, (long)successCount, (unsigned long)keys.count);
+            } else {
+                NSLog(@"❌ [ADBClient] Key sequence partially failed on device: %@ (%ld/%lu keys succeeded). Last error: %@", deviceSerial, (long)successCount, (unsigned long)keys.count, lastError);
+            }
+            if (completion) completion(successCount, lastError);
+        });
+    });
+}
+
+- (void)executeShellCommands:(NSArray<NSString *> *)commands onDevice:(NSString *)deviceSerial interval:(NSInteger)interval completion:(void (^)(BOOL success, NSString *error))completion {
+    NSLog(@"🔧 [ADBClient] Executing shell commands on device: %@ with %lu commands", deviceSerial, (unsigned long)commands.count);
+    
+    if (commands.count == 0) {
+        if (completion) completion(YES, nil);
+        return;
+    }
+    
+    // 保存 weak reference 避免 retain cycle
+    __weak typeof(self) weakSelf = self;
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            if (completion) completion(NO, @"ADBClient instance deallocated");
+            return;
+        }
+        
+        BOOL overallSuccess = YES;
+        NSString *lastError = nil;
+        
+        for (NSUInteger i = 0; i < commands.count && overallSuccess; i++) {
+            NSString *command = commands[i];
+            NSMutableArray *fullCommand = [NSMutableArray arrayWithArray:@[@"-s", deviceSerial, @"shell"]];
+            [fullCommand addObjectsFromArray:[command componentsSeparatedByString:@" "]];
+            
+            dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+            __block BOOL stepSuccess = YES;
+            __block NSString *stepError = nil;
+            
+            [strongSelf executeADBCommandAsync:fullCommand callback:^(NSString *output, int returnCode) {
+                if (returnCode != 0) {
+                    stepSuccess = NO;
+                    stepError = [NSString stringWithFormat:@"Shell command failed on device %@: %@", deviceSerial, output ?: @"Unknown error"];
+                }
+                dispatch_semaphore_signal(semaphore);
+            }];
+            
+            dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+            
+            if (!stepSuccess) {
+                overallSuccess = NO;
+                lastError = stepError;
+            }
+            
+            if (overallSuccess && i < commands.count - 1 && interval > 0) {
+                [NSThread sleepForTimeInterval:interval / 1000.0];
+            }
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (overallSuccess) {
+                NSLog(@"✅ [ADBClient] Shell commands executed successfully on device: %@", deviceSerial);
+            } else {
+                NSLog(@"❌ [ADBClient] Shell commands failed: %@", lastError);
+            }
+            if (completion) completion(overallSuccess, lastError);
+        });
+    });
 }
 
 @end

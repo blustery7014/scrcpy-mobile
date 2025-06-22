@@ -11,6 +11,7 @@
 #import "ADBClient.h"
 #import "ScrcpyCommon.h"
 #import "ScrcpyRuntime.h"
+#import "ADBMediaDetector.h"
 
 // Import Tailscale library
 #import "libtsnet-forwarder.h"

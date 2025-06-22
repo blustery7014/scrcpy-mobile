@@ -35,6 +35,11 @@ static inline int array_len(const char *arr[]) {
 
 static std::map<pid_t, std::string> sc_result_map;
 
+/**
+ * global variable to store last output
+ */
+static std::string sc_last_output;
+
 void sc_store_result(pid_t pid, const char *result) {
     sc_result_map.emplace(pid, std::string(result));
 }
@@ -177,7 +182,33 @@ void adb_process_thread_func(bool *thread_started, pid_t pid, const char *thread
     sc_store_result(pid, result);
     
     printf("> pid=%d, success=%s\n", pid, success?"true":"false");
-    printf("> result:\n%s\n", result?:"(empty)");
+    // Find end of valid characters to avoid printing invalid unicode
+    size_t result_len = result ? strlen(result) : 0;
+    size_t valid_len = 0;
+    if (result && result_len > 0) {
+        for (size_t i = 0; i < result_len; i++) {
+            unsigned char c = (unsigned char)result[i];
+            // Check for valid ASCII or start of valid UTF-8 sequence
+            if (c < 0x80 || (c >= 0xC0 && c <= 0xFD)) {
+                valid_len = i + 1;
+            } else if (c >= 0x80 && c < 0xC0) {
+                // Continue UTF-8 sequence, keep current valid_len
+                continue;
+            } else {
+                // Invalid character, stop here
+                break;
+            }
+        }
+    }
+    
+    // Store valid output to global variable
+    if (valid_len > 0 && result) {
+        sc_last_output = std::string(result, valid_len);
+        printf("> result:\n%.*s\n", (int)valid_len, result);
+    } else {
+        sc_last_output = "";
+        printf("> result:\n(empty)\n");
+    }
 
     // Remove from sc_thread_map
     sc_thread_map.erase(pid);
@@ -271,4 +302,9 @@ sc_process_terminate(pid_t pid) {
     sc_remove_thread(pid);
     
     return true;
+}
+
+const char *
+scrcpy_process_get_last_output() {
+    return sc_last_output.c_str();
 }

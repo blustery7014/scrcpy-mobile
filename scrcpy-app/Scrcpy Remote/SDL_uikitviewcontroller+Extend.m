@@ -166,7 +166,21 @@ static char inputMaskViewKey;
 }
 
 - (void)didTapActionsButton {
-    // Show custom actions menu
+    // 显示功能开发中的提示
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Actions" 
+                                                                   message:@"该功能正在开发中，请稍等" 
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"好的" 
+                                                       style:UIAlertActionStyleDefault 
+                                                     handler:nil];
+    
+    [alert addAction:okAction];
+    
+    // 在主线程中显示Alert
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self presentViewController:alert animated:YES completion:nil];
+    });
 }
 
 - (void)didTapDisconnectButton {

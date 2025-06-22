@@ -59,4 +59,40 @@ typedef void (^ADBClientCallback)(NSString * _Nullable output, int returnCode);
 
 @end
 
+// MARK: - ADBClient Action Execution Extension
+
+@interface ADBClient (ActionExecution)
+
+/// 执行 ADB Home 按键
+/// @param deviceSerial 目标设备序列号
+/// @param completion 完成回调
+- (void)executeHomeKeyOnDevice:(NSString *)deviceSerial completion:(ADBClientCallback)completion;
+
+/// 执行 ADB Switch 按键（App Switch/Recent Apps）
+/// @param deviceSerial 目标设备序列号
+/// @param completion 完成回调
+- (void)executeSwitchKeyOnDevice:(NSString *)deviceSerial completion:(ADBClientCallback)completion;
+
+/// 执行 ADB 按键序列
+/// @param keyCodes 按键码数组
+/// @param deviceSerial 目标设备序列号
+/// @param intervalMs 按键间隔（毫秒）
+/// @param completion 完成回调
+- (void)executeKeySequence:(NSArray<NSNumber *> *)keyCodes
+                  onDevice:(NSString *)deviceSerial
+                  interval:(NSInteger)intervalMs
+                completion:(void(^)(NSInteger successCount, NSString *error))completion;
+
+/// 执行 ADB Shell 命令序列
+/// @param commands 命令字符串数组
+/// @param deviceSerial 目标设备序列号
+/// @param intervalMs 命令间隔（毫秒）
+/// @param completion 完成回调
+- (void)executeShellCommands:(NSArray<NSString *> *)commands
+                    onDevice:(NSString *)deviceSerial
+                    interval:(NSInteger)intervalMs
+                  completion:(void(^)(BOOL success, NSString *error))completion;
+
+@end
+
 NS_ASSUME_NONNULL_END

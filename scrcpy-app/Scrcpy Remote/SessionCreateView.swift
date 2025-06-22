@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct SessionCreateView: View {
     @State var sessionModel = ScrcpySessionModel()
@@ -27,174 +28,231 @@ struct SessionCreateView: View {
     }
     
     var body: some View {
-        Form {
-            Section(header: Text("Remote Device")) {
-                TextField("Session Name (Optional)", text: $sessionModel.sessionName)
-                    .autocorrectionDisabled()
-                TextField("Host", text: $sessionModel.host)
-                    .textContentType(.URL)
-                    .autocorrectionDisabled()
-                    .autocapitalization(.none)
-                TextField("Port", text: $sessionModel.port)
-                    .keyboardType(.numberPad)
-            }
-            
-            Section(header: Text("Connection Options")) {
-                Toggle("Connect over Tailscale", isOn: $sessionModel.useTailscale)
-                    .onChange(of: sessionModel.useTailscale) { newValue in
-                        if newValue {
-                            // Check if Tailscale Auth Key is set
-                            if appSettings.tailscaleAuthKey.isEmpty {
-                                // If not set, show Tailscale Auth settings
-                                showingTailscaleAuth = true
-                                // Temporarily disable the toggle until auth is set
-                                sessionModel.useTailscale = false
-                            }
-                        }
-                    }
-                
-                if !sessionModel.useTailscale {
-                    Text("Please ensure you have a Tailscale account and the target device is connected to your Tailscale network.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 2)
-                }
-
-                if sessionModel.useTailscale {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("Tailscale Authentication Configured")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                        }
-                        Text("This session will connect through Tailscale network")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-                
-                if sessionModel.deviceType == .adb {
-                    Toggle("Force Connect ADB Forward", isOn: $sessionModel.adbOptions.forceAdbForward)
-                }
-            }
-            
-            if sessionModel.deviceType == .vnc {
-                Section(header: Text("VNC Session Options")) {
-                    TextField("VNC User", text: $sessionModel.vncOptions.vncUser)
-                        .textContentType(.username)
+        NavigationView {
+            Form {
+                Section(header: Text("Remote Device")) {
+                    TextField("Session Name (Optional)", text: $sessionModel.sessionName)
+                        .autocorrectionDisabled()
+                    TextField("Host", text: $sessionModel.host)
+                        .textContentType(.URL)
+                        .autocorrectionDisabled()
                         .autocapitalization(.none)
-                        .autocorrectionDisabled(true)
-                    SecureField("VNC Password", text: $sessionModel.vncOptions.vncPassword)
-                        .textContentType(.password)
-                }
-            }
-            if sessionModel.deviceType == .adb {
-                Section(header: Text("ADB Session Options")) {
-                    TextField("Max Screen Size", text: $sessionModel.adbOptions.maxScreenSize)
+                    TextField("Port", text: $sessionModel.port)
                         .keyboardType(.numberPad)
-                    TextField("Bit Rate, Default: 4M or 4000K", text: $sessionModel.adbOptions.bitRate)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled(true)
-                        .onChange(of: sessionModel.adbOptions.bitRate) { newValue in
-                            if !newValue.isEmpty {
-                                let filteredValue = filterBitRateInput(newValue)
-                                if filteredValue != newValue {
-                                    sessionModel.adbOptions.bitRate = filteredValue
+                }
+                
+                Section(header: Text("Connection Options")) {
+                    Toggle("Connect over Tailscale", isOn: $sessionModel.useTailscale)
+                        .onChange(of: sessionModel.useTailscale) { newValue in
+                            if newValue {
+                                // Check if Tailscale Auth Key is set
+                                if appSettings.tailscaleAuthKey.isEmpty {
+                                    // If not set, show Tailscale Auth settings
+                                    showingTailscaleAuth = true
+                                    // Temporarily disable the toggle until auth is set
+                                    sessionModel.useTailscale = false
                                 }
                             }
                         }
-                    Picker("Video Codec", selection: $sessionModel.adbOptions.videoCodec) {
-                        ForEach(ADBCodec.allCases, id: \.self) { codec in
-                            Text(codec.rawValue)
-                        }
+                    
+                    if !sessionModel.useTailscale {
+                        Text("Please ensure you have a Tailscale account and the target device is connected to your Tailscale network.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 2)
                     }
-                    NavigationLink(destination: VideoEncoderSelectionView(selectedEncoder: $sessionModel.adbOptions.videoEncoder)) {
-                        HStack {
-                            Text("Video Encoder")
-                            Spacer()
-                            Text(sessionModel.adbOptions.videoEncoder)
-                        }
-                    }
-                    TextField("Max FPS, Default: 60", text: $sessionModel.adbOptions.maxFPS)
-                        .keyboardType(.numberPad)
-                    Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
-                    if sessionModel.adbOptions.enableAudio {
-                        HStack {
-                            Text("Volume Scale")
-                            Spacer()
-                            Text(String(format: "%.1fx", sessionModel.adbOptions.volumeScale))
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...50, step: 0.1)
-                    }
-                    Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
                     
-                    Toggle("Turn Remote Screen Off After Connected", isOn: $sessionModel.adbOptions.turnScreenOff)
-                    
-                    Toggle("Turn Remote Screen Off After Disconnected", isOn: $sessionModel.adbOptions.powerOffOnClose)
-                    
-                    Toggle("Keep Remote Device Awake During Use", isOn: $sessionModel.adbOptions.stayAwake)
-
-                    Toggle("Start New Display", isOn: $sessionModel.adbOptions.startNewDisplay)
-                    
-                    if sessionModel.adbOptions.startNewDisplay {
-                        HStack {
-                            Text("Size:")
-                            TextField("Width", text: $sessionModel.adbOptions.displayWidth)
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.center)
-                            Text("x")
-                                .foregroundColor(.secondary)
-                            TextField("Height", text: $sessionModel.adbOptions.displayHeight)
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.center)
-                            Button("Sync iPhone Size") {
-                                setLocalScreenSize()
+                    if sessionModel.useTailscale {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Tailscale Authentication Configured")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.blue)
-                            .frame(minWidth: 140)
-                            .multilineTextAlignment(.center)
+                            Text("This session will connect through Tailscale network")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
-                        TextField("Display DPI", text: $sessionModel.adbOptions.displayDPI)
+                        .padding(.vertical, 4)
+                    }
+                    
+                    if sessionModel.deviceType == .adb {
+                        Toggle("Force Connect ADB Forward", isOn: $sessionModel.adbOptions.forceAdbForward)
+                    }
+                }
+                
+                if sessionModel.deviceType == .vnc {
+                    Section(header: Text("VNC Session Options")) {
+                        TextField("VNC User", text: $sessionModel.vncOptions.vncUser)
+                            .textContentType(.username)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled(true)
+                        SecureField("VNC Password", text: $sessionModel.vncOptions.vncPassword)
+                            .textContentType(.password)
+                    }
+                }
+                if sessionModel.deviceType == .adb {
+                    Section(header: Text("ADB Session Options")) {
+                        TextField("Max Screen Size", text: $sessionModel.adbOptions.maxScreenSize)
                             .keyboardType(.numberPad)
-                    }
-                }
-            }
-
-            Section {
-                Button(action: {
-                    // Validate session before saving
-                    if validateSession() {
-                        // Save session
-                        SessionManager.shared.saveSession(sessionModel)
+                        TextField("Bit Rate, Default: 4M or 4000K", text: $sessionModel.adbOptions.bitRate)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled(true)
+                            .onChange(of: sessionModel.adbOptions.bitRate) { newValue in
+                                if !newValue.isEmpty {
+                                    let filteredValue = filterBitRateInput(newValue)
+                                    if filteredValue != newValue {
+                                        sessionModel.adbOptions.bitRate = filteredValue
+                                    }
+                                }
+                            }
+                        Picker("Video Codec", selection: $sessionModel.adbOptions.videoCodec) {
+                            ForEach(ADBVideoCodec.allCases, id: \.self) { codec in
+                                Text(codec.rawValue)
+                            }
+                        }
+                        // navigation with link to baidu.com
+                        if sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            HStack {
+                                Text("Video Encoder")
+                                Spacer()
+                                Text("Enter host and port first")
+                                    .foregroundColor(.secondary)
+                            }
+                            .foregroundColor(.secondary)
+                        } else {
+                            NavigationLink(destination: VideoEncoderSelectionView(
+                                selectedEncoder: $sessionModel.adbOptions.videoEncoder,
+                                host: sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines),
+                                port: Int(sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 5555
+                            )) {
+                                HStack {
+                                    Text("Video Encoder")
+                                    Spacer()
+                                    Text(sessionModel.adbOptions.videoEncoder.isEmpty ? "Default" : sessionModel.adbOptions.videoEncoder)
+                                        .foregroundColor(sessionModel.adbOptions.videoEncoder.isEmpty ? .secondary : .primary)
+                                }
+                            }
+                        }
+                        TextField("Max FPS, Default: 60", text: $sessionModel.adbOptions.maxFPS)
+                            .keyboardType(.numberPad)
+                        Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
+                        if sessionModel.adbOptions.enableAudio {
+                            Picker("Audio Codec", selection: $sessionModel.adbOptions.audioCodec) {
+                                ForEach(ADBAudioCodec.allCases, id: \.self) { codec in
+                                    Text(codec.rawValue)
+                                }
+                            }
+                            if sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                HStack {
+                                    Text("Audio Encoder")
+                                    Spacer()
+                                    Text("Enter host and port first")
+                                        .foregroundColor(.secondary)
+                                }
+                                .foregroundColor(.secondary)
+                            } else {
+                                NavigationLink(destination: AudioEncoderSelectionView(
+                                    selectedEncoder: $sessionModel.adbOptions.audioEncoder,
+                                    host: sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines),
+                                    port: Int(sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 5555
+                                )) {
+                                    HStack {
+                                        Text("Audio Encoder")
+                                        Spacer()
+                                        Text(sessionModel.adbOptions.audioEncoder.isEmpty ? "Default" : sessionModel.adbOptions.audioEncoder)
+                                            .foregroundColor(sessionModel.adbOptions.audioEncoder.isEmpty ? .secondary : .primary)
+                                    }
+                                }
+                            }
+                            HStack {
+                                Text("Volume Scale")
+                                Spacer()
+                                Text(String(format: "%.1fx", sessionModel.adbOptions.volumeScale))
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...50, step: 0.1)
+                        }
+                        Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
                         
-                        // Pop back
-                        dismiss()
-                    } else {
-                        showingValidationError = true
+                        Toggle("Turn Remote Screen Off After Connected", isOn: $sessionModel.adbOptions.turnScreenOff)
+                        
+                        Toggle("Turn Remote Screen Off After Disconnected", isOn: $sessionModel.adbOptions.powerOffOnClose)
+                        
+                        Toggle("Keep Remote Device Awake During Use", isOn: $sessionModel.adbOptions.stayAwake)
+                        
+                        Toggle("Start New Display", isOn: $sessionModel.adbOptions.startNewDisplay)
+                        
+                        if sessionModel.adbOptions.startNewDisplay {
+                            HStack {
+                                Text("Size:")
+                                TextField("Width", text: $sessionModel.adbOptions.displayWidth)
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.center)
+                                Text("x")
+                                    .foregroundColor(.secondary)
+                                TextField("Height", text: $sessionModel.adbOptions.displayHeight)
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.center)
+                                Button("Sync iPhone Size") {
+                                    setLocalScreenSize()
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.blue)
+                                .frame(minWidth: 140)
+                                .multilineTextAlignment(.center)
+                            }
+                            TextField("Display DPI", text: $sessionModel.adbOptions.displayDPI)
+                                .keyboardType(.numberPad)
+                        }
                     }
-                }) {
-                    Text("Save Session")
-                        .bold()
-                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                
+                Section {
+                    Button(action: {
+                        // Validate session before saving
+                        if validateSession() {
+                            // Save session
+                            SessionManager.shared.saveSession(sessionModel)
+                            
+                            // Pop back
+                            dismiss()
+                        } else {
+                            showingValidationError = true
+                        }
+                    }) {
+                        Text("Save Session")
+                            .bold()
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 }
             }
-
-            Section {
-                Button(action: {
-                    // Copy URL Scheme
-                }) {
-                    Text("Copy URL Scheme")
-                        .frame(maxWidth: .infinity, alignment: .center)
+            .navigationBarTitle(isEditMode ? "Edit Session" : "Create Session", displayMode: .inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
                 }
-                .foregroundColor(.secondary)
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        // Validate session before saving
+                        if validateSession() {
+                            // Save session
+                            SessionManager.shared.saveSession(sessionModel)
+                            
+                            // Pop back
+                            dismiss()
+                        } else {
+                            showingValidationError = true
+                        }
+                    }
+                    .font(.headline)
+                }
             }
         }
-        .navigationBarTitle(isEditMode ? "Edit Session" : "Create Session", displayMode: .inline)
         .sheet(isPresented: $showingTailscaleAuth) {
             NavigationView {
                 TailscaleAuthSettingsView()
@@ -365,13 +423,314 @@ struct SessionCreateView: View {
 
 struct VideoEncoderSelectionView: View {
     @Binding var selectedEncoder: String
-
+    @Environment(\.dismiss) private var dismiss
+    @State private var isLoading = false
+    @State private var encoders: [ADBMediaEncoder] = []
+    @State private var errorMessage: String?
+    @State private var showingError = false
+    
+    // Get host and port from the session model - we need to pass these in
+    let host: String
+    let port: Int
+    
     var body: some View {
-        Form {
-            TextField("Custom Encoder", text: $selectedEncoder)
-            // Add more encoder options here
+        Group {
+            if isLoading {
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Detecting Video Encoders...")
+                        .font(.headline)
+                    Text("Connecting to \(host):\(port)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Form {
+                    Section(header: Text("Encoder Options")) {
+                        HStack {
+                            Text("Default Encoder")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if selectedEncoder.isEmpty {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // Add haptic feedback
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            
+                            selectedEncoder = ""
+                            dismiss()
+                        }
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedEncoder.isEmpty ? 
+                            Color.blue.opacity(0.1) : Color.clear
+                        )
+                        .cornerRadius(8)
+                        
+                        TextField("Enter custom encoder name", text: $selectedEncoder)
+                            .autocorrectionDisabled()
+                    }
+                    
+                    if !encoders.isEmpty {
+                        Section(header: Text("Detected Encoders")) {
+                            ForEach(encoders, id: \.encoderName) { encoder in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(encoder.encoderName)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        Text(encoder.mediaType)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedEncoder == encoder.encoderName {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    // Add haptic feedback
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                    
+                                    selectedEncoder = encoder.encoderName
+                                    dismiss()
+                                }
+                                .padding(.vertical, 8)
+                                .background(
+                                    selectedEncoder == encoder.encoderName ? 
+                                    Color.blue.opacity(0.1) : Color.clear
+                                )
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    
+                    Section {
+                        Button("Refresh Encoders") {
+                            detectEncoders()
+                        }
+                        .disabled(isLoading)
+                    }
+                }
+            }
         }
         .navigationBarTitle("Select Video Encoder", displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
+                .disabled(isLoading)
+            }
+        }
+        .alert("Detection Failed", isPresented: $showingError) {
+            Button("OK") { }
+            Button("Retry") {
+                detectEncoders()
+            }
+        } message: {
+            Text(errorMessage ?? "Failed to detect encoders")
+        }
+        .onAppear {
+            detectEncoders()
+        }
+    }
+    
+    private func detectEncoders() {
+        isLoading = true
+        errorMessage = nil
+        
+        let detector = ADBMediaDetector()
+        detector.detectMediaCodecs(forHost: host, port: Int32(port)) { success, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                if success {
+                    // Filter to only show video encoders (mediaType starts with "video/")
+                    encoders = detector.mediaEncoders.filter { encoder in
+                        encoder.mediaType.lowercased().hasPrefix("video/")
+                    }
+                } else {
+                    var fullErrorMessage = error?.localizedDescription ?? "Failed to detect encoders. Please check your connection and try again."
+                    
+                    // Add raw ADB output for diagnostic purposes
+                    if let nsError = error as NSError?,
+                       let adbOutput = nsError.userInfo["ADBOutput"] as? String {
+                        fullErrorMessage += "\n\nDiagnostic info:\n\(adbOutput)"
+                    }
+                    
+                    errorMessage = fullErrorMessage
+                    showingError = true
+                }
+            }
+        }
+    }
+}
+
+struct AudioEncoderSelectionView: View {
+    @Binding var selectedEncoder: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var isLoading = false
+    @State private var encoders: [ADBMediaEncoder] = []
+    @State private var errorMessage: String?
+    @State private var showingError = false
+    
+    let host: String
+    let port: Int
+    
+    var body: some View {
+        Group {
+            if isLoading {
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Detecting Audio Encoders...")
+                        .font(.headline)
+                    Text("Connecting to \(host):\(port)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Form {
+                    Section(header: Text("Encoder Options")) {
+                        HStack {
+                            Text("Default Encoder")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if selectedEncoder.isEmpty {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // Add haptic feedback
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            
+                            selectedEncoder = ""
+                            dismiss()
+                        }
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedEncoder.isEmpty ? 
+                            Color.blue.opacity(0.1) : Color.clear
+                        )
+                        .cornerRadius(8)
+                        
+                        TextField("Enter custom encoder name", text: $selectedEncoder)
+                            .autocorrectionDisabled()
+                    }
+                    
+                    if !encoders.isEmpty {
+                        Section(header: Text("Detected Audio Encoders")) {
+                            ForEach(encoders, id: \.encoderName) { encoder in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(encoder.encoderName)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        Text(encoder.mediaType)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedEncoder == encoder.encoderName {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    // Add haptic feedback
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                    
+                                    selectedEncoder = encoder.encoderName
+                                    dismiss()
+                                }
+                                .padding(.vertical, 8)
+                                .background(
+                                    selectedEncoder == encoder.encoderName ? 
+                                    Color.blue.opacity(0.1) : Color.clear
+                                )
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    
+                    Section {
+                        Button("Refresh Encoders") {
+                            detectEncoders()
+                        }
+                        .disabled(isLoading)
+                    }
+                }
+            }
+        }
+        .navigationBarTitle("Select Audio Encoder", displayMode: .inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
+                .disabled(isLoading)
+            }
+        }
+        .alert("Detection Failed", isPresented: $showingError) {
+            Button("OK") { }
+            Button("Retry") {
+                detectEncoders()
+            }
+        } message: {
+            Text(errorMessage ?? "Failed to detect encoders")
+        }
+        .onAppear {
+            detectEncoders()
+        }
+    }
+    
+    private func detectEncoders() {
+        isLoading = true
+        errorMessage = nil
+        
+        let detector = ADBMediaDetector()
+        detector.detectMediaCodecs(forHost: host, port: Int32(port)) { success, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                if success {
+                    // Filter to only show audio encoders (mediaType starts with "audio/")
+                    encoders = detector.mediaEncoders.filter { encoder in
+                        encoder.mediaType.lowercased().hasPrefix("audio/")
+                    }
+                } else {
+                    var fullErrorMessage = error?.localizedDescription ?? "Failed to detect encoders. Please check your connection and try again."
+                    
+                    // Add raw ADB output for diagnostic purposes
+                    if let nsError = error as NSError?,
+                       let adbOutput = nsError.userInfo["ADBOutput"] as? String {
+                        fullErrorMessage += "\n\nDiagnostic info:\n\(adbOutput)"
+                    }
+                    
+                    errorMessage = fullErrorMessage
+                    showingError = true
+                }
+            }
+        }
     }
 }
 

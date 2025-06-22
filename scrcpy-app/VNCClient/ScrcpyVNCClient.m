@@ -10,6 +10,7 @@
 #import "ScrcpyMenuView.h"
 #import "ScrcpyCommon.h"
 #import "RenderRegionCalculator.h"
+#import "ScrcpyConstants.h"
 
 #import <objc/runtime.h>
 #import <SDL2/SDL.h>
@@ -122,12 +123,18 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
                                                      name:@"ScrcpyVNCDragOffsetNotification"
                                                    object:nil];
         
+        // 监听VNC鼠标事件通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCMouseEventNotification:)
+                                                     name:@"ScrcpyVNCMouseEventNotification"
+                                                   object:nil];
+        
         // 初始化拖拽相关属性
         self.isDragging = NO;
         self.lastDragLocation = CGPointZero;
         self.currentMouseX = 0;
         self.currentMouseY = 0;
-        self.buttonMask = 0;
+        self.buttonMask = 0; // 初始化按钮状态为无按钮按下
         
         // 初始化拖拽偏移量相关属性
         self.currentDragOffset = CGPointZero;
@@ -194,19 +201,6 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     SDL_iPhoneSetEventPump(SDL_TRUE);
     SDL_Event e;
 
-    int x, y, buttonMask = 0;   // Current mouse position
-    struct { int sdl; int rfb; } buttonMapping[]={
-        {1, rfbButton1Mask}, {2, rfbButton2Mask}, {3, rfbButton3Mask},
-        {4, rfbButton4Mask}, {5, rfbButton5Mask}, {0,0}
-    };
-    
-    // 鼠标点击状态跟踪
-    BOOL mouseButtonPressed = NO;
-    int pressedButton = 0;
-    int pressedX = 0, pressedY = 0;
-    NSTimeInterval pressTime = 0;
-    const NSTimeInterval clickThreshold = 0.3; // 300ms内认为是点击
-
     while(_connected) {
         if(!SDL_PollEvent(&e)) {
             SDL_Delay(1);
@@ -245,74 +239,15 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
             }
             break;
         case SDL_MOUSEWHEEL:
+            // 屏蔽鼠标滚轮事件，统一由上层手势接口控制
+            NSLog(@"🖱️ [ScrcpyVNCClient] Mouse wheel event blocked, handled by upper layer gesture interface");
             break;
-        case SDL_MOUSEBUTTONDOWN: {
-            // 记录按下状态，但不立即发送事件
-            x = e.button.x;
-            y = e.button.y;
-            pressedButton = e.button.button;
-            
-            // 映射按钮
-            for (int i = 0; buttonMapping[i].sdl; i++) {
-                if (pressedButton == buttonMapping[i].sdl) {
-                    pressedButton = buttonMapping[i].rfb;
-                    break;
-                }
-            }
-            
-            mouseButtonPressed = YES;
-            pressedX = x;
-            pressedY = y;
-            pressTime = [[NSDate date] timeIntervalSince1970];
-            
-            NSLog(@"🖱️ [ScrcpyVNCClient] Mouse button down at (%d, %d), button: %d", x, y, pressedButton);
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+        case SDL_MOUSEMOTION:
+            // 屏蔽所有鼠标按钮和移动事件，统一由上层手势接口控制
+            NSLog(@"🖱️ [ScrcpyVNCClient] Mouse event blocked (type: %d), handled by upper layer gesture interface", e.type);
             break;
-        }
-        case SDL_MOUSEBUTTONUP: {
-            // 检查是否是点击事件
-            if (mouseButtonPressed && pressedButton == e.button.button) {
-                NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
-                NSTimeInterval timeDiff = currentTime - pressTime;
-                
-                // 检查时间间隔和位置是否在合理范围内（点击）
-                int moveDistance = abs(e.button.x - pressedX) + abs(e.button.y - pressedY);
-                
-                if (timeDiff <= clickThreshold && moveDistance <= 5) {
-                    // 这是一个点击事件
-                    NSLog(@"🖱️ [ScrcpyVNCClient] Mouse click detected at (%d, %d), button: %d", e.button.x, e.button.y, pressedButton);
-                    
-                    // 发送按下事件
-                    buttonMask |= pressedButton;
-                    SendPointerEvent(_rfbClient, e.button.x, e.button.y, buttonMask);
-                    
-                    // 短暂延迟后发送释放事件
-                    usleep(50000); // 50ms delay
-                    buttonMask &= ~pressedButton;
-                    SendPointerEvent(_rfbClient, e.button.x, e.button.y, buttonMask);
-                } else {
-                    NSLog(@"🖱️ [ScrcpyVNCClient] Mouse drag detected (time: %.3fs, distance: %d), ignoring", timeDiff, moveDistance);
-                }
-            }
-            
-            // 重置状态
-            mouseButtonPressed = NO;
-            pressedButton = 0;
-            break;
-        }
-        case SDL_MOUSEMOTION: {
-            // 只处理鼠标移动，不处理按钮状态
-            x = e.motion.x;
-            y = e.motion.y;
-            
-            // 如果鼠标按钮没有按下，只发送位置更新
-            if (!mouseButtonPressed) {
-                SendPointerEvent(_rfbClient, x, y, 0);
-            } else {
-                // 如果鼠标按钮按下，发送拖拽事件
-                SendPointerEvent(_rfbClient, x, y, pressedButton);
-            }
-            break;
-        }
                 
         case SDL_KEYUP:
         case SDL_KEYDOWN: {
@@ -454,6 +389,9 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         // 启用远程光标支持
         client->appData.useRemoteCursor = true;
         
+        // 启用本地光标显示
+        client->appData.viewOnly = false;
+        
         CustomSetFormatAndEncodings(client);
 
         /* create or resize the window */
@@ -527,8 +465,23 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         SDL_Rect srcRect, targetRect;
         if (self.currentRenderingRegion) {
             // 应用拖拽偏移量到源矩形（方向相反：用户向右拖拽时，视图向左移动）
-            CGFloat dragOffsetX = -self.normalizedDragOffset.x * self.imagePixelsSize.width;
-            CGFloat dragOffsetY = -self.normalizedDragOffset.y * self.imagePixelsSize.height;
+            CGFloat normalizedDragX = self.normalizedDragOffset.x;
+            CGFloat normalizedDragY = self.normalizedDragOffset.y;
+            
+            // 平滑插值处理拖拽偏移
+            static CGFloat lastNormalizedDragX = 0.0;
+            static CGFloat lastNormalizedDragY = 0.0;
+            
+            // 应用平滑插值因子
+            CGFloat smoothingFactor = 0.8; // 平滑系数：值越小越平滑
+            normalizedDragX = lastNormalizedDragX + (normalizedDragX - lastNormalizedDragX) * smoothingFactor;
+            normalizedDragY = lastNormalizedDragY + (normalizedDragY - lastNormalizedDragY) * smoothingFactor;
+            
+            lastNormalizedDragX = normalizedDragX;
+            lastNormalizedDragY = normalizedDragY;
+            
+            CGFloat dragOffsetX = -normalizedDragX * self.imagePixelsSize.width;
+            CGFloat dragOffsetY = -normalizedDragY * self.imagePixelsSize.height;
             
             srcRect.x = self.currentRenderingRegion.sourceRect.origin.x + dragOffsetX;
             srcRect.y = self.currentRenderingRegion.sourceRect.origin.y + dragOffsetY;
@@ -664,24 +617,32 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         self.cursorX = x;
         self.cursorY = y;
         
-        // 如果光标可见，更新SDL光标位置
-        if (self.cursorVisible && self.vncCursor) {
+        // 显示光标并更新光标位置
+        if (self.vncCursor) {
+            self.cursorVisible = YES;
+            SDL_SetCursor(self.vncCursor);
+            
             // 将VNC坐标转换为SDL窗口坐标
-            // 这里需要根据缩放和偏移进行调整
             int sdlX = x;
             int sdlY = y;
             
-            // 应用缩放和偏移
+            // 应用缩放和偏移转换
             if (self.currentRenderingRegion) {
                 CGFloat scaleX = self.currentRenderingRegion.targetRect.size.width / self.currentRenderingRegion.sourceRect.size.width;
                 CGFloat scaleY = self.currentRenderingRegion.targetRect.size.height / self.currentRenderingRegion.sourceRect.size.height;
                 
                 sdlX = (x - self.currentRenderingRegion.sourceRect.origin.x) * scaleX + self.currentRenderingRegion.targetRect.origin.x;
                 sdlY = (y - self.currentRenderingRegion.sourceRect.origin.y) * scaleY + self.currentRenderingRegion.targetRect.origin.y;
+                
+                // 确保坐标在屏幕范围内
+                sdlX = MAX(0, MIN(self.renderScreenSize.width - 1, sdlX));
+                sdlY = MAX(0, MIN(self.renderScreenSize.height - 1, sdlY));
             }
             
-            // 设置SDL光标位置
+            NSLog(@"🖱️ [ScrcpyVNCClient] Setting cursor position: VNC(%d, %d) -> SDL(%d, %d)", x, y, sdlX, sdlY);
             SDL_WarpMouseInWindow(NULL, sdlX, sdlY);
+        } else {
+            NSLog(@"⚠️ [ScrcpyVNCClient] No VNC cursor available to display");
         }
         
         return TRUE;
@@ -780,6 +741,7 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     self.currentDragOffset = CGPointZero;
     self.totalDragOffset = CGPointZero;
     self.normalizedDragOffset = CGPointZero;
+    self.buttonMask = 0; // 重置按钮状态
     
     // Update status to disconnected
     self.scrcpyStatus = ScrcpyStatusDisconnected;
@@ -1049,11 +1011,25 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     int windowHeight = self.renderScreenSize.height;
     SDL_GetRendererOutputSize(self.currentRenderer, &windowWidth, &windowHeight);
     
-    // 计算缩放后新的源渲染区域
+    // 计算缩放后新的源渲染区域，使用平滑缩放
+    static CGFloat lastRawScale = 1.0;
+    static CGFloat lastCenterX = 0.5;
+    static CGFloat lastCenterY = 0.5;
+    
+    // 应用平滑插值因子到缩放参数
+    CGFloat smoothingFactor = 0.7; // 缩放平滑系数
+    CGFloat smoothedScale = lastRawScale + (rawScale - lastRawScale) * smoothingFactor;
+    CGFloat smoothedCenterX = lastCenterX + (centerX - lastCenterX) * smoothingFactor;
+    CGFloat smoothedCenterY = lastCenterY + (centerY - lastCenterY) * smoothingFactor;
+    
+    lastRawScale = smoothedScale;
+    lastCenterX = smoothedCenterX;
+    lastCenterY = smoothedCenterY;
+    
     self.currentRenderingRegion = [RenderRegionCalculator calculateRenderRegionWithScreenSize:self.renderScreenSize
                                                                                     imageSize:self.imagePixelsSize
-                                                                                  scaleFactor:rawScale centerX:centerX centerY:centerY];
-    NSLog(@"🔍 [ZoomDebug] Calculated rendering region: sourceRect(%@), targetRect(%@), displaySize(%@), scaledSize(%@)",
+                                                                                  scaleFactor:smoothedScale centerX:smoothedCenterX centerY:smoothedCenterY];
+    NSLog(@"🔍 [ZoomDebug] Smoothed rendering region: sourceRect(%@), targetRect(%@), displaySize(%@), scaledSize(%@)",
           NSStringFromCGRect(self.currentRenderingRegion.sourceRect),
           NSStringFromCGRect(self.currentRenderingRegion.targetRect),
           NSStringFromCGSize(self.currentRenderingRegion.displaySize),
@@ -1140,6 +1116,59 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     NSLog(@"🔄 [ScrcpyVNCClient] Reset drag offset to zero");
 }
 
+/// 处理VNC鼠标事件通知
+/// - Parameter notification: 通知对象，包含鼠标事件类型和位置信息
+- (void)handleVNCMouseEventNotification:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *eventType = userInfo[@"type"];
+    CGPoint location = [userInfo[@"location"] CGPointValue];
+    CGSize viewSize = [userInfo[@"viewSize"] CGSizeValue];
+    
+    NSLog(@"🎯 [ScrcpyVNCClient] Received VNC mouse event - type: %@, location: (%.1f, %.1f), viewSize: (%.1f, %.1f)", 
+          eventType, location.x, location.y, viewSize.width, viewSize.height);
+    
+    // 检查是否有活跃的VNC连接
+    if (!_connected || !_rfbClient) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] No active VNC connection for mouse event");
+        return;
+    }
+    
+    // 选择性的性能优化：在高频移动事件时跳过部分帧
+    static NSTimeInterval lastMouseEventTime = 0;
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    BOOL isHighFrequencyEvent = [eventType isEqualToString:@"mouseMove"] || [eventType isEqualToString:@"mouseDrag"];
+    
+    if (isHighFrequencyEvent && (currentTime - lastMouseEventTime) < 0.016) { // 限制为60FPS
+        return; // 跳过这个事件以减少网络负载
+    }
+    lastMouseEventTime = currentTime;
+    
+    if ([eventType isEqualToString:@"mouseMove"]) {
+        // 鼠标移动事件
+        [self sendMouseMoveToLocation:location];
+    } else if ([eventType isEqualToString:@"mouseClick"]) {
+        // 鼠标点击事件
+        BOOL isRightClick = [userInfo[@"isRightClick"] boolValue];
+        [self sendMouseClickAtLocation:location isRightClick:isRightClick];
+    } else if ([eventType isEqualToString:@"mouseDragStart"]) {
+        // 开始拖拽事件
+        [self sendMouseDragStartAtLocation:location];
+    } else if ([eventType isEqualToString:@"mouseDrag"]) {
+        // 拖拽移动事件
+        [self sendMouseDragToLocation:location];
+    } else if ([eventType isEqualToString:@"mouseDragEnd"]) {
+        // 结束拖拽事件
+        [self sendMouseDragEndAtLocation:location];
+    } else if ([eventType isEqualToString:@"mouseWheel"]) {
+        // 鼠标滚轮事件
+        int deltaX = [userInfo[@"deltaX"] intValue];
+        int deltaY = [userInfo[@"deltaY"] intValue];
+        [self sendMouseWheelAtLocation:location deltaX:deltaX deltaY:deltaY];
+    } else {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Unknown mouse event type: %@", eventType);
+    }
+}
+
 #pragma mark - Custom VNC Functions
 
 /**
@@ -1192,6 +1221,587 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
     
     NSLog(@"✅ [ScrcpyVNCClient] Successfully set encodings including cursor encodings");
     return TRUE;
+}
+
+#pragma mark - Upper Layer Gesture Interface Implementation
+
+/*
+ * 优化后的VNC鼠标移动和拖拽实现
+ * 
+ * 基于libvncclient最佳实践的关键改进：
+ * 1. 正确的按钮状态管理：使用位运算维护持久的buttonMask状态
+ * 2. 精确的坐标处理：使用round()函数避免浮点精度问题，添加边界检查
+ * 3. 标准的拖拽手势模式：
+ *    - dragStart: 移动到位置 -> 按下按钮 -> 设置buttonMask
+ *    - dragMove: 发送带buttonMask的移动事件（保持按钮按下状态）
+ *    - dragEnd: 清除buttonMask -> 发送释放事件
+ * 4. 滚轮事件优化：使用临时按钮状态，立即恢复原状态
+ * 5. 错误处理：检查SendPointerEvent返回值，提供适当的错误日志
+ * 6. 性能优化：避免发送重复的相同位置事件
+ * 
+ * 参考：/Users/ethan/Src/github.com/libvncserver/examples 中的最佳实践模式
+ */
+
+/// 获取VNC按钮掩码对应的人类可读字符串（用于调试）
+- (NSString *)buttonMaskDescription:(int)buttonMask {
+    NSMutableArray *buttons = [NSMutableArray array];
+    if (buttonMask & rfbButton1Mask) [buttons addObject:@"Left"];
+    if (buttonMask & rfbButton2Mask) [buttons addObject:@"Middle"];
+    if (buttonMask & rfbButton3Mask) [buttons addObject:@"Right"];
+    if (buttonMask & rfbButton4Mask) [buttons addObject:@"WheelUp"];
+    if (buttonMask & rfbButton5Mask) [buttons addObject:@"WheelDown"];
+    
+    return buttons.count > 0 ? [buttons componentsJoinedByString:@"+"] : @"None";
+}
+
+/// 验证VNC连接状态和图像尺寸是否有效
+- (BOOL)isValidForMouseEvents {
+    if (!_rfbClient || !_connected) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] VNC client not connected");
+        return NO;
+    }
+    
+    if (self.imagePixelsSize.width <= 0 || self.imagePixelsSize.height <= 0) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Invalid image size: %.0fx%.0f", 
+              self.imagePixelsSize.width, self.imagePixelsSize.height);
+        return NO;
+    }
+    
+    return YES;
+}
+
+/// 坐标转换辅助方法：将SDL坐标转换为VNC坐标
+- (CGPoint)convertSDLToVNCCoordinate:(CGPoint)sdlLocation {
+    CGFloat vncX = sdlLocation.x;
+    CGFloat vncY = sdlLocation.y;
+    
+    // 如果有渲染区域信息，需要转换坐标
+    if (self.currentRenderingRegion) {
+        // 检查点击位置是否在有效的渲染区域内
+        CGRect targetRect = self.currentRenderingRegion.targetRect;
+        if (!CGRectContainsPoint(targetRect, sdlLocation)) {
+            NSLog(@"⚠️ [ScrcpyVNCClient] Click location (%.1f, %.1f) is outside target rect %@", 
+                  sdlLocation.x, sdlLocation.y, NSStringFromCGRect(targetRect));
+            // 将点击坐标限制在目标区域内
+            sdlLocation.x = MAX(targetRect.origin.x, MIN(targetRect.origin.x + targetRect.size.width - 1, sdlLocation.x));
+            sdlLocation.y = MAX(targetRect.origin.y, MIN(targetRect.origin.y + targetRect.size.height - 1, sdlLocation.y));
+        }
+        
+        // 将屏幕坐标转换为相对于目标区域的坐标 (0.0 - 1.0)
+        CGFloat relativeX = (sdlLocation.x - targetRect.origin.x) / targetRect.size.width;
+        CGFloat relativeY = (sdlLocation.y - targetRect.origin.y) / targetRect.size.height;
+        
+        // 应用拖拽偏移的影响
+        CGFloat normalizedDragX = self.normalizedDragOffset.x;
+        CGFloat normalizedDragY = self.normalizedDragOffset.y;
+        
+        // 转换为VNC源图像坐标，考虑拖拽偏移
+        CGRect sourceRect = self.currentRenderingRegion.sourceRect;
+        vncX = sourceRect.origin.x + (relativeX * sourceRect.size.width) - (normalizedDragX * self.imagePixelsSize.width);
+        vncY = sourceRect.origin.y + (relativeY * sourceRect.size.height) - (normalizedDragY * self.imagePixelsSize.height);
+        
+        // 确保坐标在图像范围内
+        vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+        vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+        
+        NSLog(@"🎯 [CoordinateConvert] SDL(%.1f,%.1f) -> Relative(%.3f,%.3f) -> VNC(%.1f,%.1f) [Drag offset: (%.3f,%.3f)]", 
+              sdlLocation.x, sdlLocation.y, relativeX, relativeY, vncX, vncY, normalizedDragX, normalizedDragY);
+    }
+    
+    return CGPointMake(vncX, vncY);
+}
+
+/// 发送鼠标点击事件到VNC服务器
+- (void)sendMouseClickAtLocation:(CGPoint)location isRightClick:(BOOL)isRightClick {
+    if (![self isValidForMouseEvents]) {
+        return;
+    }
+    
+    CGPoint vncLocation = [self convertSDLToVNCCoordinate:location];
+    int vncX = (int)round(vncLocation.x);
+    int vncY = (int)round(vncLocation.y);
+    
+    // 边界检查
+    vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+    vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+    
+    int clickButtonMask = isRightClick ? rfbButton3Mask : rfbButton1Mask;
+    
+    NSLog(@"🖱️ [ScrcpyVNCClient] Sending %@ click at SDL(%.1f, %.1f) -> VNC(%d, %d)", 
+          isRightClick ? @"right" : @"left", location.x, location.y, vncX, vncY);
+    
+    // 首先发送鼠标移动到点击位置（确保光标在正确位置）
+    rfbBool result = SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to move to click position");
+        return;
+    }
+    usleep(5000); // 5ms延迟
+    
+    // 发送按下事件（添加点击按钮到当前按钮状态）
+    int pressButtonMask = self.buttonMask | clickButtonMask;
+    result = SendPointerEvent(_rfbClient, vncX, vncY, pressButtonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send button press event");
+        return;
+    }
+    usleep(20000); // 20ms延迟（模拟真实点击时间）
+    
+    // 发送释放事件（移除点击按钮，保持其他按钮状态）
+    result = SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send button release event");
+        return;
+    }
+    
+    // 更新当前鼠标位置记录
+    self.currentMouseX = vncX;
+    self.currentMouseY = vncY;
+    
+    NSLog(@"✅ [ScrcpyVNCClient] %@ click completed at VNC(%d, %d)", 
+          isRightClick ? @"Right" : @"Left", vncX, vncY);
+}
+
+/// 发送鼠标移动事件到VNC服务器
+- (void)sendMouseMoveToLocation:(CGPoint)location {
+    if (![self isValidForMouseEvents]) {
+        return;
+    }
+    
+    CGPoint vncLocation = [self convertSDLToVNCCoordinate:location];
+    int vncX = (int)round(vncLocation.x);
+    int vncY = (int)round(vncLocation.y);
+    
+    // 边界检查
+    vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+    vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+    
+    // 简化日志输出，只在debug模式下显示
+    #ifdef DEBUG
+    static NSTimeInterval lastLogTime = 0;
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    if (currentTime - lastLogTime > 0.5) { // 每0.5秒记录一次
+        NSLog(@"🖱️ [ScrcpyVNCClient] Mouse move to SDL(%.1f, %.1f) -> VNC(%d, %d), buttonMask: %d", 
+              location.x, location.y, vncX, vncY, self.buttonMask);
+        lastLogTime = currentTime;
+    }
+    #endif
+    
+    // 发送指针事件，保持当前按钮状态
+    rfbBool result = SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send mouse move event");
+        return;
+    }
+    
+    // 更新当前鼠标位置记录
+    self.currentMouseX = vncX;
+    self.currentMouseY = vncY;
+}
+
+/// 发送鼠标拖拽开始事件到VNC服务器
+- (void)sendMouseDragStartAtLocation:(CGPoint)location {
+    if (![self isValidForMouseEvents]) {
+        return;
+    }
+    
+    CGPoint vncLocation = [self convertSDLToVNCCoordinate:location];
+    int vncX = (int)round(vncLocation.x);
+    int vncY = (int)round(vncLocation.y);
+    
+    // 边界检查
+    vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+    vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+    
+    NSLog(@"🖱️ [ScrcpyVNCClient] Starting mouse drag at SDL(%.1f, %.1f) -> VNC(%d, %d)", 
+          location.x, location.y, vncX, vncY);
+    
+    // 首先移动到起始位置（确保鼠标在正确位置）
+    rfbBool result = SendPointerEvent(_rfbClient, vncX, vncY, 0);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to move to drag start position");
+        return;
+    }
+    
+    // 短暂延迟确保位置更新
+    usleep(5000); // 5ms延迟
+    
+    // 发送按下左键事件开始拖拽
+    self.buttonMask |= rfbButton1Mask; // 使用按位或设置按钮状态
+    result = SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send drag start event");
+        self.buttonMask &= ~rfbButton1Mask; // 恢复按钮状态
+        return;
+    }
+    
+    // 更新拖拽状态
+    self.isDragging = YES;
+    self.currentMouseX = vncX;
+    self.currentMouseY = vncY;
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Drag started at VNC(%d, %d), buttonMask: %d", vncX, vncY, self.buttonMask);
+}
+
+/// 发送鼠标拖拽移动事件到VNC服务器
+- (void)sendMouseDragToLocation:(CGPoint)location {
+    if (![self isValidForMouseEvents]) {
+        return;
+    }
+    
+    // 确保正在拖拽状态
+    if (!self.isDragging || !(self.buttonMask & rfbButton1Mask)) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Not in dragging state, ignoring drag move");
+        return;
+    }
+    
+    CGPoint vncLocation = [self convertSDLToVNCCoordinate:location];
+    int vncX = (int)round(vncLocation.x);
+    int vncY = (int)round(vncLocation.y);
+    
+    // 边界检查
+    vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+    vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+    
+    // 避免发送重复的相同位置
+    if (vncX == self.currentMouseX && vncY == self.currentMouseY) {
+        return;
+    }
+    
+    // 简化日志输出
+    #ifdef DEBUG
+    static NSTimeInterval lastDragLogTime = 0;
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    if (currentTime - lastDragLogTime > 0.2) { // 每0.2秒记录一次
+        NSLog(@"🖱️ [ScrcpyVNCClient] Dragging to SDL(%.1f, %.1f) -> VNC(%d, %d), buttonMask: %d", 
+              location.x, location.y, vncX, vncY, self.buttonMask);
+        lastDragLogTime = currentTime;
+    }
+    #endif
+    
+    // 发送带按钮状态的移动事件（保持拖拽状态）
+    rfbBool result = SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send drag move event");
+        return;
+    }
+    
+    // 更新当前位置
+    self.currentMouseX = vncX;
+    self.currentMouseY = vncY;
+}
+
+/// 发送鼠标拖拽结束事件到VNC服务器
+- (void)sendMouseDragEndAtLocation:(CGPoint)location {
+    if (![self isValidForMouseEvents]) {
+        return;
+    }
+    
+    CGPoint vncLocation = [self convertSDLToVNCCoordinate:location];
+    int vncX = (int)round(vncLocation.x);
+    int vncY = (int)round(vncLocation.y);
+    
+    // 边界检查
+    vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+    vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+    
+    NSLog(@"🖱️ [ScrcpyVNCClient] Ending mouse drag at SDL(%.1f, %.1f) -> VNC(%d, %d)", 
+          location.x, location.y, vncX, vncY);
+    
+    // 释放左键按钮状态（使用按位与的补码清除特定按钮）
+    self.buttonMask &= ~rfbButton1Mask;
+    
+    // 发送释放左键事件结束拖拽
+    rfbBool result = SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send drag end event");
+    }
+    
+    // 重置拖拽状态
+    self.isDragging = NO;
+    self.currentMouseX = vncX;
+    self.currentMouseY = vncY;
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Mouse drag completed at VNC(%d, %d), buttonMask: %d", 
+          vncX, vncY, self.buttonMask);
+}
+
+/// 发送滚轮事件到VNC服务器
+- (void)sendMouseWheelAtLocation:(CGPoint)location deltaX:(int)deltaX deltaY:(int)deltaY {
+    if (![self isValidForMouseEvents]) {
+        return;
+    }
+    
+    CGPoint vncLocation = [self convertSDLToVNCCoordinate:location];
+    int vncX = (int)round(vncLocation.x);
+    int vncY = (int)round(vncLocation.y);
+    
+    // 边界检查
+    vncX = MAX(0, MIN(self.imagePixelsSize.width - 1, vncX));
+    vncY = MAX(0, MIN(self.imagePixelsSize.height - 1, vncY));
+    
+    NSLog(@"🖱️ [ScrcpyVNCClient] Sending mouse wheel at SDL(%.1f, %.1f) -> VNC(%d, %d), delta: (%d, %d)", 
+          location.x, location.y, vncX, vncY, deltaX, deltaY);
+    
+    // VNC滚轮事件通过按钮4和5实现（向上和向下滚动）
+    rfbBool result;
+    if (deltaY > 0) {
+        // 向上滚动 - 使用临时按钮状态
+        int wheelButtonMask = self.buttonMask | rfbButton4Mask;
+        result = SendPointerEvent(_rfbClient, vncX, vncY, wheelButtonMask);
+        if (result) {
+            usleep(10000); // 10ms延迟
+            SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask); // 恢复原按钮状态
+        }
+    } else if (deltaY < 0) {
+        // 向下滚动 - 使用临时按钮状态
+        int wheelButtonMask = self.buttonMask | rfbButton5Mask;
+        result = SendPointerEvent(_rfbClient, vncX, vncY, wheelButtonMask);
+        if (result) {
+            usleep(10000); // 10ms延迟
+            SendPointerEvent(_rfbClient, vncX, vncY, self.buttonMask); // 恢复原按钮状态
+        }
+    }
+    
+    // 处理水平滚动（如果支持）
+    if (deltaX != 0) {
+        // 水平滚动可以通过按钮6和7实现（如果服务端支持）
+        NSLog(@"🖱️ [ScrcpyVNCClient] Horizontal scroll detected, deltaX: %d (not implemented)", deltaX);
+    }
+    
+    // 更新当前位置
+    self.currentMouseX = vncX;
+    self.currentMouseY = vncY;
+}
+
+@end
+
+#pragma mark - VNC Action Execution Extension
+
+@implementation ScrcpyVNCClient (VNCActionExecution)
+
+- (void)executeVNCActions:(NSArray *)actions completion:(void (^)(BOOL success, NSString *error))completion {
+    NSLog(@"🔧 [ScrcpyVNCClient] Executing VNC actions: %lu actions", (unsigned long)actions.count);
+    
+    // Validate VNC connection
+    if (!_connected || !_rfbClient) {
+        NSString *error = @"VNC client is not connected";
+        NSLog(@"❌ [ScrcpyVNCClient] %@", error);
+        if (completion) completion(NO, error);
+        return;
+    }
+    
+    if (actions.count == 0) {
+        NSLog(@"✅ [ScrcpyVNCClient] No VNC actions to execute");
+        if (completion) completion(YES, nil);
+        return;
+    }
+    
+    // Execute VNC actions on main thread for UI events
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BOOL success = YES;
+        NSString *errorMessage = nil;
+        
+        for (NSDictionary *action in actions) {
+            NSString *type = action[@"type"];
+            
+            if ([type isEqualToString:@"click"]) {
+                // Handle click action
+                NSNumber *xValue = action[@"x"];
+                NSNumber *yValue = action[@"y"];
+                
+                                 if (xValue && yValue) {
+                     CGPoint location = CGPointMake([xValue floatValue], [yValue floatValue]);
+                     [self sendMouseClickAtLocation:location isRightClick:NO];
+                 } else {
+                    success = NO;
+                    errorMessage = @"Click action missing x or y coordinates";
+                    break;
+                }
+            } else if ([type isEqualToString:@"key"]) {
+                // Handle key action
+                NSString *keyCode = action[@"keyCode"];
+                
+                if (keyCode) {
+                    [self sendKeyEvent:keyCode];
+                } else {
+                    success = NO;
+                    errorMessage = @"Key action missing keyCode";
+                    break;
+                }
+            } else if ([type isEqualToString:@"text"]) {
+                // Handle text input action
+                NSString *text = action[@"text"];
+                
+                if (text) {
+                    [self sendTextInput:text];
+                } else {
+                    success = NO;
+                    errorMessage = @"Text action missing text content";
+                    break;
+                }
+            } else if ([type isEqualToString:@"drag"]) {
+                // Handle drag action
+                NSNumber *fromX = action[@"fromX"];
+                NSNumber *fromY = action[@"fromY"];
+                NSNumber *toX = action[@"toX"];
+                NSNumber *toY = action[@"toY"];
+                
+                if (fromX && fromY && toX && toY) {
+                    CGPoint fromLocation = CGPointMake([fromX floatValue], [fromY floatValue]);
+                    CGPoint toLocation = CGPointMake([toX floatValue], [toY floatValue]);
+                    [self sendMouseDragFromLocation:fromLocation toLocation:toLocation];
+                } else {
+                    success = NO;
+                    errorMessage = @"Drag action missing coordinates";
+                    break;
+                }
+            } else {
+                success = NO;
+                errorMessage = [NSString stringWithFormat:@"Unknown VNC action type: %@", type];
+                break;
+            }
+            
+            // Small delay between actions
+            [NSThread sleepForTimeInterval:0.1];
+        }
+        
+        if (success) {
+            NSLog(@"✅ [ScrcpyVNCClient] All VNC actions executed successfully");
+        } else {
+            NSLog(@"❌ [ScrcpyVNCClient] VNC actions failed: %@", errorMessage);
+        }
+        
+        if (completion) completion(success, errorMessage);
+    });
+}
+
+/// Helper method to send a key event
+- (void)sendKeyEvent:(NSString *)keyCode {
+    // Convert keyCode to VNC key symbol
+    int vncKey = [self convertToVNCKey:keyCode];
+    if (vncKey == 0) {
+        NSLog(@"❌ [ScrcpyVNCClient] Unknown key code: %@", keyCode);
+        return;
+    }
+    
+    // Send key press
+    rfbBool result = SendKeyEvent(_rfbClient, vncKey, TRUE);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send key press for: %@", keyCode);
+        return;
+    }
+    
+    // Small delay
+    usleep(50000); // 50ms
+    
+    // Send key release
+    result = SendKeyEvent(_rfbClient, vncKey, FALSE);
+    if (!result) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send key release for: %@", keyCode);
+        return;
+    }
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Key event sent: %@", keyCode);
+}
+
+/// Helper method to send text input
+- (void)sendTextInput:(NSString *)text {
+    for (NSUInteger i = 0; i < text.length; i++) {
+        unichar character = [text characterAtIndex:i];
+        
+        // Convert character to VNC key symbol
+        int vncKey = [self convertCharacterToVNCKey:character];
+        if (vncKey == 0) {
+            NSLog(@"❌ [ScrcpyVNCClient] Cannot convert character to VNC key: %C", character);
+            continue;
+        }
+        
+        // Send key press
+        rfbBool result = SendKeyEvent(_rfbClient, vncKey, TRUE);
+        if (!result) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to send key press for character: %C", character);
+            continue;
+        }
+        
+        // Small delay
+        usleep(20000); // 20ms
+        
+        // Send key release
+        result = SendKeyEvent(_rfbClient, vncKey, FALSE);
+        if (!result) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to send key release for character: %C", character);
+        }
+        
+        // Small delay between characters
+        usleep(30000); // 30ms
+    }
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Text input sent: %@", text);
+}
+
+/// Helper method to send mouse drag from one location to another
+- (void)sendMouseDragFromLocation:(CGPoint)fromLocation toLocation:(CGPoint)toLocation {
+    // Start drag at from location
+    [self sendMouseDragStartAtLocation:fromLocation];
+    
+    // Small delay
+    usleep(100000); // 100ms
+    
+    // Move to destination
+    [self sendMouseDragToLocation:toLocation];
+    
+    // Small delay
+    usleep(100000); // 100ms
+    
+    // End drag at destination
+    [self sendMouseDragEndAtLocation:toLocation];
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Mouse drag completed from (%.1f, %.1f) to (%.1f, %.1f)", 
+          fromLocation.x, fromLocation.y, toLocation.x, toLocation.y);
+}
+
+/// Convert key code string to VNC key symbol
+- (int)convertToVNCKey:(NSString *)keyCode {
+    // Map common key codes to VNC key symbols
+    NSDictionary *keyMap = @{
+        @"KEYCODE_HOME": @(XK_Home),
+        @"KEYCODE_BACK": @(XK_BackSpace),
+        @"KEYCODE_MENU": @(XK_Menu),
+        @"KEYCODE_ENTER": @(XK_Return),
+        @"KEYCODE_SPACE": @(XK_space),
+        @"KEYCODE_TAB": @(XK_Tab),
+        @"KEYCODE_ESCAPE": @(XK_Escape),
+        @"KEYCODE_DEL": @(XK_Delete),
+        @"KEYCODE_DPAD_UP": @(XK_Up),
+        @"KEYCODE_DPAD_DOWN": @(XK_Down),
+        @"KEYCODE_DPAD_LEFT": @(XK_Left),
+        @"KEYCODE_DPAD_RIGHT": @(XK_Right),
+    };
+    
+    NSNumber *keySymbol = keyMap[keyCode];
+    return keySymbol ? [keySymbol intValue] : 0;
+}
+
+/// Convert character to VNC key symbol
+- (int)convertCharacterToVNCKey:(unichar)character {
+    // For ASCII characters, VNC key symbols are the same as ASCII values
+    if (character >= 32 && character <= 126) {
+        return (int)character;
+    }
+    
+    // Handle special characters
+    switch (character) {
+        case '\n':
+        case '\r':
+            return XK_Return;
+        case '\t':
+            return XK_Tab;
+        case '\b':
+            return XK_BackSpace;
+        default:
+            return 0; // Unknown character
+    }
 }
 
 @end

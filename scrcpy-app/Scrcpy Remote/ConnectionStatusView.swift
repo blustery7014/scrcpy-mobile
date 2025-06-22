@@ -16,7 +16,7 @@ struct ConnectionStatusView: View {
     @State private var animationPhase: Int = 0
     @State private var pulseScale: CGFloat = 1.0
     @State private var rotationAngle: Double = 0
-    @State private var glowOpacity: Double = 0.5
+    @State private var glowOpacity: Double = 0.3
     @State private var breathingScale: CGFloat = 1.0
     
     // 使用 State 来控制 Timer 的生命周期
@@ -86,26 +86,39 @@ struct ConnectionStatusView: View {
             print("🎭 [ConnectionStatusView] View disappeared for session: \(session.title)")
         }
         .onChange(of: connectionStatus) { newStatus in
-            // 检测状态变化并重置动画
+            // 检测状态变化
             if let previousStatus = previousConnectionStatus, previousStatus != newStatus {
                 print("🔄 [ConnectionStatusView] Status changed from \(previousStatus.description) to \(newStatus.description)")
                 
-                // 状态变化时重置动画状态
-                resetAnimationState()
+                // 获取新的图标信息
+                let newIconName = connectionStatusIcon
+                let newIconColor = connectionStatusColor
+                
+                // 只有当图标类型真正发生变化时才重置动画
+                let iconTypeChanged = currentIconName != newIconName
+                
+                if iconTypeChanged {
+                    print("🎭 [ConnectionStatusView] Icon type changed from \(currentIconName) to \(newIconName), resetting animation")
+                    
+                    // 重置动画状态
+                    resetAnimationState()
+                    
+                    // 触发动画重置
+                    animationResetTrigger.toggle()
+                    
+                    // 短暂延迟后重新开始动画（如果需要）
+                    if shouldContinueAnimating {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isTimerActive = true
+                        }
+                    }
+                } else {
+                    print("🎭 [ConnectionStatusView] Icon type unchanged (\(currentIconName)), keeping animation smooth")
+                }
                 
                 // 更新当前图标信息
-                currentIconName = connectionStatusIcon
-                currentIconColor = connectionStatusColor
-                
-                // 触发动画重置
-                animationResetTrigger.toggle()
-                
-                // 短暂延迟后重新开始动画（如果需要）
-                if shouldContinueAnimating {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        isTimerActive = true
-                    }
-                }
+                currentIconName = newIconName
+                currentIconColor = newIconColor
             }
             
             // 更新前一个状态
@@ -137,7 +150,7 @@ struct ConnectionStatusView: View {
             pulseScale = 1.0
             breathingScale = 1.0
             rotationAngle = 0
-            glowOpacity = 0.5
+            glowOpacity = 0.3
         }
         animationPhase = 0
         print("🔄 [ConnectionStatusView] Animation state reset")
@@ -196,6 +209,11 @@ struct ConnectionStatusView: View {
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
+            
+            // Tailscale 连接指示器
+            if session.sessionModel.useTailscale {
+                tailscaleIndicator
+            }
         }
     }
     
@@ -234,42 +252,73 @@ struct ConnectionStatusView: View {
             )
     }
     
+    // MARK: - Tailscale Indicator
+    private var tailscaleIndicator: some View {
+        HStack(spacing: 6) {
+            // Tailscale 图标
+            Image(systemName: "network")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.blue)
+            
+            Text("Tailscale")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(.blue)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.blue.opacity(0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
     // MARK: - Connection Animation Section
     private var connectionAnimationSection: some View {
         VStack(spacing: 10) {
             // 主连接动画 - 固定高度区域
             ZStack {
-                // 简化的脉冲环 - 只在动画激活时显示
-                if isTimerActive && shouldContinueAnimating {
+                // 外层圆环 - 只在连接中时显示
+                if isTimerActive && shouldContinueAnimating && connectionStatus.isConnecting {
                     Circle()
-                        .stroke(Color.blue.opacity(0.3), lineWidth: 4)
-                        .frame(width: 80, height: 80)
+                        .stroke(Color.blue.opacity(0.2), lineWidth: 3)
+                        .frame(width: 100, height: 100)
                         .scaleEffect(pulseScale)
-                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: pulseScale)
+                        .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: pulseScale)
                 }
                 
-                // 中心连接图标 - 使用独立的状态变量避免动画冲突
-                Image(systemName: currentIconName)
-                    .font(.system(size: 50, weight: .medium))
-                    .foregroundColor(currentIconColor)
-                    .scaleEffect(breathingScale)
-                    .rotationEffect(.degrees(rotationAngle))
-                    .animation(
-                        isTimerActive && shouldContinueAnimating && connectionStatus.isConnecting ? 
-                        .easeInOut(duration: 1.5).repeatForever(autoreverses: true) : 
-                        .easeInOut(duration: 0.3),
-                        value: breathingScale
-                    )
-                    .animation(
-                        isTimerActive && shouldContinueAnimating ? 
-                        .linear(duration: 3).repeatForever(autoreverses: false) : 
-                        .easeInOut(duration: 0.3),
-                        value: rotationAngle
-                    )
-                    // 使用 animationResetTrigger 来强制重新创建视图，清除之前的动画
-                    .id("\(currentIconName)_\(animationResetTrigger)")
+                // 内层光晕圆 - 连接中时显示
+                if isTimerActive && shouldContinueAnimating && connectionStatus.isConnecting {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 60, height: 60)
+                        .scaleEffect(breathingScale)
+                        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: breathingScale)
+                }
+                
+                // 中心图标 - 连接中显示圆点，连接成功显示对勾
+                if connectionStatus.isConnecting {
+                    // 连接中显示柔和的圆点
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 20, height: 20)
+                        .scaleEffect(breathingScale)
+                        .opacity(glowOpacity)
+                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: breathingScale)
+                        .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: glowOpacity)
+                } else {
+                    // 连接成功或失败显示对应图标
+                    Image(systemName: currentIconName)
+                        .font(.system(size: 40, weight: .medium))
+                        .foregroundColor(currentIconColor)
+                        .scaleEffect(connectionStatus.isFullyConnected ? 1.2 : 1.0)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.6), value: connectionStatus.isFullyConnected)
+                }
             }
-            .frame(height: 80) // 固定动画区域高度
+            .frame(height: 100) // 固定动画区域高度
         }
     }
     
@@ -353,7 +402,7 @@ struct ConnectionStatusView: View {
         case ScrcpyStatusConnectingFailed:
             return "xmark.circle.fill"
         default:
-            return "wifi"
+            return "inset.filled.circle"
         }
     }
     
@@ -404,14 +453,6 @@ struct ConnectionStatusView: View {
         }
     }
     
-    // MARK: - Connection Steps
-    private var connectionSteps: [ConnectionStep] {
-        [
-            ConnectionStep(title: "Network", icon: "wifi", status: .network),
-            ConnectionStep(title: "ADB/VNC", icon: session.deviceType == "adb" ? "android" : "display", status: .protocolConnection),
-            ConnectionStep(title: "Display", icon: "rectangle", status: .display)
-        ]
-    }
     
     // MARK: - Animation Updates
     private func updateAnimations() {
@@ -426,61 +467,29 @@ struct ConnectionStatusView: View {
         
         animationPhase = (animationPhase + 1) % 100
         
-        // 更新脉冲动画
-        if animationPhase % 25 == 0 {
+        // 更新外层脉冲环动画 - 较慢的节奏
+        if animationPhase % 30 == 0 {
             withAnimation(.easeInOut(duration: 2)) {
-                pulseScale = pulseScale == 1.0 ? 1.1 : 1.0
+                pulseScale = pulseScale == 1.0 ? 1.15 : 1.0
             }
         }
         
-        // 更新呼吸灯动画 - 只在连接中状态时执行
-        if connectionStatus.isConnecting && animationPhase % 15 == 0 {
+        // 更新内层呼吸灯动画 - 中等节奏
+        if connectionStatus.isConnecting && animationPhase % 20 == 0 {
             withAnimation(.easeInOut(duration: 1.5)) {
-                breathingScale = breathingScale == 1.0 ? 1.2 : 1.0
+                breathingScale = breathingScale == 1.0 ? 1.3 : 1.0
             }
         }
         
-        // 更新旋转动画 - 只在连接中状态时执行
-        if connectionStatus.isConnecting {
-            rotationAngle += 0.2
+        // 更新中心圆点透明度 - 较快的节奏，营造柔和的呼吸效果
+        if connectionStatus.isConnecting && animationPhase % 12 == 0 {
+            withAnimation(.easeInOut(duration: 1.2)) {
+                glowOpacity = glowOpacity == 0.3 ? 0.9 : 0.3
+            }
         }
     }
 }
 
-// MARK: - Connection Step Model
-struct ConnectionStep {
-    let title: String
-    let icon: String
-    let status: ConnectionStepStatus
-    
-    func isActive(for scrcpyStatus: ScrcpyStatus) -> Bool {
-        switch status {
-        case .network:
-            return scrcpyStatus == ScrcpyStatusConnecting
-        case .protocolConnection:
-            return scrcpyStatus == ScrcpyStatusADBConnected
-        case .display:
-            return scrcpyStatus == ScrcpyStatusSDLWindowCreated
-        }
-    }
-    
-    func isCompleted(for scrcpyStatus: ScrcpyStatus) -> Bool {
-        switch status {
-        case .network:
-            return scrcpyStatus.rawValue > ScrcpyStatusConnecting.rawValue
-        case .protocolConnection:
-            return scrcpyStatus.rawValue > ScrcpyStatusADBConnected.rawValue
-        case .display:
-            return scrcpyStatus == ScrcpyStatusConnected || scrcpyStatus == ScrcpyStatusSDLWindowAppeared
-        }
-    }
-}
-
-enum ConnectionStepStatus {
-    case network
-    case protocolConnection
-    case display
-}
 
 // MARK: - Preview
 struct ConnectionStatusView_Previews: PreviewProvider {

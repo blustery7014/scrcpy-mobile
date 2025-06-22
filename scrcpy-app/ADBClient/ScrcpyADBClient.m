@@ -114,6 +114,36 @@ void ScrcpyTryResetVideo(void) {
                                                  selector:@selector(stopScrcpy)
                                                      name:ScrcpyRequestDisconnectNotification
                                                    object:nil];
+        
+        // Observe ADB key event execution
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(executeADBKeyEvent:)
+                                                     name:@"ExecuteADBKeyEvent"
+                                                   object:nil];
+        
+        // Observe ADB Home key execution
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(executeADBHomeKey:)
+                                                     name:@"ExecuteADBHomeKey"
+                                                   object:nil];
+        
+        // Observe ADB Switch key execution
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(executeADBSwitchKey:)
+                                                     name:@"ExecuteADBSwitchKey"
+                                                   object:nil];
+        
+        // Observe ADB input keys execution
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(executeADBInputKeys:)
+                                                     name:@"ExecuteADBInputKeys"
+                                                   object:nil];
+        
+        // Observe ADB shell commands execution
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(executeADBShellCommands:)
+                                                     name:@"ExecuteADBShellCommands"
+                                                   object:nil];
     }
     return self;
 }
@@ -202,6 +232,9 @@ void ScrcpyTryResetVideo(void) {
         @"videoBitRate": @"--video-bit-rate",
         @"maxFPS": @"--max-fps",
         @"videoCodec": @"--video-codec",
+        @"videoEncoder": @"--video-encoder",
+        @"audioCodec": @"--audio-codec",
+        @"audioEncoder": @"--audio-encoder",
         @"videoBuffer": @"--video-buffer",
         @"turnScreenOff": @"--turn-screen-off",
         @"stayAwake": @"--stay-awake",
@@ -543,6 +576,411 @@ void ScrcpyTryResetVideo(void) {
         self.backgroundTimer = nil;
         self.lastBackgroundCheckTime = 0;
         NSLog(@"Background timer stopped");
+    }
+}
+
+#pragma mark - ADB Action Execution
+
+- (void)executeADBKeyEvent:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *action = userInfo[@"action"];
+    NSNumber *keyCodeNumber = userInfo[@"keyCode"];
+    
+    if (![@"keyEvent" isEqualToString:action] || !keyCodeNumber) {
+        NSLog(@"❌ [ScrcpyADBClient] Invalid key event notification: %@", userInfo);
+        return;
+    }
+    
+    int keyCode = [keyCodeNumber intValue];
+    NSLog(@"🔘 [ScrcpyADBClient] Executing ADB shell input keyevent: %d", keyCode);
+    
+    // Execute adb shell input keyevent command
+    NSString *keyEventCommand = [NSString stringWithFormat:@"input keyevent %d", keyCode];
+    NSArray *shellArgs = @[@"shell", keyEventCommand];
+    
+    [ADBClient.shared executeADBCommandAsync:shellArgs callback:^(NSString * _Nullable result, int returnCode) {
+        if (returnCode == 0) {
+            NSLog(@"✅ [ScrcpyADBClient] Key event executed successfully: keycode %d", keyCode);
+        } else {
+            NSLog(@"❌ [ScrcpyADBClient] Key event failed (%d): keycode %d - %@", returnCode, keyCode, result);
+        }
+    }];
+}
+
+- (void)executeADBHomeKey:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *action = userInfo[@"action"];
+    
+    if (![@"homeKey" isEqualToString:action]) {
+        NSLog(@"❌ [ScrcpyADBClient] Invalid home key notification: %@", userInfo);
+        return;
+    }
+    
+    NSLog(@"🏠 [ScrcpyADBClient] Executing ADB shell input keyevent for Home key");
+    
+    // Execute adb shell input keyevent 3 (KEYCODE_HOME)
+    NSArray *shellArgs = @[@"shell", @"input keyevent 3"];
+    
+    [ADBClient.shared executeADBCommandAsync:shellArgs callback:^(NSString * _Nullable result, int returnCode) {
+        if (returnCode == 0) {
+            NSLog(@"✅ [ScrcpyADBClient] Home key executed successfully via ADB");
+        } else {
+            NSLog(@"❌ [ScrcpyADBClient] Home key failed (%d): %@", returnCode, result);
+        }
+    }];
+}
+
+- (void)executeADBSwitchKey:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *action = userInfo[@"action"];
+    
+    if (![@"switchKey" isEqualToString:action]) {
+        NSLog(@"❌ [ScrcpyADBClient] Invalid switch key notification: %@", userInfo);
+        return;
+    }
+    
+    NSLog(@"🔀 [ScrcpyADBClient] Executing ADB shell input keyevent for App Switch key");
+    
+    // Execute adb shell input keyevent 187 (KEYCODE_APP_SWITCH)
+    NSArray *shellArgs = @[@"shell", @"input keyevent 187"];
+    
+    [ADBClient.shared executeADBCommandAsync:shellArgs callback:^(NSString * _Nullable result, int returnCode) {
+        if (returnCode == 0) {
+            NSLog(@"✅ [ScrcpyADBClient] App Switch key executed successfully via ADB");
+        } else {
+            NSLog(@"❌ [ScrcpyADBClient] App Switch key failed (%d): %@", returnCode, result);
+        }
+    }];
+}
+
+- (void)executeADBInputKeys:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *action = userInfo[@"action"];
+    NSArray *keys = userInfo[@"keys"];
+    NSNumber *intervalMs = userInfo[@"intervalMs"];
+    
+    if (![@"inputKeys" isEqualToString:action] || !keys || !intervalMs) {
+        NSLog(@"❌ [ScrcpyADBClient] Invalid input keys notification: %@", userInfo);
+        return;
+    }
+    
+    NSLog(@"⌨️ [ScrcpyADBClient] Executing %lu input keys via ADB shell input keyevent with %dms interval", 
+          (unsigned long)keys.count, [intervalMs intValue]);
+    
+    dispatch_queue_t keyQueue = dispatch_queue_create("com.scrcpy.key.execution", DISPATCH_QUEUE_SERIAL);
+    
+    for (NSUInteger i = 0; i < keys.count; i++) {
+        NSDictionary *keyInfo = keys[i];
+        NSNumber *keyCodeNumber = keyInfo[@"keyCode"];
+        NSString *keyName = keyInfo[@"keyName"];
+        
+        if (!keyCodeNumber) {
+            NSLog(@"❌ [ScrcpyADBClient] Invalid key info: %@", keyInfo);
+            continue;
+        }
+        
+        int keyCode = [keyCodeNumber intValue];
+        NSTimeInterval delay = i * [intervalMs doubleValue] / 1000.0;
+        
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), keyQueue, ^{
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSLog(@"🔘 [ScrcpyADBClient] Executing key %lu/%lu: %@ (keycode %d)", 
+                      i + 1, (unsigned long)keys.count, keyName, keyCode);
+                
+                // Execute adb shell input keyevent command
+                NSString *keyEventCommand = [NSString stringWithFormat:@"input keyevent %d", keyCode];
+                NSArray *shellArgs = @[@"shell", keyEventCommand];
+                
+                [ADBClient.shared executeADBCommandAsync:shellArgs callback:^(NSString * _Nullable result, int returnCode) {
+                    if (returnCode == 0) {
+                        NSLog(@"✅ [ScrcpyADBClient] Key %@ (keycode %d) executed successfully", keyName, keyCode);
+                    } else {
+                        NSLog(@"❌ [ScrcpyADBClient] Key %@ (keycode %d) failed (%d): %@", keyName, keyCode, returnCode, result);
+                    }
+                }];
+            });
+        });
+    }
+    
+    // Log completion
+    NSTimeInterval totalTime = (keys.count - 1) * [intervalMs doubleValue] / 1000.0;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(totalTime * NSEC_PER_SEC)), keyQueue, ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"✅ [ScrcpyADBClient] Input keys sequence completed");
+        });
+    });
+}
+
+- (void)executeADBShellCommands:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *action = userInfo[@"action"];
+    NSArray *commands = userInfo[@"commands"];
+    NSNumber *intervalMs = userInfo[@"intervalMs"];
+    
+    if (![@"shellCommands" isEqualToString:action] || !commands || !intervalMs) {
+        NSLog(@"❌ [ScrcpyADBClient] Invalid shell commands notification: %@", userInfo);
+        return;
+    }
+    
+    NSLog(@"💻 [ScrcpyADBClient] Executing %lu shell commands with %dms interval", 
+          (unsigned long)commands.count, [intervalMs intValue]);
+    
+    dispatch_queue_t commandQueue = dispatch_queue_create("com.scrcpy.command.execution", DISPATCH_QUEUE_SERIAL);
+    
+    for (NSUInteger i = 0; i < commands.count; i++) {
+        NSString *command = commands[i];
+        NSTimeInterval delay = i * [intervalMs doubleValue] / 1000.0;
+        
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), commandQueue, ^{
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSLog(@"🔘 [ScrcpyADBClient] Executing command %lu/%lu: %@", 
+                      i + 1, (unsigned long)commands.count, command);
+                
+                // Execute ADB shell command
+                NSArray *shellArgs = @[@"shell", command];
+                [ADBClient.shared executeADBCommandAsync:shellArgs callback:^(NSString * _Nullable result, int returnCode) {
+                    if (returnCode == 0) {
+                        NSLog(@"✅ [ScrcpyADBClient] Command executed successfully: %@", command);
+                        if (result && result.length > 0) {
+                            NSLog(@"📤 [ScrcpyADBClient] Command output: %@", result);
+                        }
+                    } else {
+                        NSLog(@"❌ [ScrcpyADBClient] Command failed (%d): %@ - %@", returnCode, command, result);
+                    }
+                }];
+            });
+        });
+    }
+    
+    // Log completion
+    NSTimeInterval totalTime = (commands.count - 1) * [intervalMs doubleValue] / 1000.0;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(totalTime * NSEC_PER_SEC)), commandQueue, ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"✅ [ScrcpyADBClient] Shell commands sequence completed");
+        });
+    });
+}
+
+#pragma mark - Key Code Mapping (Legacy - No longer used, kept for reference)
+
+// NOTE: These methods are no longer used since we now use ADB shell input keyevent commands
+// instead of SDL key events. They are kept for reference and potential future use.
+
+- (SDL_Scancode)androidKeyCodeToSDLScancode:(int)androidKeyCode {
+    // Comprehensive mapping of Android keycodes to SDL scancodes
+    switch (androidKeyCode) {
+        // System keys
+        case 3: return SDL_SCANCODE_AC_HOME;        // KEYCODE_HOME
+        case 4: return SDL_SCANCODE_AC_BACK;        // KEYCODE_BACK
+        case 24: return SDL_SCANCODE_VOLUMEUP;      // KEYCODE_VOLUME_UP
+        case 25: return SDL_SCANCODE_VOLUMEDOWN;    // KEYCODE_VOLUME_DOWN
+        case 26: return SDL_SCANCODE_POWER;         // KEYCODE_POWER
+        case 28: return SDL_SCANCODE_CLEAR;         // KEYCODE_CLEAR
+        case 82: return SDL_SCANCODE_MENU;          // KEYCODE_MENU
+        case 83: return SDL_SCANCODE_SLEEP;         // KEYCODE_NOTIFICATION
+        case 84: return SDL_SCANCODE_AC_SEARCH;     // KEYCODE_SEARCH
+        case 187: return SDL_SCANCODE_APPLICATION;  // KEYCODE_APP_SWITCH
+        
+        // Numbers
+        case 7: return SDL_SCANCODE_0;              // KEYCODE_0
+        case 8: return SDL_SCANCODE_1;              // KEYCODE_1
+        case 9: return SDL_SCANCODE_2;              // KEYCODE_2
+        case 10: return SDL_SCANCODE_3;             // KEYCODE_3
+        case 11: return SDL_SCANCODE_4;             // KEYCODE_4
+        case 12: return SDL_SCANCODE_5;             // KEYCODE_5
+        case 13: return SDL_SCANCODE_6;             // KEYCODE_6
+        case 14: return SDL_SCANCODE_7;             // KEYCODE_7
+        case 15: return SDL_SCANCODE_8;             // KEYCODE_8
+        case 16: return SDL_SCANCODE_9;             // KEYCODE_9
+        case 17: return SDL_SCANCODE_KP_MULTIPLY;   // KEYCODE_STAR
+        case 18: return SDL_SCANCODE_3;             // KEYCODE_POUND (#)
+        
+        // Letters
+        case 29: return SDL_SCANCODE_A;             // KEYCODE_A
+        case 30: return SDL_SCANCODE_B;             // KEYCODE_B
+        case 31: return SDL_SCANCODE_C;             // KEYCODE_C
+        case 32: return SDL_SCANCODE_D;             // KEYCODE_D
+        case 33: return SDL_SCANCODE_E;             // KEYCODE_E
+        case 34: return SDL_SCANCODE_F;             // KEYCODE_F
+        case 35: return SDL_SCANCODE_G;             // KEYCODE_G
+        case 36: return SDL_SCANCODE_H;             // KEYCODE_H
+        case 37: return SDL_SCANCODE_I;             // KEYCODE_I
+        case 38: return SDL_SCANCODE_J;             // KEYCODE_J
+        case 39: return SDL_SCANCODE_K;             // KEYCODE_K
+        case 40: return SDL_SCANCODE_L;             // KEYCODE_L
+        case 41: return SDL_SCANCODE_M;             // KEYCODE_M
+        case 42: return SDL_SCANCODE_N;             // KEYCODE_N
+        case 43: return SDL_SCANCODE_O;             // KEYCODE_O
+        case 44: return SDL_SCANCODE_P;             // KEYCODE_P
+        case 45: return SDL_SCANCODE_Q;             // KEYCODE_Q
+        case 46: return SDL_SCANCODE_R;             // KEYCODE_R
+        case 47: return SDL_SCANCODE_S;             // KEYCODE_S
+        case 48: return SDL_SCANCODE_T;             // KEYCODE_T
+        case 49: return SDL_SCANCODE_U;             // KEYCODE_U
+        case 50: return SDL_SCANCODE_V;             // KEYCODE_V
+        case 51: return SDL_SCANCODE_W;             // KEYCODE_W
+        case 52: return SDL_SCANCODE_X;             // KEYCODE_X
+        case 53: return SDL_SCANCODE_Y;             // KEYCODE_Y
+        case 54: return SDL_SCANCODE_Z;             // KEYCODE_Z
+        
+        // Navigation
+        case 19: return SDL_SCANCODE_UP;            // KEYCODE_DPAD_UP
+        case 20: return SDL_SCANCODE_DOWN;          // KEYCODE_DPAD_DOWN
+        case 21: return SDL_SCANCODE_LEFT;          // KEYCODE_DPAD_LEFT
+        case 22: return SDL_SCANCODE_RIGHT;         // KEYCODE_DPAD_RIGHT
+        case 23: return SDL_SCANCODE_RETURN;        // KEYCODE_DPAD_CENTER
+        
+        // Punctuation and symbols
+        case 55: return SDL_SCANCODE_COMMA;         // KEYCODE_COMMA
+        case 56: return SDL_SCANCODE_PERIOD;        // KEYCODE_PERIOD
+        case 68: return SDL_SCANCODE_GRAVE;         // KEYCODE_GRAVE
+        case 69: return SDL_SCANCODE_MINUS;         // KEYCODE_MINUS
+        case 70: return SDL_SCANCODE_EQUALS;        // KEYCODE_EQUALS
+        case 71: return SDL_SCANCODE_LEFTBRACKET;   // KEYCODE_LEFT_BRACKET
+        case 72: return SDL_SCANCODE_RIGHTBRACKET;  // KEYCODE_RIGHT_BRACKET
+        case 73: return SDL_SCANCODE_BACKSLASH;     // KEYCODE_BACKSLASH
+        case 74: return SDL_SCANCODE_SEMICOLON;     // KEYCODE_SEMICOLON
+        case 75: return SDL_SCANCODE_APOSTROPHE;    // KEYCODE_APOSTROPHE
+        case 76: return SDL_SCANCODE_SLASH;         // KEYCODE_SLASH
+        case 77: return SDL_SCANCODE_2;             // KEYCODE_AT (@)
+        case 81: return SDL_SCANCODE_KP_PLUS;       // KEYCODE_PLUS
+        
+        // Control keys
+        case 61: return SDL_SCANCODE_TAB;           // KEYCODE_TAB
+        case 62: return SDL_SCANCODE_SPACE;         // KEYCODE_SPACE
+        case 63: return SDL_SCANCODE_SYSREQ;        // KEYCODE_SYM
+        case 66: return SDL_SCANCODE_RETURN;        // KEYCODE_ENTER
+        case 67: return SDL_SCANCODE_BACKSPACE;     // KEYCODE_DEL
+        case 111: return SDL_SCANCODE_ESCAPE;       // KEYCODE_ESCAPE
+        case 112: return SDL_SCANCODE_DELETE;       // KEYCODE_FORWARD_DEL
+        case 115: return SDL_SCANCODE_CAPSLOCK;     // KEYCODE_CAPS_LOCK
+        case 116: return SDL_SCANCODE_SCROLLLOCK;   // KEYCODE_SCROLL_LOCK
+        case 121: return SDL_SCANCODE_PAUSE;        // KEYCODE_BREAK
+        case 122: return SDL_SCANCODE_HOME;         // KEYCODE_MOVE_HOME
+        case 123: return SDL_SCANCODE_END;          // KEYCODE_MOVE_END
+        case 124: return SDL_SCANCODE_INSERT;       // KEYCODE_INSERT
+        case 125: return SDL_SCANCODE_AC_FORWARD;   // KEYCODE_FORWARD
+        
+        // Hardware/Media keys
+        case 91: return SDL_SCANCODE_MUTE;          // KEYCODE_MUTE
+        case 92: return SDL_SCANCODE_PAGEUP;        // KEYCODE_PAGE_UP
+        case 93: return SDL_SCANCODE_PAGEDOWN;      // KEYCODE_PAGE_DOWN
+        
+        // Additional keys
+        case 277: return SDL_SCANCODE_CUT;          // KEYCODE_CUT
+        case 278: return SDL_SCANCODE_COPY;         // KEYCODE_COPY
+        case 279: return SDL_SCANCODE_PASTE;        // KEYCODE_PASTE
+        
+        default: return SDL_SCANCODE_UNKNOWN;
+    }
+}
+
+- (SDL_Keycode)androidKeyCodeToSDLKeycode:(int)androidKeyCode {
+    // Comprehensive mapping of Android keycodes to SDL keycodes
+    switch (androidKeyCode) {
+        // System keys
+        case 3: return SDLK_AC_HOME;        // KEYCODE_HOME
+        case 4: return SDLK_AC_BACK;        // KEYCODE_BACK
+        case 24: return SDLK_VOLUMEUP;      // KEYCODE_VOLUME_UP
+        case 25: return SDLK_VOLUMEDOWN;    // KEYCODE_VOLUME_DOWN
+        case 26: return SDLK_POWER;         // KEYCODE_POWER
+        case 28: return SDLK_CLEAR;         // KEYCODE_CLEAR
+        case 82: return SDLK_MENU;          // KEYCODE_MENU
+        case 83: return SDLK_SLEEP;         // KEYCODE_NOTIFICATION
+        case 84: return SDLK_AC_SEARCH;     // KEYCODE_SEARCH
+        case 187: return SDLK_APPLICATION;  // KEYCODE_APP_SWITCH
+        
+        // Numbers
+        case 7: return SDLK_0;              // KEYCODE_0
+        case 8: return SDLK_1;              // KEYCODE_1
+        case 9: return SDLK_2;              // KEYCODE_2
+        case 10: return SDLK_3;             // KEYCODE_3
+        case 11: return SDLK_4;             // KEYCODE_4
+        case 12: return SDLK_5;             // KEYCODE_5
+        case 13: return SDLK_6;             // KEYCODE_6
+        case 14: return SDLK_7;             // KEYCODE_7
+        case 15: return SDLK_8;             // KEYCODE_8
+        case 16: return SDLK_9;             // KEYCODE_9
+        case 17: return SDLK_KP_MULTIPLY;   // KEYCODE_STAR
+        case 18: return SDLK_3;             // KEYCODE_POUND (#)
+        
+        // Letters
+        case 29: return SDLK_a;             // KEYCODE_A
+        case 30: return SDLK_b;             // KEYCODE_B
+        case 31: return SDLK_c;             // KEYCODE_C
+        case 32: return SDLK_d;             // KEYCODE_D
+        case 33: return SDLK_e;             // KEYCODE_E
+        case 34: return SDLK_f;             // KEYCODE_F
+        case 35: return SDLK_g;             // KEYCODE_G
+        case 36: return SDLK_h;             // KEYCODE_H
+        case 37: return SDLK_i;             // KEYCODE_I
+        case 38: return SDLK_j;             // KEYCODE_J
+        case 39: return SDLK_k;             // KEYCODE_K
+        case 40: return SDLK_l;             // KEYCODE_L
+        case 41: return SDLK_m;             // KEYCODE_M
+        case 42: return SDLK_n;             // KEYCODE_N
+        case 43: return SDLK_o;             // KEYCODE_O
+        case 44: return SDLK_p;             // KEYCODE_P
+        case 45: return SDLK_q;             // KEYCODE_Q
+        case 46: return SDLK_r;             // KEYCODE_R
+        case 47: return SDLK_s;             // KEYCODE_S
+        case 48: return SDLK_t;             // KEYCODE_T
+        case 49: return SDLK_u;             // KEYCODE_U
+        case 50: return SDLK_v;             // KEYCODE_V
+        case 51: return SDLK_w;             // KEYCODE_W
+        case 52: return SDLK_x;             // KEYCODE_X
+        case 53: return SDLK_y;             // KEYCODE_Y
+        case 54: return SDLK_z;             // KEYCODE_Z
+        
+        // Navigation
+        case 19: return SDLK_UP;            // KEYCODE_DPAD_UP
+        case 20: return SDLK_DOWN;          // KEYCODE_DPAD_DOWN
+        case 21: return SDLK_LEFT;          // KEYCODE_DPAD_LEFT
+        case 22: return SDLK_RIGHT;         // KEYCODE_DPAD_RIGHT
+        case 23: return SDLK_RETURN;        // KEYCODE_DPAD_CENTER
+        
+        // Punctuation and symbols
+        case 55: return SDLK_COMMA;         // KEYCODE_COMMA
+        case 56: return SDLK_PERIOD;        // KEYCODE_PERIOD
+        case 68: return SDLK_BACKQUOTE;     // KEYCODE_GRAVE
+        case 69: return SDLK_MINUS;         // KEYCODE_MINUS
+        case 70: return SDLK_EQUALS;        // KEYCODE_EQUALS
+        case 71: return SDLK_LEFTBRACKET;   // KEYCODE_LEFT_BRACKET
+        case 72: return SDLK_RIGHTBRACKET;  // KEYCODE_RIGHT_BRACKET
+        case 73: return SDLK_BACKSLASH;     // KEYCODE_BACKSLASH
+        case 74: return SDLK_SEMICOLON;     // KEYCODE_SEMICOLON
+        case 75: return SDLK_QUOTE;         // KEYCODE_APOSTROPHE
+        case 76: return SDLK_SLASH;         // KEYCODE_SLASH
+        case 77: return SDLK_2;             // KEYCODE_AT (@)
+        case 81: return SDLK_KP_PLUS;       // KEYCODE_PLUS
+        
+        // Control keys
+        case 61: return SDLK_TAB;           // KEYCODE_TAB
+        case 62: return SDLK_SPACE;         // KEYCODE_SPACE
+        case 63: return SDLK_SYSREQ;        // KEYCODE_SYM
+        case 66: return SDLK_RETURN;        // KEYCODE_ENTER
+        case 67: return SDLK_BACKSPACE;     // KEYCODE_DEL
+        case 111: return SDLK_ESCAPE;       // KEYCODE_ESCAPE
+        case 112: return SDLK_DELETE;       // KEYCODE_FORWARD_DEL
+        case 115: return SDLK_CAPSLOCK;     // KEYCODE_CAPS_LOCK
+        case 116: return SDLK_SCROLLLOCK;   // KEYCODE_SCROLL_LOCK
+        case 121: return SDLK_PAUSE;        // KEYCODE_BREAK
+        case 122: return SDLK_HOME;         // KEYCODE_MOVE_HOME
+        case 123: return SDLK_END;          // KEYCODE_MOVE_END
+        case 124: return SDLK_INSERT;       // KEYCODE_INSERT
+        case 125: return SDLK_AC_FORWARD;   // KEYCODE_FORWARD
+        
+        // Hardware/Media keys
+        case 91: return SDLK_MUTE;          // KEYCODE_MUTE
+        case 92: return SDLK_PAGEUP;        // KEYCODE_PAGE_UP
+        case 93: return SDLK_PAGEDOWN;      // KEYCODE_PAGE_DOWN
+        
+        // Additional keys
+        case 277: return SDLK_CUT;          // KEYCODE_CUT
+        case 278: return SDLK_COPY;         // KEYCODE_COPY
+        case 279: return SDLK_PASTE;        // KEYCODE_PASTE
+        
+        default: return SDLK_UNKNOWN;
     }
 }
 

@@ -26,4 +26,8 @@ void ScrcpyUpdateStatus(enum ScrcpyStatus status, const char *message);
 // Custom audio volume adjust
 float ScrcpyAudioVolumeScale(float volume_scale);
 
+// Get process last output
+const char *
+scrcpy_process_get_last_output();
+
 #endif /* scrcpy_h */

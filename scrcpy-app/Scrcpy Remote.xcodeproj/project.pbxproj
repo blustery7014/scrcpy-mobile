@@ -164,6 +164,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ScrcpyCommon.m,
+				ScrcpyConstants.m,
 				ScrcpyInputMaskView.m,
 				ScrcpyMenuMaskView.m,
 				ScrcpyMenuView.m,
