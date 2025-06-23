@@ -16,7 +16,37 @@ struct SessionCreateView: View {
     @State private var returnedFromTailscaleAuth = false
     @State private var showingValidationError = false
     @State private var validationErrorMessage = ""
+    @State private var forceVNCMode = false
     private let isEditMode: Bool
+    
+    // Check if ADB is auto-selected based on port (not forced by user)
+    private var isADBAutoSelected: Bool {
+        // Only show force VNC option if:
+        // 1. No explicit scheme in host
+        // 2. Port would normally trigger ADB detection
+        // 3. Not already in force VNC mode
+        if sessionModel.host.starts(with: "vnc://") || sessionModel.host.starts(with: "adb://") {
+            return false
+        }
+        
+        if let portNumber = Int(sessionModel.port) {
+            let wouldBeVNC = portNumber < 5555 || 
+                           (portNumber >= 5900 && portNumber <= 5909) ||
+                           (portNumber >= 15900 && portNumber <= 15909) ||
+                           (portNumber >= 25900 && portNumber <= 25909)
+            return !wouldBeVNC && !forceVNCMode
+        }
+        
+        return false
+    }
+    
+    // Get effective device type considering force VNC mode
+    private var effectiveDeviceType: SessionDeviceType {
+        if forceVNCMode {
+            return .vnc
+        }
+        return sessionModel.deviceType
+    }
     
     init() {
         isEditMode = false
@@ -33,12 +63,19 @@ struct SessionCreateView: View {
                 Section(header: Text("Remote Device")) {
                     TextField("Session Name (Optional)", text: $sessionModel.sessionName)
                         .autocorrectionDisabled()
-                    TextField("Host", text: $sessionModel.host)
+                    TextField("Host or vnc://host", text: $sessionModel.host)
                         .textContentType(.URL)
                         .autocorrectionDisabled()
                         .autocapitalization(.none)
                     TextField("Port", text: $sessionModel.port)
                         .keyboardType(.numberPad)
+                }
+                
+                // Show force VNC mode option when ADB is auto-selected
+                if isADBAutoSelected {
+                    Section {
+                        Toggle("Force Switch to VNC mode", isOn: $forceVNCMode)
+                    }
                 }
                 
                 Section(header: Text("Connection Options")) {
@@ -78,14 +115,14 @@ struct SessionCreateView: View {
                         .padding(.vertical, 4)
                     }
                     
-                    if sessionModel.deviceType == .adb {
+                    if effectiveDeviceType == .adb {
                         Toggle("Force Connect ADB Forward", isOn: $sessionModel.adbOptions.forceAdbForward)
                     }
                 }
                 
-                if sessionModel.deviceType == .vnc {
+                if effectiveDeviceType == .vnc {
                     Section(header: Text("VNC Session Options")) {
-                        TextField("VNC User", text: $sessionModel.vncOptions.vncUser)
+                        TextField("VNC User (Optional)", text: $sessionModel.vncOptions.vncUser)
                             .textContentType(.username)
                             .autocapitalization(.none)
                             .autocorrectionDisabled(true)
@@ -93,7 +130,7 @@ struct SessionCreateView: View {
                             .textContentType(.password)
                     }
                 }
-                if sessionModel.deviceType == .adb {
+                if effectiveDeviceType == .adb {
                     Section(header: Text("ADB Session Options")) {
                         TextField("Max Screen Size", text: $sessionModel.adbOptions.maxScreenSize)
                             .keyboardType(.numberPad)
@@ -214,6 +251,9 @@ struct SessionCreateView: View {
                     Button(action: {
                         // Validate session before saving
                         if validateSession() {
+                            // Apply force VNC mode to session if needed
+                            applyForceVNCMode()
+                            
                             // Save session
                             SessionManager.shared.saveSession(sessionModel)
                             
@@ -240,6 +280,9 @@ struct SessionCreateView: View {
                     Button("Save") {
                         // Validate session before saving
                         if validateSession() {
+                            // Apply force VNC mode to session if needed
+                            applyForceVNCMode()
+                            
                             // Save session
                             SessionManager.shared.saveSession(sessionModel)
                             
@@ -349,18 +392,15 @@ struct SessionCreateView: View {
         }
         
         // Check device-specific fields
-        if sessionModel.deviceType == .vnc {
-            if sessionModel.vncOptions.vncUser.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                validationErrorMessage = "Please enter a VNC username."
-                return false
-            }
+        if effectiveDeviceType == .vnc {
+            // VNC User is optional, only check password
             if sessionModel.vncOptions.vncPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 validationErrorMessage = "Please enter a VNC password."
                 return false
             }
         }
         
-        if sessionModel.deviceType == .adb {
+        if effectiveDeviceType == .adb {
             // Validate new display settings if enabled
             if sessionModel.adbOptions.startNewDisplay {
                 if sessionModel.adbOptions.displayWidth.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -418,6 +458,15 @@ struct SessionCreateView: View {
             return false
         }
         return intValue > 0
+    }
+    
+    private func applyForceVNCMode() {
+        if forceVNCMode {
+            // Add vnc:// prefix to force VNC mode in the saved session
+            if !sessionModel.host.starts(with: "vnc://") && !sessionModel.host.starts(with: "adb://") {
+                sessionModel.host = "vnc://" + sessionModel.host
+            }
+        }
     }
 }
 

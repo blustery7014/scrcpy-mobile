@@ -815,15 +815,6 @@ struct ActionsView: View {
             }
         }
         .navigationTitle("Scrcpy Actions")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    showingNewAction = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-            }
-        }
         .sheet(isPresented: $showingNewAction) {
             NewActionView { action in
                 actionManager.saveAction(action)

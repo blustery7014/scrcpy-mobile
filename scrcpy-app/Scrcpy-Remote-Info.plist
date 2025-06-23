@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.scrcpy.remote.background-refresh</string>
+		<string>com.scrcpy.remote.background-processing</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -15,9 +20,14 @@
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>fetch</string>
 		<string>processing</string>
 		<string>audio</string>
+		<string>fetch</string>
+	</array>
+	<key>UIDeviceFamily</key>
+	<array>
+		<string>1</string>
+		<string>2</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

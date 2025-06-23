@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AA18D7282E0800BE00CD7D92 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */; };
 		AA4B6E332DEC6CDC00813661 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA4B6E322DEC6CDC00813661 /* Foundation.framework */; };
-		AA4B6E362DEC70B300813661 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */; };
 		AA7AF64D2DF57467002EC51D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64C2DF57467002EC51D /* WidgetKit.framework */; };
 		AA7AF64F2DF57467002EC51D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64E2DF57467002EC51D /* SwiftUI.framework */; };
 		AA7AF6602DF57468002EC51D /* ScrcpyLiveActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -35,8 +35,8 @@
 		AAA4EF682D0DFA9000D361CA /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF672D0DFA9000D361CA /* CoreMotion.framework */; };
 		AAA4EF6A2D0DFA9900D361CA /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF692D0DFA9900D361CA /* CoreFoundation.framework */; };
 		AAA4EF6C2D0DFAB700D361CA /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF6B2D0DFAB700D361CA /* AudioToolbox.framework */; };
-		AAA4EFA42D0FBEB000D361CA /* VNCClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */; };
-		AAA4EFA52D0FBEB000D361CA /* VNCClient.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		AAA4EFA42D0FBEB000D361CA /* VNCClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */; platformFilter = ios; };
+		AAA4EFA52D0FBEB000D361CA /* VNCClient.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF9E2D0FBEB000D361CA /* VNCClient.framework */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		AAA4EFB22D0FC4EC00D361CA /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB12D0FC4EC00D361CA /* AudioToolbox.framework */; };
 		AAA4EFB42D0FC4F400D361CA /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB32D0FC4F400D361CA /* CoreFoundation.framework */; };
 		AAA4EFB62D0FC4F900D361CA /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EFB52D0FC4F900D361CA /* CoreMotion.framework */; };
@@ -104,6 +104,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
 		AA4B6E322DEC6CDC00813661 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
 		AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ScrcpyLiveActivityWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -308,7 +309,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA4B6E362DEC70B300813661 /* CoreBluetooth.framework in Frameworks */,
+				AA18D7282E0800BE00CD7D92 /* CoreBluetooth.framework in Frameworks */,
 				AA4B6E332DEC6CDC00813661 /* Foundation.framework in Frameworks */,
 				AAA4EFC22D0FD6D000D361CA /* libz.tbd in Frameworks */,
 				AAA4EFBC2D0FC52000D361CA /* AVFoundation.framework in Frameworks */,
@@ -369,6 +370,7 @@
 			isa = PBXGroup;
 			children = (
 				AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */,
+				AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */,
 				AA4B6E322DEC6CDC00813661 /* Foundation.framework */,
 				AA8E626B2DC655DD00999976 /* libarchive.tbd */,
 				AA8E62322DC6502300999976 /* libfakefs.a */,
@@ -640,6 +642,7 @@
 		};
 		AAA4EFA32D0FBEB000D361CA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilter = ios;
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
 			targetProxy = AAA4EFA22D0FBEB000D361CA /* PBXContainerItemProxy */;
 		};
@@ -839,13 +842,15 @@
 				);
 				INFOPLIST_FILE = "Scrcpy-Remote-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Screen Remote";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app does not use Bluetooth. Bluetooth permission is required by linked frameworks but no Bluetooth functionality is accessed.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app does not access the camera. Camera permission is required by underlying frameworks for video processing and display of remote device screens.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -866,7 +871,7 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "Scrcpy SDL/Scrcpy Remote-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -888,13 +893,15 @@
 				);
 				INFOPLIST_FILE = "Scrcpy-Remote-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Screen Remote";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app does not use Bluetooth. Bluetooth permission is required by linked frameworks but no Bluetooth functionality is accessed.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app does not access the camera. Camera permission is required by underlying frameworks for video processing and display of remote device screens.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -914,7 +921,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Scrcpy SDL/Scrcpy Remote-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};

@@ -131,14 +131,27 @@ struct ScrcpySessionModel: Codable, Identifiable {
     
     var deviceType: SessionDeviceType {
         get {
-            if host.starts(with: "vnc://") || (5900...5909).contains(Int(port) ?? 0) {
+            // If host has explicit scheme prefix, use it
+            if host.starts(with: "vnc://") {
                 return .vnc
             }
-            
-            if host.starts(with: "adb://") || port.lengthOfBytes(using: .utf8) >= 4 {
+            if host.starts(with: "adb://") {
                 return .adb
             }
             
+            // Auto-detect based on port number
+            if let portNumber = Int(port) {
+                // VNC ports: < 5555, 590x (5900-5909), or 1590x (15900-15909)
+                if portNumber < 5555 || 
+                   (portNumber >= 5900 && portNumber <= 5909) ||
+                   (portNumber >= 15900 && portNumber <= 15909) {
+                    return .vnc
+                }
+                // All other ports default to ADB
+                return .adb
+            }
+            
+            // Default fallback to VNC if port is not a valid number
             return .vnc
         }
     }

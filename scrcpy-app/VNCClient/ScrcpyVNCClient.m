@@ -648,38 +648,77 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         return TRUE;
     });
     
-    _rfbClient->GetCredential = GetCredentialBlock;
-    GetSet_GetCredentialBlockIMP(_rfbClient, imp_implementationWithBlock(^rfbCredential *(rfbClient* cl, int credentialType){
-        rfbCredential *c = malloc(sizeof(rfbCredential));
-        if (!c) {
+    // Set up GetPassword callback for simple password-only VNC authentication (rfbVncAuth)
+    _rfbClient->GetPassword = (GetPasswordProc)imp_implementationWithBlock(^char *(rfbClient* cl){
+        NSLog(@"🔐 [ScrcpyVNCClient] GetPassword callback invoked for password-only VNC authentication");
+        
+        if (!password || password.length == 0) {
+            NSLog(@"❌ [ScrcpyVNCClient] Password is empty for VNC authentication");
             return NULL;
         }
         
-        c->userCredential.username = malloc(RFB_BUF_SIZE);
-        strcpy(c->userCredential.username, user.UTF8String);
-        if (!c->userCredential.username) {
+        // Allocate memory for password (library will free it after use)
+        size_t passwordLength = password.length + 1;
+        char *passwordCStr = malloc(passwordLength);
+        if (!passwordCStr) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC password");
+            return NULL;
+        }
+        
+        // Copy password and ensure null termination
+        strncpy(passwordCStr, password.UTF8String, passwordLength - 1);
+        passwordCStr[passwordLength - 1] = '\0';
+        
+        // Remove trailing newlines if any
+        passwordCStr[strcspn(passwordCStr, "\n")] = '\0';
+        
+        NSLog(@"🔐 [ScrcpyVNCClient] Password provided for VNC authentication (length: %zu)", strlen(passwordCStr));
+        return passwordCStr;
+    });
+    
+    // Set up GetCredential callback for advanced authentication (VeNCrypt, MSLogon, etc.)
+    _rfbClient->GetCredential = GetCredentialBlock;
+    GetSet_GetCredentialBlockIMP(_rfbClient, imp_implementationWithBlock(^rfbCredential *(rfbClient* cl, int credentialType){
+        NSLog(@"🔐 [ScrcpyVNCClient] GetCredential callback invoked for advanced VNC authentication, type: %d", credentialType);
+        
+        rfbCredential *c = malloc(sizeof(rfbCredential));
+        if (!c) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC credential");
+            return NULL;
+        }
+        
+        if(credentialType != rfbCredentialTypeUser) {
+            NSLog(@"❌ [ScrcpyVNCClient] Unsupported credential type: %d (only rfbCredentialTypeUser is supported)", credentialType);
             free(c);
             return NULL;
         }
         
+        // Allocate and copy username
+        c->userCredential.username = malloc(RFB_BUF_SIZE);
+        if (!c->userCredential.username) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC username");
+            free(c);
+            return NULL;
+        }
+        strncpy(c->userCredential.username, user ? user.UTF8String : "", RFB_BUF_SIZE - 1);
+        c->userCredential.username[RFB_BUF_SIZE - 1] = '\0';
+        
+        // Allocate and copy password
         c->userCredential.password = malloc(RFB_BUF_SIZE);
-        strcpy(c->userCredential.password, password.UTF8String);
         if (!c->userCredential.password) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC password");
             free(c->userCredential.username);
             free(c);
             return NULL;
         }
+        strncpy(c->userCredential.password, password ? password.UTF8String : "", RFB_BUF_SIZE - 1);
+        c->userCredential.password[RFB_BUF_SIZE - 1] = '\0';
 
-        if(credentialType != rfbCredentialTypeUser) {
-            rfbClientErr("something else than username and password required for authentication\n");
-            return NULL;
-        }
-
-        rfbClientLog("vnc username and password required for authentication!\n");
+        NSLog(@"🔐 [ScrcpyVNCClient] VNC credentials prepared - username: %s, password: [HIDDEN]", c->userCredential.username);
 
         /* remove trailing newlines */
-        c->userCredential.username[strcspn(c->userCredential.username, "\n")] = 0;
-        c->userCredential.password[strcspn(c->userCredential.password, "\n")] = 0;
+        c->userCredential.username[strcspn(c->userCredential.username, "\n")] = '\0';
+        c->userCredential.password[strcspn(c->userCredential.password, "\n")] = '\0';
 
         return c;
     }));
