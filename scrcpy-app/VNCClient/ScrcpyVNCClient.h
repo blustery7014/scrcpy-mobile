@@ -63,6 +63,10 @@ typedef NS_ENUM(NSInteger, VNCQuickActionType) {
 /// @param completion 完成回调，返回成功执行的动作数量
 - (void)executeVNCActions:(NSArray<NSNumber *> *)actionTypes completion:(void(^)(NSInteger successCount))completion;
 
+/// 测试光标显示功能
+/// @param cursorType 要测试的系统光标类型 (SDL_SystemCursor)
+- (void)testCursorDisplay:(int)cursorType;
+
 @end
 
 NS_ASSUME_NONNULL_END

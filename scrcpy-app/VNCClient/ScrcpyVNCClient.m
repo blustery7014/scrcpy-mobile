@@ -54,9 +54,13 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
 @property (nonatomic, assign) SDL_Texture *currentTexture;
 
 // VNC 光标相关属性
-@property (nonatomic, assign) SDL_Cursor *vncCursor;
+@property (nonatomic, assign) SDL_Texture *cursorTexture;
 @property (nonatomic, assign) int cursorX;
 @property (nonatomic, assign) int cursorY;
+@property (nonatomic, assign) int cursorWidth;
+@property (nonatomic, assign) int cursorHeight;
+@property (nonatomic, assign) int cursorHotX;
+@property (nonatomic, assign) int cursorHotY;
 @property (nonatomic, assign) BOOL cursorVisible;
 
 // VNC 拖拽手势相关属性
@@ -73,6 +77,10 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
 
 // Scale render properties
 @property (nonatomic, strong) RenderRegionResult *currentRenderingRegion;
+
+// 光标相关方法声明
+- (void)createDefaultArrowCursor;
+- (void)renderCursor;
 
 @end
 
@@ -94,9 +102,13 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         self.currentTexture = NULL;
         
         // 初始化光标相关属性
-        self.vncCursor = NULL;
+        self.cursorTexture = NULL;
         self.cursorX = 0;
         self.cursorY = 0;
+        self.cursorWidth = 0;
+        self.cursorHeight = 0;
+        self.cursorHotX = 0;
+        self.cursorHotY = 0;
         self.cursorVisible = NO;
         
         // 监听断开连接通知
@@ -145,12 +157,6 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
 }
 
 -(void)dealloc {
-    // 清理光标资源
-    if (self.vncCursor) {
-        SDL_FreeCursor(self.vncCursor);
-        self.vncCursor = NULL;
-    }
-    
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -361,7 +367,7 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     _rfbClient->listenPort = LISTEN_PORT_OFFSET;
     _rfbClient->listen6Port = LISTEN_PORT_OFFSET;
     
-    _rfbClient->MallocFrameBuffer = (MallocFrameBufferProc)imp_implementationWithBlock(^rfbBool(rfbClient* client){
+    GetSet_MallocFrameBufferBlockIMP(_rfbClient, imp_implementationWithBlock(^rfbBool(rfbClient* client){
         int width=client->width, height=client->height, depth=client->format.bitsPerPixel;
 
         // 保存原始尺寸（仅在第一次时保存）
@@ -388,6 +394,7 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         
         // 启用远程光标支持
         client->appData.useRemoteCursor = true;
+        client->appData.encodingsString = "tight copyrect hextile zlib corre rre raw";
         
         // 启用本地光标显示
         client->appData.viewOnly = false;
@@ -417,6 +424,9 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         
         NSLog(@"SDL Window: %@", self.sdlDelegate.window);
         self.sdlDelegate.window.windowScene = self.currentScene;
+        
+        // 注：在iOS上不支持SDL光标，我们将使用自定义纹理渲染光标
+        NSLog(@"🖱️ [ScrcpyVNCClient] SDL window created, will use texture-based cursor rendering");
         NSLog(@"SDL Window Scene: %@", self.sdlDelegate.window.windowScene);
         [self.sdlDelegate.window makeKeyWindow];
         NSLog(@"SDL Window RootController: %@", self.sdlDelegate.window.rootViewController);
@@ -438,7 +448,8 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
                                                                                         imageSize:self.imagePixelsSize
                                                                                       scaleFactor:1.0 centerX:0.5 centerY:0.5];
         return true;
-    });
+    }));
+    _rfbClient->MallocFrameBuffer = MallocFrameBufferBlock;
     
     _rfbClient->GotFrameBufferUpdate = GotFrameBufferUpdateBlock;
     GetSet_GotFrameBufferUpdateBlockIMP(_rfbClient, imp_implementationWithBlock(^void(rfbClient* cl, int x, int y, int w, int h){
@@ -508,16 +519,8 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         int access;
         SDL_QueryTexture(sdlTexture, &format, &access, &w, &h);
         
-        // 更新光标位置（如果光标可见）
-        if (self.cursorVisible && self.vncCursor) {
-            // 获取当前鼠标位置
-            int mouseX, mouseY;
-            SDL_GetMouseState(&mouseX, &mouseY);
-            
-            // 更新光标位置
-            self.cursorX = mouseX;
-            self.cursorY = mouseY;
-        }
+        // 渲染光标
+        [self renderCursor];
         
         SDL_RenderPresent(sdlRenderer);
         
@@ -533,123 +536,150 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     }));
     
     // 设置光标形状处理回调
-    _rfbClient->GotCursorShape = (GotCursorShapeProc)imp_implementationWithBlock(^void(rfbClient* cl, int xhot, int yhot, int width, int height, int bytesPerPixel){
+    GetSet_GotCursorShapeBlockIMP(_rfbClient, imp_implementationWithBlock(^void(rfbClient* cl, int xhot, int yhot, int width, int height, int bytesPerPixel){
         NSLog(@"🖱️ [ScrcpyVNCClient] Received cursor shape: %dx%d, hot spot: (%d,%d), bpp: %d", width, height, xhot, yhot, bytesPerPixel);
         
-        // 清理之前的光标
-        if (self.vncCursor) {
-            SDL_FreeCursor(self.vncCursor);
-            self.vncCursor = NULL;
-        }
-        
-        // 检查光标数据是否有效
-        if (!cl->rcSource || !cl->rcMask || width <= 0 || height <= 0) {
-            NSLog(@"⚠️ [ScrcpyVNCClient] Invalid cursor data, using default cursor");
-            self.vncCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
-            self.cursorVisible = YES;
-            SDL_SetCursor(self.vncCursor);
-            return;
-        }
-        
-        // 创建光标数据数组
-        int dataSize = width * height;
-        Uint8 *cursorData = malloc(dataSize);
-        Uint8 *cursorMask = malloc(dataSize);
-        
-        if (!cursorData || !cursorMask) {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate cursor memory");
-            if (cursorData) free(cursorData);
-            if (cursorMask) free(cursorMask);
-            return;
-        }
-        
-        // 转换光标数据格式
-        if (bytesPerPixel == 4) {
-            // 32位颜色数据，需要转换为黑白
-            uint32_t *sourceData = (uint32_t *)cl->rcSource;
-            for (int i = 0; i < dataSize; i++) {
-                uint32_t pixel = sourceData[i];
-                // 简单的亮度计算
-                uint8_t brightness = ((pixel & 0xFF) + ((pixel >> 8) & 0xFF) + ((pixel >> 16) & 0xFF)) / 3;
-                cursorData[i] = (brightness > 128) ? 1 : 0;
+        // 确保在主线程中处理光标更新
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // 清理之前的光标纹理
+            if (self.cursorTexture) {
+                SDL_DestroyTexture(self.cursorTexture);
+                self.cursorTexture = NULL;
             }
-        } else if (bytesPerPixel == 1) {
-            // 8位灰度数据
-            memcpy(cursorData, cl->rcSource, dataSize);
-        } else {
-            // 其他格式，使用默认光标
-            NSLog(@"⚠️ [ScrcpyVNCClient] Unsupported cursor format: %d bpp", bytesPerPixel);
-            free(cursorData);
-            free(cursorMask);
-            self.vncCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
-            self.cursorVisible = YES;
-            SDL_SetCursor(self.vncCursor);
-            return;
-        }
-        
-        // 复制掩码数据
-        memcpy(cursorMask, cl->rcMask, dataSize);
-        
-        // 创建SDL光标
-        self.vncCursor = SDL_CreateCursor(cursorData, cursorMask, width, height, xhot, yhot);
-        
-        if (self.vncCursor) {
-            NSLog(@"✅ [ScrcpyVNCClient] VNC cursor created successfully");
-            self.cursorVisible = YES;
-            SDL_SetCursor(self.vncCursor);
-        } else {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to create VNC cursor: %s", SDL_GetError());
-            self.vncCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
-            self.cursorVisible = YES;
-            SDL_SetCursor(self.vncCursor);
-        }
-        
-        // 清理临时数据
-        free(cursorData);
-        free(cursorMask);
-    });
+            
+            // 检查光标数据是否有效
+            if (!cl->rcSource || width <= 0 || height <= 0 || width > 128 || height > 128) {
+                NSLog(@"⚠️ [ScrcpyVNCClient] Invalid cursor data (w=%d, h=%d), creating default arrow cursor", width, height);
+                [self createDefaultArrowCursor];
+                return;
+            }
+            
+            // 保存光标属性
+            self.cursorWidth = width;
+            self.cursorHeight = height;
+            self.cursorHotX = xhot;
+            self.cursorHotY = yhot;
+            
+            // 为RGBA纹理分配内存
+            int pixelCount = width * height;
+            Uint32 *rgbaData = calloc(pixelCount, sizeof(Uint32));
+            
+            if (!rgbaData) {
+                NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate cursor RGBA memory");
+                [self createDefaultArrowCursor];
+                return;
+            }
+            
+            // 转换光标数据为RGBA格式
+            if (bytesPerPixel == 4) {
+                // 32位RGBA数据，直接复制
+                uint32_t *sourceData = (uint32_t *)cl->rcSource;
+                memcpy(rgbaData, sourceData, pixelCount * sizeof(Uint32));
+                
+                // 如果有掩码数据，应用掩码
+                if (cl->rcMask) {
+                    uint8_t *maskData = (uint8_t *)cl->rcMask;
+                    for (int i = 0; i < pixelCount; i++) {
+                        // 检查掩码位
+                        int byteIndex = i / 8;
+                        int bitIndex = 7 - (i % 8);
+                        if (!(maskData[byteIndex] & (1 << bitIndex))) {
+                            // 掩码为0表示透明
+                            rgbaData[i] &= 0x00FFFFFF; // 清除alpha通道
+                        }
+                    }
+                }
+            } else if (bytesPerPixel == 1) {
+                // 8位灰度数据，转换为RGBA
+                uint8_t *sourceData = (uint8_t *)cl->rcSource;
+                uint8_t *maskData = (uint8_t *)cl->rcMask;
+                
+                for (int i = 0; i < pixelCount; i++) {
+                    uint8_t gray = sourceData[i];
+                    uint8_t alpha = 255;
+                    
+                    // 应用掩码
+                    if (maskData) {
+                        int byteIndex = i / 8;
+                        int bitIndex = 7 - (i % 8);
+                        if (!(maskData[byteIndex] & (1 << bitIndex))) {
+                            alpha = 0;
+                        }
+                    }
+                    
+                    // 创建RGBA像素 (ABGR格式，因为SDL使用小端序)
+                    rgbaData[i] = (alpha << 24) | (gray << 16) | (gray << 8) | gray;
+                }
+            } else {
+                // 其他格式，创建默认光标
+                NSLog(@"⚠️ [ScrcpyVNCClient] Unsupported cursor format: %d bpp", bytesPerPixel);
+                free(rgbaData);
+                [self createDefaultArrowCursor];
+                return;
+            }
+            
+            // 创建SDL纹理用于绘制光标
+            if (self.currentRenderer) {
+                self.cursorTexture = SDL_CreateTexture(self.currentRenderer, SDL_PIXELFORMAT_RGBA8888,
+                                                      SDL_TEXTUREACCESS_STATIC, width, height);
+                
+                if (self.cursorTexture) {
+                    // 设置纹理的混合模式以支持透明度
+                    SDL_SetTextureBlendMode(self.cursorTexture, SDL_BLENDMODE_BLEND);
+                    
+                    // 更新纹理数据
+                    int result = SDL_UpdateTexture(self.cursorTexture, NULL, rgbaData, width * sizeof(Uint32));
+                    
+                    if (result == 0) {
+                        NSLog(@"✅ [ScrcpyVNCClient] VNC cursor texture created successfully (%dx%d)", width, height);
+                        self.cursorVisible = YES;
+                    } else {
+                        NSLog(@"❌ [ScrcpyVNCClient] Failed to update cursor texture: %s", SDL_GetError());
+                        SDL_DestroyTexture(self.cursorTexture);
+                        self.cursorTexture = NULL;
+                        [self createDefaultArrowCursor];
+                    }
+                } else {
+                    NSLog(@"❌ [ScrcpyVNCClient] Failed to create cursor texture: %s", SDL_GetError());
+                    [self createDefaultArrowCursor];
+                }
+            } else {
+                NSLog(@"❌ [ScrcpyVNCClient] No renderer available for cursor texture creation");
+                [self createDefaultArrowCursor];
+            }
+            
+            // 清理临时数据
+            free(rgbaData);
+        });
+    }));
+    _rfbClient->GotCursorShape = GotCursorShapeBlock;
+    NSLog(@"🖱️ [ScrcpyVNCClient] GotCursorShape callback set successfully");
     
     // 设置光标位置处理回调
-    _rfbClient->HandleCursorPos = (HandleCursorPosProc)imp_implementationWithBlock(^rfbBool(rfbClient* cl, int x, int y){
+    GetSet_HandleCursorPosBlockIMP(_rfbClient, imp_implementationWithBlock(^rfbBool(rfbClient* cl, int x, int y){
         NSLog(@"🖱️ [ScrcpyVNCClient] Received cursor position: (%d, %d)", x, y);
         
-        // 更新光标位置
-        self.cursorX = x;
-        self.cursorY = y;
-        
-        // 显示光标并更新光标位置
-        if (self.vncCursor) {
-            self.cursorVisible = YES;
-            SDL_SetCursor(self.vncCursor);
+        // 确保在主线程中处理光标位置更新
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // 更新光标位置
+            self.cursorX = x;
+            self.cursorY = y;
             
-            // 将VNC坐标转换为SDL窗口坐标
-            int sdlX = x;
-            int sdlY = y;
-            
-            // 应用缩放和偏移转换
-            if (self.currentRenderingRegion) {
-                CGFloat scaleX = self.currentRenderingRegion.targetRect.size.width / self.currentRenderingRegion.sourceRect.size.width;
-                CGFloat scaleY = self.currentRenderingRegion.targetRect.size.height / self.currentRenderingRegion.sourceRect.size.height;
-                
-                sdlX = (x - self.currentRenderingRegion.sourceRect.origin.x) * scaleX + self.currentRenderingRegion.targetRect.origin.x;
-                sdlY = (y - self.currentRenderingRegion.sourceRect.origin.y) * scaleY + self.currentRenderingRegion.targetRect.origin.y;
-                
-                // 确保坐标在屏幕范围内
-                sdlX = MAX(0, MIN(self.renderScreenSize.width - 1, sdlX));
-                sdlY = MAX(0, MIN(self.renderScreenSize.height - 1, sdlY));
+            // 如果还没有光标纹理，创建一个默认光标
+            if (!self.cursorTexture) {
+                NSLog(@"🖱️ [ScrcpyVNCClient] Creating default cursor because no VNC cursor available");
+                [self createDefaultArrowCursor];
             }
             
-            NSLog(@"🖱️ [ScrcpyVNCClient] Setting cursor position: VNC(%d, %d) -> SDL(%d, %d)", x, y, sdlX, sdlY);
-            SDL_WarpMouseInWindow(NULL, sdlX, sdlY);
-        } else {
-            NSLog(@"⚠️ [ScrcpyVNCClient] No VNC cursor available to display");
-        }
+            // 光标位置更新完成，光标会在渲染时绘制到正确位置
+        });
         
         return TRUE;
-    });
+    }));
+    _rfbClient->HandleCursorPos = HandleCursorPosBlock;
     
     // Set up GetPassword callback for simple password-only VNC authentication (rfbVncAuth)
-    _rfbClient->GetPassword = (GetPasswordProc)imp_implementationWithBlock(^char *(rfbClient* cl){
+    GetSet_GetPasswordBlockIMP(_rfbClient, imp_implementationWithBlock(^char *(rfbClient* cl){
         NSLog(@"🔐 [ScrcpyVNCClient] GetPassword callback invoked for password-only VNC authentication");
         
         if (!password || password.length == 0) {
@@ -674,7 +704,8 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
         
         NSLog(@"🔐 [ScrcpyVNCClient] Password provided for VNC authentication (length: %zu)", strlen(passwordCStr));
         return passwordCStr;
-    });
+    }));
+    _rfbClient->GetPassword = GetPasswordBlock;
     
     // Set up GetCredential callback for advanced authentication (VeNCrypt, MSLogon, etc.)
     _rfbClient->GetCredential = GetCredentialBlock;
@@ -746,6 +777,18 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     self.scrcpyStatus = ScrcpyStatusConnected;
     ScrcpyUpdateStatus(ScrcpyStatusConnected, "VNC client connected successfully");
     
+    // 连接成功后，输出光标支持信息
+    NSLog(@"🖱️ [ScrcpyVNCClient] VNC connection established:");
+    NSLog(@"🖱️ [ScrcpyVNCClient] - useRemoteCursor: %s", _rfbClient->appData.useRemoteCursor ? "YES" : "NO");
+    NSLog(@"🖱️ [ScrcpyVNCClient] - GotCursorShape callback: %p", _rfbClient->GotCursorShape);
+    NSLog(@"🖱️ [ScrcpyVNCClient] - HandleCursorPos callback: %p", _rfbClient->HandleCursorPos);
+    
+    // 发送一个帧缓冲更新请求，这可能会触发光标数据的发送
+    if (_rfbClient) {
+        NSLog(@"🖱️ [ScrcpyVNCClient] Requesting framebuffer update to trigger cursor data");
+        SendFramebufferUpdateRequest(_rfbClient, 0, 0, _rfbClient->width, _rfbClient->height, FALSE);
+    }
+    
     // Start message loop in background thread
     [self vncMessageLoop];
 
@@ -766,13 +809,17 @@ CFRunLoopRunResult CFRunLoopRunInMode_fix(CFRunLoopMode mode, CFTimeInterval sec
     self.currentTexture = NULL;
     
     // 清理光标资源
-    if (self.vncCursor) {
-        SDL_FreeCursor(self.vncCursor);
-        self.vncCursor = NULL;
+    if (self.cursorTexture) {
+        SDL_DestroyTexture(self.cursorTexture);
+        self.cursorTexture = NULL;
     }
     self.cursorVisible = NO;
     self.cursorX = 0;
     self.cursorY = 0;
+    self.cursorWidth = 0;
+    self.cursorHeight = 0;
+    self.cursorHotX = 0;
+    self.cursorHotY = 0;
     
     // Reset drag properties
     self.isDragging = NO;
@@ -1840,6 +1887,147 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
             return XK_BackSpace;
         default:
             return 0; // Unknown character
+    }
+}
+
+/// Test cursor display functionality
+- (void)testCursorDisplay:(int)cursorType {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSLog(@"🖱️ [ScrcpyVNCClient] Testing texture-based cursor display");
+        [self createDefaultArrowCursor];
+    });
+}
+
+/// 创建默认箭头光标纹理
+- (void)createDefaultArrowCursor {
+    if (!self.currentRenderer) {
+        NSLog(@"❌ [ScrcpyVNCClient] No renderer available for creating default cursor");
+        return;
+    }
+    
+    // 清理现有光标纹理
+    if (self.cursorTexture) {
+        SDL_DestroyTexture(self.cursorTexture);
+        self.cursorTexture = NULL;
+    }
+    
+    // 定义macOS风格的箭头光标 (19x19)
+    self.cursorWidth = 19;
+    self.cursorHeight = 19;
+    self.cursorHotX = 1;
+    self.cursorHotY = 1;
+    
+    // 创建macOS风格的黑色箭头光标数据（带白色边框）
+    Uint32 arrowData[19 * 19];
+    memset(arrowData, 0, sizeof(arrowData)); // 初始化为透明
+    
+    // 定义颜色
+    Uint32 black = 0xFF000000;      // 黑色不透明 (ABGR格式)
+    Uint32 white = 0xFFFFFFFF;      // 白色不透明
+    Uint32 transparent = 0x00000000; // 透明
+    
+    // macOS风格箭头光标的像素图案
+    // 使用二维数组定义光标形状：0=透明, 1=白色边框, 2=黑色填充
+    int cursorPattern[19][19] = {
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,2,1,0,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,2,2,1,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,2,2,2,1,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,2,2,2,2,1,0,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,2,2,2,2,2,1,0,0,0,0,0,0,0},
+        {0,1,2,2,2,2,2,1,1,1,1,1,0,0,0,0,0,0,0},
+        {0,1,2,2,2,1,2,2,1,0,0,0,0,0,0,0,0,0,0},
+        {0,1,2,2,1,0,1,2,2,1,0,0,0,0,0,0,0,0,0},
+        {0,1,2,1,0,0,1,2,2,1,0,0,0,0,0,0,0,0,0},
+        {0,1,1,0,0,0,0,1,2,2,1,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,1,2,2,1,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+    };
+    
+    // 根据图案填充像素数据
+    for (int y = 0; y < 19; y++) {
+        for (int x = 0; x < 19; x++) {
+            int index = y * 19 + x;
+            switch (cursorPattern[y][x]) {
+                case 0:
+                    arrowData[index] = transparent;
+                    break;
+                case 1:
+                    arrowData[index] = white;
+                    break;
+                case 2:
+                    arrowData[index] = black;
+                    break;
+            }
+        }
+    }
+    
+    // 创建纹理
+    self.cursorTexture = SDL_CreateTexture(self.currentRenderer, SDL_PIXELFORMAT_RGBA8888,
+                                          SDL_TEXTUREACCESS_STATIC, self.cursorWidth, self.cursorHeight);
+    
+    if (self.cursorTexture) {
+        SDL_SetTextureBlendMode(self.cursorTexture, SDL_BLENDMODE_BLEND);
+        
+        int result = SDL_UpdateTexture(self.cursorTexture, NULL, arrowData, self.cursorWidth * sizeof(Uint32));
+        
+        if (result == 0) {
+            self.cursorVisible = YES;
+            NSLog(@"✅ [ScrcpyVNCClient] Default arrow cursor texture created successfully");
+        } else {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to update default cursor texture: %s", SDL_GetError());
+            SDL_DestroyTexture(self.cursorTexture);
+            self.cursorTexture = NULL;
+        }
+    } else {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to create default cursor texture: %s", SDL_GetError());
+    }
+}
+
+/// 渲染光标到屏幕
+- (void)renderCursor {
+    if (!self.cursorVisible || !self.cursorTexture || !self.currentRenderer) {
+        return;
+    }
+    
+    // 计算光标在屏幕上的位置（考虑缩放和偏移）
+    int screenX = self.cursorX;
+    int screenY = self.cursorY;
+    
+    // 应用渲染区域转换
+    if (self.currentRenderingRegion) {
+        CGFloat scaleX = self.currentRenderingRegion.targetRect.size.width / self.currentRenderingRegion.sourceRect.size.width;
+        CGFloat scaleY = self.currentRenderingRegion.targetRect.size.height / self.currentRenderingRegion.sourceRect.size.height;
+        
+        screenX = (self.cursorX - self.currentRenderingRegion.sourceRect.origin.x) * scaleX + self.currentRenderingRegion.targetRect.origin.x;
+        screenY = (self.cursorY - self.currentRenderingRegion.sourceRect.origin.y) * scaleY + self.currentRenderingRegion.targetRect.origin.y;
+        
+        // 应用热点偏移
+        screenX -= self.cursorHotX * scaleX;
+        screenY -= self.cursorHotY * scaleY;
+        
+        // 计算缩放后的光标尺寸
+        int scaledWidth = self.cursorWidth * scaleX;
+        int scaledHeight = self.cursorHeight * scaleY;
+        
+        // 设置渲染矩形
+        SDL_Rect cursorRect = {screenX, screenY, scaledWidth, scaledHeight};
+        
+        // 渲染光标
+        SDL_RenderCopy(self.currentRenderer, self.cursorTexture, NULL, &cursorRect);
+    } else {
+        // 没有渲染区域信息时使用原始尺寸
+        screenX -= self.cursorHotX;
+        screenY -= self.cursorHotY;
+        
+        SDL_Rect cursorRect = {screenX, screenY, self.cursorWidth, self.cursorHeight};
+        SDL_RenderCopy(self.currentRenderer, self.cursorTexture, NULL, &cursorRect);
     }
 }
 

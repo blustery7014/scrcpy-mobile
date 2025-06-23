@@ -106,3 +106,83 @@ rfbCredential *GetCredentialBlock(rfbClient* cl, int credentialType) {
     rfbCredential *(*block)(rfbClient* cl, void *, int credentialType) = (rfbCredential *(*)(rfbClient* cl, void *sel, int credentialType))blockIMP;
     return block(cl, NULL, credentialType);
 }
+
+/**
+ * BlockEntry: MallocFrameBufferBlock
+ */
+
+IMP GetSet_MallocFrameBufferBlockIMP(rfbClient* cl, IMP blockIMP) {
+    static ScrcpyBlockEntry entries[ScrcpyBlockEntryMax] = {0};
+    return GetSet_ScrcpyBlockIMP(entries, cl, blockIMP);
+}
+
+rfbBool MallocFrameBufferBlock(rfbClient* cl) {
+    IMP blockIMP = GetSet_MallocFrameBufferBlockIMP(cl, nil);
+    if (!blockIMP) {
+        NSLog(@"MallocFrameBufferBlock IMP not found for: %p", cl);
+        return FALSE;
+    }
+    
+    rfbBool (*block)(rfbClient* cl, void *) = (rfbBool (*)(rfbClient* cl, void *sel))blockIMP;
+    return block(cl, NULL);
+}
+
+/**
+ * BlockEntry: GotCursorShapeBlock
+ */
+
+IMP GetSet_GotCursorShapeBlockIMP(rfbClient* cl, IMP blockIMP) {
+    static ScrcpyBlockEntry entries[ScrcpyBlockEntryMax] = {0};
+    return GetSet_ScrcpyBlockIMP(entries, cl, blockIMP);
+}
+
+void GotCursorShapeBlock(rfbClient* cl, int xhot, int yhot, int width, int height, int bytesPerPixel) {
+    IMP blockIMP = GetSet_GotCursorShapeBlockIMP(cl, nil);
+    if (!blockIMP) {
+        NSLog(@"GotCursorShapeBlock IMP not found for: %p", cl);
+        return;
+    }
+    
+    void (*block)(rfbClient* cl, void *, int xhot, int yhot, int width, int height, int bytesPerPixel) = (void (*)(rfbClient* cl, void *sel, int xhot, int yhot, int width, int height, int bytesPerPixel))blockIMP;
+    block(cl, NULL, xhot, yhot, width, height, bytesPerPixel);
+}
+
+/**
+ * BlockEntry: HandleCursorPosBlock
+ */
+
+IMP GetSet_HandleCursorPosBlockIMP(rfbClient* cl, IMP blockIMP) {
+    static ScrcpyBlockEntry entries[ScrcpyBlockEntryMax] = {0};
+    return GetSet_ScrcpyBlockIMP(entries, cl, blockIMP);
+}
+
+rfbBool HandleCursorPosBlock(rfbClient* cl, int x, int y) {
+    IMP blockIMP = GetSet_HandleCursorPosBlockIMP(cl, nil);
+    if (!blockIMP) {
+        NSLog(@"HandleCursorPosBlock IMP not found for: %p", cl);
+        return FALSE;
+    }
+    
+    rfbBool (*block)(rfbClient* cl, void *, int x, int y) = (rfbBool (*)(rfbClient* cl, void *sel, int x, int y))blockIMP;
+    return block(cl, NULL, x, y);
+}
+
+/**
+ * BlockEntry: GetPasswordBlock
+ */
+
+IMP GetSet_GetPasswordBlockIMP(rfbClient* cl, IMP blockIMP) {
+    static ScrcpyBlockEntry entries[ScrcpyBlockEntryMax] = {0};
+    return GetSet_ScrcpyBlockIMP(entries, cl, blockIMP);
+}
+
+char *GetPasswordBlock(rfbClient* cl) {
+    IMP blockIMP = GetSet_GetPasswordBlockIMP(cl, nil);
+    if (!blockIMP) {
+        NSLog(@"GetPasswordBlock IMP not found for: %p", cl);
+        return NULL;
+    }
+    
+    char *(*block)(rfbClient* cl, void *) = (char *(*)(rfbClient* cl, void *sel))blockIMP;
+    return block(cl, NULL);
+}

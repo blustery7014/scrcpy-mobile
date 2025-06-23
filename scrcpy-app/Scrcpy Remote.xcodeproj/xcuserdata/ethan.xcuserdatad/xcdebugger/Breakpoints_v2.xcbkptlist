@@ -2255,8 +2255,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "374"
-            endingLineNumber = "374"
+            startingLineNumber = "368"
+            endingLineNumber = "368"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2271,8 +2271,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "355"
-            endingLineNumber = "355"
+            startingLineNumber = "349"
+            endingLineNumber = "349"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2287,8 +2287,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "593"
-            endingLineNumber = "593"
+            startingLineNumber = "588"
+            endingLineNumber = "588"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2303,8 +2303,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "578"
-            endingLineNumber = "578"
+            startingLineNumber = "573"
+            endingLineNumber = "573"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
