@@ -52,13 +52,13 @@ struct ScrcpySession: Codable, Identifiable {
         
         // 根据颜色索引返回不同的 Y 轴偏移值
         switch colorIndex {
-        case 0: return -20  // blue
-        case 1: return -10  // green
-        case 2: return 0    // orange
+        case 0: return -30  // blue
+        case 1: return -50  // cyan
+        case 2: return -40    // orange
         case 3: return 10   // pink
         case 4: return 20   // purple
         case 5: return -15  // red
-        case 6: return 15   // yellow
+        case 6: return 40   // yellow
         default: return 0
         }
     }

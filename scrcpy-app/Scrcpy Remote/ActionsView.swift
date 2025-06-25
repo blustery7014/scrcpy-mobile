@@ -803,6 +803,11 @@ struct ActionsView: View {
                             }) {
                                 Label("Edit Action", systemImage: "pencil")
                             }
+                            Button(action: {
+                                actionManager.duplicateAction(action)
+                            }) {
+                                Label("Duplicate Action", systemImage: "plus.square.on.square")
+                            }
                             Button(role: .destructive, action: {
                                 actionToDelete = action
                                 showingDeleteAlert = true
