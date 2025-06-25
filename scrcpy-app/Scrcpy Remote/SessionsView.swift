@@ -30,7 +30,7 @@ struct ScrcpySession: Codable, Identifiable {
     
     var backgroundColor: LinearGradient {
         // Background color based on UUID to randomize colors
-        let colors: [Color] = [.blue, .green, .orange, .pink, .purple, .red, .yellow]
+        let colors: [Color] = [.blue, .cyan, .orange, .pink, .purple, .red, .yellow]
         // Convert title to fixed int
         let titleNumber = title.unicodeScalars.map { code in
             Int(code.value)
