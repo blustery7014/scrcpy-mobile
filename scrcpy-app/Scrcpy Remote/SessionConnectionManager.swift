@@ -112,6 +112,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     /// Scrcpy 客户端包装器实例，用于直接管理连接
     private var scrcpyClientWrapper: ScrcpyClientWrapper?
     
+    /// 后台断开连接计时器
+    private var backgroundDisconnectTimer: Timer?
+    
     /// Live Activity 管理器
     private lazy var liveActivityManager: Any? = {
         if #available(iOS 16.1, *) {
@@ -260,11 +263,44 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         
         // 如果当前有活跃连接，启动 Live Activity
         startLiveActivityIfNeeded()
+        
+        // 启动后台断开计时器
+        startBackgroundDisconnectTimer()
     }
     
     @objc private func handleApplicationDidBecomeActive() {
         print("📱 [SessionConnectionManager] Application did become active")
-        // 可以在这里添加前台恢复逻辑
+        // 取消后台断开计时器
+        stopBackgroundDisconnectTimer()
+    }
+
+    // MARK: - Background Task Management
+
+    private func startBackgroundDisconnectTimer() {
+        guard connectionStatus.isActive, backgroundDisconnectTimer == nil else {
+            return
+        }
+
+        let duration = AppSettings().backgroundActiveDuration
+        guard let timeInterval = duration.seconds else {
+            print("后台保持连接设置为永久，不启动断开计时器")
+            return
+        }
+
+        print("Start the background disconnection timer, will disconnect after \(duration.rawValue)")
+
+        backgroundDisconnectTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
+            print("后台时间到，断开连接")
+            self?.disconnectCurrent()
+        }
+    }
+
+    private func stopBackgroundDisconnectTimer() {
+        if backgroundDisconnectTimer != nil {
+            print("取消后台断开计时器")
+            backgroundDisconnectTimer?.invalidate()
+            backgroundDisconnectTimer = nil
+        }
     }
     
     // MARK: - Connection Management

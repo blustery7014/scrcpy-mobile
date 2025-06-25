@@ -17,6 +17,28 @@ enum Appearance: String, Codable, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
+enum BackgroundActiveDuration: String, Codable, CaseIterable, Identifiable {
+    case oneMinute = "1 minute"
+    case fiveMinutes = "5 minutes"
+    case tenMinutes = "10 minutes"
+    case thirtyMinutes = "30 minutes"
+    case oneHour = "1 hour"
+    case always = "Always"
+
+    var id: String { self.rawValue }
+
+    var seconds: TimeInterval? {
+        switch self {
+        case .oneMinute: return 60
+        case .fiveMinutes: return 300
+        case .tenMinutes: return 600
+        case .thirtyMinutes: return 1800
+        case .oneHour: return 3600
+        case .always: return nil
+        }
+    }
+}
+
 class AppSettings: ObservableObject {
     @AppStorage("settings.appearance")
     var apperance: Appearance = .system {
@@ -25,6 +47,9 @@ class AppSettings: ObservableObject {
             applyTheme()
         }
     }
+    
+    @AppStorage("settings.background_active_duration")
+    var backgroundActiveDuration: BackgroundActiveDuration = .fiveMinutes
     
     // 日志相关设置
     @AppStorage("settings.logging.enabled")
@@ -224,6 +249,12 @@ struct SettingsView: View {
                 Section(header: Text("General")) {
                     NavigationLink(destination: AppearanceSettingsView()) {
                         Text("Appearance")
+                    }
+
+                    Picker("Background Active", selection: $appSettings.backgroundActiveDuration) {
+                        ForEach(BackgroundActiveDuration.allCases) {
+                            Text($0.rawValue).tag($0)
+                        }
                     }
                     
                     if #available(iOS 16.1, *) {
