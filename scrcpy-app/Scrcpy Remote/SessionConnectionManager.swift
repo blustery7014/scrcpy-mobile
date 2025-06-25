@@ -962,9 +962,13 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         }
         
         // 使用 ScrcpyClientWrapper 的 VNC 执行方法
-        clientWrapper.executeVNCActions(actionNumbers) { successCount in
+        clientWrapper.executeVNCActions(actionNumbers) { success, error  in
             DispatchQueue.main.async {
-                print("✅ [SessionConnectionManager] VNC actions completed: \(successCount)/\(actions.count) successful")
+                if success {
+                    print("❌ [SessionConnectionManager] VNC actions execution failed: \(error)")
+                } else {
+                    print("✅ [SessionConnectionManager] VNC actions executed successfully")
+                }
             }
         }
     }
@@ -1060,15 +1064,19 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
             return nil
         }
         
-        // 对于 ADB over TCP/IP，设备序列号通常是 ip:port 格式
-        // 使用原始的 host:port 作为设备序列号，不使用经过代理的地址
-        let adbSerial = "\(session.hostReal):\(session.port)"
-        
-        print("🔍 [SessionConnectionManager] ADB device serial: \(adbSerial)")
-        print("📍 [SessionConnectionManager] Original address: \(session.hostReal):\(session.port)")
-        if let actualHost = actualHost, let actualPort = actualPort, 
-           (actualHost != session.hostReal || actualPort != session.port) {
-            print("🔗 [SessionConnectionManager] Connection via proxy: \(actualHost):\(actualPort)")
+        // 如果通过 Tailscale 连接，使用 Tailscale 的本地转发地址作为设备序列号
+        // 否则，使用原始的 host:port 作为设备序列号
+        let adbSerial: String
+        if isUsingTailscale, let host = actualHost, let port = actualPort {
+            adbSerial = "\(host):\(port)"
+            print("🔍 [SessionConnectionManager] ADB device serial (via Tailscale): \(adbSerial)")
+        } else {
+            adbSerial = "\(session.hostReal):\(session.port)"
+            print("🔍 [SessionConnectionManager] ADB device serial: \(adbSerial)")
+            if let actualHost = actualHost, let actualPort = actualPort,
+               (actualHost != session.hostReal || actualPort != session.port) {
+                print("🔗 [SessionConnectionManager] Connection via proxy: \(actualHost):\(actualPort)")
+            }
         }
         
         return adbSerial
