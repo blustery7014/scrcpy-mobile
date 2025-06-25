@@ -366,6 +366,49 @@ class ActionManager: ObservableObject {
         actions.removeAll { $0.id == id }
         saveActions()
     }
+
+    func duplicateAction(_ action: ScrcpyAction) {
+        var newAction = action
+        newAction.id = UUID() // Assign a new ID
+        newAction.name = findNextAvailableName(for: action.name)
+        newAction.createdAt = Date() // Update creation date
+        
+        actions.append(newAction)
+        saveActions()
+    }
+
+    private func findNextAvailableName(for baseName: String) -> String {
+        let existingNames = Set(actions.map { $0.name })
+        var newName = baseName
+        var counter = 1
+        
+        // Regex to find a number suffix like " (1)"
+        let regex = try! NSRegularExpression(pattern: "^(.*?)(?:\\s*\\(\\d+\\))?$")
+        let baseNameMatches = regex.matches(in: baseName, range: NSRange(baseName.startIndex..., in: baseName))
+        
+        var coreName = baseName
+        if let match = baseNameMatches.first {
+            if let coreRange = Range(match.range(at: 1), in: baseName) {
+                coreName = String(baseName[coreRange])
+            }
+        }
+        
+        // Clean up trailing spaces from the core name
+        coreName = coreName.trimmingCharacters(in: .whitespaces)
+        
+        while true {
+            if counter == 1 && !existingNames.contains(newName) {
+                return newName
+            }
+            
+            newName = "\(coreName) (\(counter))"
+            
+            if !existingNames.contains(newName) {
+                return newName
+            }
+            counter += 1
+        }
+    }
     
     private func saveActions() {
         do {
