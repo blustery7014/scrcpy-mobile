@@ -349,15 +349,27 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     ) {
         print("🔗 [SessionConnectionManager] Performing connection to session: \(session.sessionName)")
         
-        // 更新连接状态
         isConnecting = true
         statusCallback(ScrcpyStatusConnecting, "Preparing connection...", true)
         
-        // 异步获取连接信息并连接
         Task {
             do {
-                // 获取连接信息
-                guard let connectionInfo = await SessionNetworking.shared.getConnectionInfo(for: session) else {
+                var connectionInfo = await SessionNetworking.shared.getConnectionInfo(for: session)
+                
+                // 如果是 Tailscale 连接且首次获取信息失败，则重试一次
+                // 仅当 Tailscale 本身拨号失败（无法获取 IP）时重试
+                if connectionInfo == nil && session.useTailscale {
+                    print("⚠️ [SessionConnectionManager] Failed to get Tailscale connection info, retrying once...")
+                    
+                    // 停止当前转发并等待
+                    _ = SessionNetworking.shared.stopForwarding(for: session.id)
+                    try await Task.sleep(nanoseconds: 1_000_000_000) // 1秒
+                    
+                    // 再次尝试获取连接信息
+                    connectionInfo = await SessionNetworking.shared.getConnectionInfo(for: session)
+                }
+                
+                guard let finalConnectionInfo = connectionInfo else {
                     await MainActor.run {
                         self.handleConnectionError(
                             title: "Connection Setup Failed",
@@ -368,27 +380,23 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
                     return
                 }
                 
-                print("📍 [SessionConnectionManager] Connection info obtained: \(connectionInfo.description)")
+                print("📍 [SessionConnectionManager] Connection info obtained: \(finalConnectionInfo.description)")
                 
                 await MainActor.run {
-                    // 设置当前会话
-                    self.setCurrentSession(session, connectionInfo: connectionInfo)
+                    self.setCurrentSession(session, connectionInfo: finalConnectionInfo)
                     
-                    // 准备会话字典
                     var sessionDict = session.toDict()
-                    sessionDict["hostReal"] = connectionInfo.host
-                    sessionDict["port"] = connectionInfo.port
+                    sessionDict["hostReal"] = finalConnectionInfo.host
+                    sessionDict["port"] = finalConnectionInfo.port
                     
-                    // 更新主机信息
-                    if connectionInfo.isUsingTailscale {
-                        print("🔗 [SessionConnectionManager] Using Tailscale connection: \(connectionInfo.originalHost):\(connectionInfo.originalPort) -> \(connectionInfo.host):\(connectionInfo.port)")
+                    if finalConnectionInfo.isUsingTailscale {
+                        print("🔗 [SessionConnectionManager] Using Tailscale connection: \(finalConnectionInfo.originalHost):\(finalConnectionInfo.originalPort) -> \(finalConnectionInfo.host):\(finalConnectionInfo.port)")
                     } else {
-                        sessionDict["host"] = connectionInfo.host
-                        print("🔌 [SessionConnectionManager] Using direct connection: \(connectionInfo.host):\(connectionInfo.port)")
+                        sessionDict["host"] = finalConnectionInfo.host
+                        print("🔌 [SessionConnectionManager] Using direct connection: \(finalConnectionInfo.host):\(finalConnectionInfo.port)")
                     }
                     
-                    // 开始连接
-                    self.startScrcpyConnection(sessionDict: sessionDict, connectionInfo: connectionInfo)
+                    self.startScrcpyConnection(sessionDict: sessionDict, connectionInfo: finalConnectionInfo)
                 }
                 
             } catch {
@@ -422,93 +430,20 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
                 switch statusCode.rawValue {
                 case ScrcpyStatusSDLWindowAppeared.rawValue:
                     print("✅ [SessionConnectionManager] Successfully connected to session")
-                    // 状态更新会通过通知处理
                     
                 case ScrcpyStatusConnectingFailed.rawValue:
                     print("❌ [SessionConnectionManager] Failed to connect to session")
-                    
-                    // 如果使用 Tailscale 连接失败，尝试重新连接 Tailscale
-                    if connectionInfo.isUsingTailscale,
-                       let session = self.currentSession {
-                        print("🔄 [SessionConnectionManager] Tailscale connection failed, attempting to reconnect...")
-                        self.retryTailscaleConnection(session: session, connectionInfo: connectionInfo)
+                    // 重试逻辑已移至 performConnection，这里不再处理。
+                    // 如果 Tailscale 已经成功分配 IP，但连接失败，通常是目标设备服务未运行或防火墙问题。
+                    if connectionInfo.isUsingTailscale {
+                        print("ℹ️ [SessionConnectionManager] Tailscale connection failed. This may be due to the target service not running or a network issue. No further retries will be attempted.")
                     }
+                    
                 default:
                     print("🔄 [SessionConnectionManager] Connection status: \(statusCode.description)")
                     if !message.isEmpty {
                         print("📝 [SessionConnectionManager] Status message: \(message)")
                     }
-                    // 其他状态更新会通过通知处理
-                }
-            }
-        }
-    }
-    
-    /// 重新尝试 Tailscale 连接
-    /// - Parameters:
-    ///   - session: 当前会话
-    ///   - connectionInfo: 当前连接信息
-    private func retryTailscaleConnection(session: ScrcpySessionModel, connectionInfo: NetworkConnectionInfo) {
-        print("🔄 [SessionConnectionManager] Starting Tailscale reconnection process...")
-        
-        // 异步处理重连逻辑
-        Task {
-            do {
-                // 首先停止当前的端口转发
-                print("🔌 [SessionConnectionManager] Stopping current Tailscale forwarding...")
-                _ = SessionNetworking.shared.stopForwarding(for: session.id)
-                
-                // 等待一段时间确保端口释放
-                try await Task.sleep(nanoseconds: 1_000_000_000) // 1秒
-                
-                // 获取新的连接信息（这会尝试重新建立 Tailscale 连接）
-                print("🔄 [SessionConnectionManager] Attempting to reestablish Tailscale connection...")
-                guard let newConnectionInfo = await SessionNetworking.shared.getConnectionInfo(for: session) else {
-                    await MainActor.run {
-                        print("❌ [SessionConnectionManager] Failed to reestablish Tailscale connection")
-                        self.handleConnectionError(
-                            title: "Tailscale Reconnection Failed",
-                            message: "Failed to reconnect through Tailscale. Please check your Tailscale connection and try again.",
-                            errorCallback: self.currentErrorCallback ?? { _, _ in }
-                        )
-                    }
-                    return
-                }
-                
-                // 如果成功重新获得连接信息，重新尝试连接
-                if newConnectionInfo.isUsingTailscale {
-                    print("✅ [SessionConnectionManager] Tailscale reconnection successful, retrying connection...")
-                    await MainActor.run {
-                        // 更新连接信息
-                        self.setCurrentSession(session, connectionInfo: newConnectionInfo)
-                        
-                        // 准备会话字典
-                        var sessionDict = session.toDict()
-                        sessionDict["hostReal"] = newConnectionInfo.host
-                        sessionDict["port"] = newConnectionInfo.port
-                        
-                        // 重新开始连接
-                        self.startScrcpyConnection(sessionDict: sessionDict, connectionInfo: newConnectionInfo)
-                    }
-                } else {
-                    await MainActor.run {
-                        print("⚠️ [SessionConnectionManager] Tailscale reconnection resulted in non-Tailscale connection")
-                        self.handleConnectionError(
-                            title: "Tailscale Connection Lost",
-                            message: "Lost Tailscale connection. Please check your Tailscale network status.",
-                            errorCallback: self.currentErrorCallback ?? { _, _ in }
-                        )
-                    }
-                }
-                
-            } catch {
-                await MainActor.run {
-                    print("❌ [SessionConnectionManager] Tailscale reconnection error: \(error)")
-                    self.handleConnectionError(
-                        title: "Tailscale Reconnection Error",
-                        message: "Failed to reconnect through Tailscale: \(error.localizedDescription)",
-                        errorCallback: self.currentErrorCallback ?? { _, _ in }
-                    )
                 }
             }
         }
