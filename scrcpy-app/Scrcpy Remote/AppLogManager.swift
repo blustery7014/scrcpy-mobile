@@ -174,14 +174,28 @@ class AppLogManager: ObservableObject {
     
     /// 读取指定日志文件的内容
     func readLogFile(_ filePath: String, lineCount: Int = 1000) -> String {
+        if isLoggingActive && filePath == currentLogFilePath {
+            fflush(stdout)
+            fflush(stderr)
+        }
+
         guard FileManager.default.fileExists(atPath: filePath) else {
             return "Log file not found"
         }
-        
+
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
+            if let fileSize = attributes[.size] as? Int64, fileSize == 0 {
+                return "" // Return empty string for empty file
+            }
+        } catch {
+            // Ignore error, proceed to read
+        }
+
         guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else {
             return "Failed to read log file"
         }
-        
+
         let lines = content.components(separatedBy: .newlines)
         let recentLines = Array(lines.suffix(lineCount))
         

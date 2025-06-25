@@ -280,10 +280,6 @@ struct SettingsView: View {
                         }
                     }
                     
-                    NavigationLink(destination: DetailedLogsView()) {
-                        Text("View Current Logs")
-                    }
-                    
                     Button(action: {
                         showingClearAllLogsAlert = true
                     }) {
@@ -1099,7 +1095,8 @@ struct LogFileDetailView: View {
     let logFile: LogFileInfo
     @State private var logContent: String = "Loading..."
     @State private var isLoading: Bool = true
-    
+    @State private var showingShareSheet = false
+
     var body: some View {
         VStack {
             // 文件信息
@@ -1191,14 +1188,25 @@ struct LogFileDetailView: View {
             }
         }
         .navigationBarTitle("Log Detail", displayMode: .inline)
-        .navigationBarItems(trailing: 
-            Button(action: {
-                refreshContent()
-            }) {
-                Image(systemName: "arrow.clockwise")
+        .navigationBarItems(trailing:
+            HStack(spacing: 16) {
+                Button(action: {
+                    showingShareSheet = true
+                }) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                
+                Button(action: {
+                    refreshContent()
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isLoading)
             }
-            .disabled(isLoading)
         )
+        .sheet(isPresented: $showingShareSheet) {
+            ShareSheet(activityItems: [URL(fileURLWithPath: logFile.filePath)])
+        }
         .onAppear {
             loadLogContent()
         }
@@ -1207,7 +1215,7 @@ struct LogFileDetailView: View {
     // 检查日志内容是否为空
     private var isLogContentEmpty: Bool {
         let trimmedContent = logContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedContent.isEmpty || 
+        return trimmedContent.isEmpty ||
                trimmedContent == "No log file found at: \(logFile.filePath)" ||
                trimmedContent == "Failed to read log file" ||
                trimmedContent.hasPrefix("Log file not found")
@@ -1808,5 +1816,20 @@ struct SafariView: UIViewControllerRepresentable {
     
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
         // 不需要更新
+    }
+}
+
+// MARK: - ShareSheet
+struct ShareSheet: UIViewControllerRepresentable {
+    var activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // Nothing to do here
     }
 }
