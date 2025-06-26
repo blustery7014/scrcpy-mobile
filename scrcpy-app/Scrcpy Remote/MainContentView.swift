@@ -307,7 +307,11 @@ struct MainContentView: View {
                         .tag(0)
                     ActionsView()
                         .tabItem {
-                            Image(systemName: "play.square.stack.fill")
+                            if #available(iOS 15.0, *) {
+                                Image(systemName: "play.rectangle.on.rectangle.fill")
+                            } else {
+                                Image(systemName: "play.rectangle.on.rectangle")
+                            }
                             Text("Actions")
                         }
                         .tag(1)
