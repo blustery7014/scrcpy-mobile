@@ -89,6 +89,10 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 @property (nonatomic, assign) CGPoint currentDragOffset;
 @property (nonatomic, assign) CGPoint totalDragOffset;
 
+// VNC 点击相关
+@property (nonatomic, strong) UITapGestureRecognizer *vncTapGesture;
+@property (nonatomic, strong) UITapGestureRecognizer *vncDoubleTapGesture;
+
 // VNC 触摸事件追踪相关
 @property (nonatomic, assign) NSTimeInterval touchStartTime;
 @property (nonatomic, assign) CGPoint touchStartLocation;
@@ -152,6 +156,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     // 清理拖拽手势
     [self removeDragGesture];
+    
+    // 清理点击手势
+    [self removeTapGesture];
 }
 
 - (void)orientationDidChange:(NSNotification *)notification {
@@ -862,75 +869,6 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 #pragma mark - Touch Event Handling
 
-// 实现这些方法以防止事件向下传递
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self.window];
-    
-    if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
-        CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 菜单区域，不向下传递
-    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
-        // 只在VNC模式下处理VNC鼠标事件
-        [self forwardTouchAsMouseMoveToVNC:point];
-        [super touchesBegan:touches withEvent:event];
-    } else {
-        // 非VNC模式，传递给父类处理
-        [super touchesBegan:touches withEvent:event];
-    }
-}
-
-- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self.window];
-    
-    if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
-        CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 菜单区域，不向下传递
-    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
-        // 只在VNC模式下处理VNC鼠标拖拽事件
-        [self forwardTouchAsMouseDragToVNC:point];
-        [super touchesMoved:touches withEvent:event];
-    } else {
-        // 非VNC模式，传递给父类处理
-        [super touchesMoved:touches withEvent:event];
-    }
-}
-
-- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self.window];
-    
-    if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
-        CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 菜单区域，不向下传递
-    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
-        // 只在VNC模式下处理VNC鼠标事件结束
-        [self forwardTouchEndAsMouseEventToVNC:point withTouch:touch];
-        [super touchesEnded:touches withEvent:event];
-    } else {
-        // 非VNC模式，传递给父类处理
-        [super touchesEnded:touches withEvent:event];
-    }
-}
-
-- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self.window];
-    
-    if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
-        CGRectContainsPoint(self.capsuleView.frame, point)) {
-        // 菜单区域，不向下传递
-    } else if (self.currentDeviceType == ScrcpyDeviceTypeVNC) {
-        // 只在VNC模式下处理VNC触摸取消事件
-        [self forwardTouchCancelToVNC:point];
-        [super touchesCancelled:touches withEvent:event];
-    } else {
-        // 非VNC模式，传递给父类处理
-        [super touchesCancelled:touches withEvent:event];
-    }
-}
-
 // Helper method to get active window
 - (UIWindow *)activeWindow {
     SDL_Window *window = SDL_GetMouseFocus();
@@ -1035,6 +973,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         // 移除的拖拽手势（如果存在）
         [self removeDragGesture];
         
+        // 移除VNC点击手势（如果存在）
+        [self removeTapGesture];
+        
         LOG_POSITION(@"Configured menu for ADB device - all buttons visible");
     } else if (deviceType == ScrcpyDeviceTypeVNC) {
         // VNC设备只支持部分按钮
@@ -1045,10 +986,12 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         self.actionsButton.hidden = NO;
         self.disconnectButton.hidden = NO;
         
-        // 为VNC设备添加Pinch缩放手势（延迟添加以确保SDL窗口初始化完成）
+        // 为VNC设备添加手势（延迟添加以确保SDL窗口初始化完成）
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self addPinchGesture];
             [self addDragGesture];
+            [self addTapGesture];
+            [self setupGesturePriorities];
         });
         
         LOG_POSITION(@"Configured menu for VNC device - limited buttons visible and pinch gesture enabled");
@@ -1368,13 +1311,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     self.pinchGesture = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCPinch:)];
     self.pinchGesture.delegate = self;
     
-    // 添加到SDL窗口的根视图控制器的视图上
+    // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
-    if (rootVC && rootVC.view) {
-        [rootVC.view addGestureRecognizer:self.pinchGesture];
-        LOG_POSITION(@"✅ Added pinch gesture to SDL window view");
+    if (rootVC && rootVC.view && rootVC.view.window) {
+        [rootVC.view.window addGestureRecognizer:self.pinchGesture];
+        LOG_POSITION(@"✅ Added pinch gesture to SDL window");
     } else {
-        LOG_POSITION(@"⚠️ Cannot add pinch gesture - SDL window root view controller not found");
+        LOG_POSITION(@"⚠️ Cannot add pinch gesture - SDL window or root view controller not found");
     }
 }
 
@@ -1548,13 +1491,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     self.dragGesture.minimumNumberOfTouches = 2;
     self.dragGesture.maximumNumberOfTouches = 3;
     
-    // 添加到SDL窗口的根视图控制器的视图上
+    // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
-    if (rootVC && rootVC.view) {
-        [rootVC.view addGestureRecognizer:self.dragGesture];
-        LOG_POSITION(@"✅ Added drag gesture to SDL window view");
+    if (rootVC && rootVC.view && rootVC.view.window) {
+        [rootVC.view.window addGestureRecognizer:self.dragGesture];
+        LOG_POSITION(@"✅ Added drag gesture to SDL window");
     } else {
-        LOG_POSITION(@"⚠️ Cannot add drag gesture - SDL window root view controller not found");
+        LOG_POSITION(@"⚠️ Cannot add drag gesture - SDL window or root view controller not found");
     }
 }
 
@@ -1573,17 +1516,134 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     LOG_POSITION(@"🔄 Reset drag offset to zero");
 }
 
+#pragma mark - VNC Tap Gesture Management
+
+- (void)addTapGesture {
+    // 移除已存在的手势（如果有）
+    [self removeTapGesture];
+    
+    // 获取SDL窗口
+    UIWindow *sdlWindow = [self getSDLWindow];
+    if (!sdlWindow) {
+        LOG_POSITION(@"⚠️ Cannot add tap gesture - SDL window not found");
+        return;
+    }
+    
+    // 创建点击手势识别器
+    self.vncTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCTap:)];
+    self.vncTapGesture.delegate = self;
+    self.vncTapGesture.numberOfTapsRequired = 1;
+    self.vncTapGesture.numberOfTouchesRequired = 1;
+    
+    // 创建双击手势识别器（用于右键点击）
+    self.vncDoubleTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCDoubleTap:)];
+    self.vncDoubleTapGesture.delegate = self;
+    self.vncDoubleTapGesture.numberOfTapsRequired = 2;
+    self.vncDoubleTapGesture.numberOfTouchesRequired = 1;
+    
+    // 让单击手势等待双击手势失败，这样可以正确区分单击和双击
+    [self.vncTapGesture requireGestureRecognizerToFail:self.vncDoubleTapGesture];
+    
+    // 添加到SDL窗口上
+    UIViewController *rootVC = sdlWindow.rootViewController;
+    if (rootVC && rootVC.view && rootVC.view.window) {
+        [rootVC.view.window addGestureRecognizer:self.vncTapGesture];
+        [rootVC.view.window addGestureRecognizer:self.vncDoubleTapGesture];
+        LOG_POSITION(@"✅ Added tap and double-tap gestures to SDL window");
+    } else {
+        LOG_POSITION(@"⚠️ Cannot add tap gesture - SDL window or root view controller not found");
+    }
+}
+
+- (void)removeTapGesture {
+    if (self.vncTapGesture) {
+        [self.vncTapGesture.view removeGestureRecognizer:self.vncTapGesture];
+        self.vncTapGesture = nil;
+    }
+    if (self.vncDoubleTapGesture) {
+        [self.vncDoubleTapGesture.view removeGestureRecognizer:self.vncDoubleTapGesture];
+        self.vncDoubleTapGesture = nil;
+    }
+    LOG_POSITION(@"🗑️ Removed VNC tap gestures");
+}
+
+- (void)handleVNCTap:(UITapGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateEnded) {
+        return;
+    }
+    
+    CGPoint location = [gesture locationInView:gesture.view];
+    CGSize viewSize = gesture.view.bounds.size;
+    
+    // 判断是否为右键点击（可以根据需要调整逻辑，这里暂时都作为左键）
+    BOOL isRightClick = NO;
+    
+    NSLog(@"🎯 [ScrcpyMenuView] VNC tap gesture at (%.1f, %.1f), view size: (%.1fx%.1f)", 
+          location.x, location.y, viewSize.width, viewSize.height);
+    
+    // 发送点击事件通知
+    NSDictionary *userInfo = @{
+        kKeyType: kMouseEventTypeClick,
+        kKeyLocation: [NSValue valueWithCGPoint:location],
+        kKeyIsRightClick: @(isRightClick),
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+}
+
+- (void)handleVNCDoubleTap:(UITapGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateEnded) {
+        return;
+    }
+    
+    CGPoint location = [gesture locationInView:gesture.view];
+    CGSize viewSize = gesture.view.bounds.size;
+    
+    // 双击作为右键点击
+    BOOL isRightClick = YES;
+    
+    NSLog(@"🎯 [ScrcpyMenuView] VNC double-tap gesture (right click) at (%.1f, %.1f), view size: (%.1fx%.1f)", 
+          location.x, location.y, viewSize.width, viewSize.height);
+    
+    // 发送右键点击事件通知
+    NSDictionary *userInfo = @{
+        kKeyType: kMouseEventTypeClick,
+        kKeyLocation: [NSValue valueWithCGPoint:location],
+        kKeyIsRightClick: @(isRightClick),
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+}
+
+- (void)setupGesturePriorities {
+    // 设置手势优先级：点击手势优先级最高
+    // 由于拖拽手势需要2-3个手指，它与单指点击手势在物理上不会冲突
+    // 但为了确保点击响应速度，让其他单指手势等待点击手势失败
+    
+    LOG_POSITION(@"🎯 Setting up VNC gesture priorities");
+    
+    // 注意：由于拖拽手势配置为2-3指操作，理论上不会与单指点击冲突
+    // 但如果有其他单指手势，可以在这里设置优先级
+    if (self.vncTapGesture) {
+        LOG_POSITION(@"✅ Tap gesture has highest priority for single finger touches");
+    }
+}
+
 #pragma mark - UIGestureRecognizerDelegate
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
-    // 允许Pinch手势与其他手势同时进行，但不与我们自己的手势冲突
-    if (gestureRecognizer == self.pinchGesture) {
+    // 点击手势（单击和双击）优先级最高，不与其他手势同时进行
+    if (gestureRecognizer == self.vncTapGesture) {
         return YES;
     }
-    // 允许拖拽手势与其他手势同时进行
-    if (gestureRecognizer == self.dragGesture) {
+    
+    // 允许Pinch手势与拖拽手势同时进行
+    if ((gestureRecognizer == self.pinchGesture && otherGestureRecognizer == self.dragGesture) ||
+        (gestureRecognizer == self.dragGesture && otherGestureRecognizer == self.pinchGesture)) {
         return YES;
     }
+    
+    // 其他情况不允许同时进行
     return NO;
 }
 
@@ -1596,7 +1656,27 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     if (gestureRecognizer == self.dragGesture) {
         return self.currentDeviceType == ScrcpyDeviceTypeVNC;
     }
+    // 确保点击手势只在VNC设备时响应
+    if (gestureRecognizer == self.vncTapGesture) {
+        return self.currentDeviceType == ScrcpyDeviceTypeVNC;
+    }
     return YES;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    // 让其他手势等待点击手势失败，确保点击优先响应
+    if (otherGestureRecognizer == self.vncTapGesture) {
+        // 其他手势应该等待点击手势失败（除了拖拽手势，因为它需要2-3个手指）
+        if (gestureRecognizer != self.dragGesture) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    // 点击手势不需要等待其他手势失败（除了双击需要等待单击失败）
+    return NO;
 }
 
 #pragma mark - Drag Gesture Handler

@@ -154,6 +154,7 @@
 				ScrcpyCommonRuntime.m,
 				ScrcpyVNCClient.h,
 				ScrcpyVNCClient.m,
+				ScrcpyVNCRuntime.m,
 			);
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
 		};
@@ -161,6 +162,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ScrcpyVNCClient.m,
+				ScrcpyVNCRuntime.m,
 			);
 			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
 		};

@@ -9,85 +9,10 @@
 #import "ScrcpyBlockWrapper.h"
 #import "ScrcpyCommon.h"
 #import "ScrcpyConstants.h"
-#import <SDL2/SDL.h>
-#import <rfb/rfbclient.h>
-#import <rfb/keysym.h>
-#import <stdlib.h>
-#import <arpa/inet.h>
-#import <objc/runtime.h>
-
-
-/**
- * 自定义的SetFormatAndEncodings函数，确保包含光标编码
- */
-static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
-    // 首先调用原始的SetFormatAndEncodings函数
-    rfbBool result = SetFormatAndEncodings(client);
-    
-    if (!result) {
-        NSLog(@"❌ [ScrcpyVNCClient] Failed to set format and encodings");
-        return FALSE;
-    }
-    
-    // 发送额外的编码设置，确保包含光标编码
-    uint32_t encodings[] = {
-        rfbEncodingRaw,
-        rfbEncodingCopyRect,
-        rfbEncodingRRE,
-        rfbEncodingCoRRE,
-        rfbEncodingHextile,
-        rfbEncodingZlib,
-        rfbEncodingTight,
-        rfbEncodingXCursor,      // 添加X光标编码
-        rfbEncodingRichCursor,   // 添加富光标编码
-        rfbEncodingPointerPos    // 添加指针位置编码
-    };
-    
-    int numEncodings = sizeof(encodings) / sizeof(encodings[0]);
-    
-    // 发送SetEncodings消息
-    rfbSetEncodingsMsg msg;
-    msg.type = rfbSetEncodings;
-    msg.pad = 0;
-    msg.nEncodings = htons(numEncodings);
-    
-    if (!WriteToRFBServer(client, (char *)&msg, sz_rfbSetEncodingsMsg)) {
-        NSLog(@"❌ [ScrcpyVNCClient] Failed to send SetEncodings message header");
-        return FALSE;
-    }
-    
-    // 发送编码列表
-    for (int i = 0; i < numEncodings; i++) {
-        uint32_t encoding = htonl(encodings[i]);
-        if (!WriteToRFBServer(client, (char *)&encoding, sizeof(encoding))) {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to send encoding %d", encodings[i]);
-            return FALSE;
-        }
-    }
-    
-    NSLog(@"✅ [ScrcpyVNCClient] Successfully set encodings including cursor encodings");
-    return TRUE;
-}
+#import "ScrcpyVNCRuntime.h"
 
 
 @interface ScrcpyVNCClient () <ScrcpyClientProtocol>
-
-@property (nonatomic, strong) SDLUIKitDelegate *sdlDelegate;
-@property (nonatomic, copy) void (^sessionCompletion)(enum ScrcpyStatus, NSString *);
-@property (nonatomic, copy) NSDictionary *sessionArguments;
-
-// VNC客户端状态
-@property (nonatomic, assign) BOOL connected;
-@property (nonatomic, assign) rfbClient *rfbClient;
-@property (nonatomic, assign) enum ScrcpyStatus scrcpyStatus;
-
-// VNC远程桌面的图像像素大小
-@property (nonatomic, assign) CGSize imagePixelsSize;
-
-// SDL渲染对象
-@property (nonatomic, assign) SDL_Renderer *currentRenderer;
-@property (nonatomic, assign) SDL_Texture *currentTexture;
-
 @end
 
 @implementation ScrcpyVNCClient
@@ -102,10 +27,20 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
         self.connected = NO;
         self.scrcpyStatus = ScrcpyStatusDisconnected;
         
+        // 初始化鼠标坐标（屏幕中心）
+        self.currentMouseX = 0;
+        self.currentMouseY = 0;
+        
         // 监听断开连接通知
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleDisconnectRequest:)
                                                      name:@"ScrcpyRequestDisconnectNotification"
+                                                   object:nil];
+        
+        // 监听VNC鼠标事件通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCMouseEvent:)
+                                                     name:kNotificationVNCMouseEvent
                                                    object:nil];
     }
     return self;
@@ -224,9 +159,8 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
         self.rfbClient = NULL;
     }
     
-    // 清理block IMP
-    GetSet_GetCredentialBlockIMP(self.rfbClient, nil);
-    GetSet_GotFrameBufferUpdateBlockIMP(self.rfbClient, nil);
+    // 清理VNC运行时回调
+    VNCRuntimeCleanupCallbacks(self.rfbClient);
     
     // 退出SDL
     SDL_Quit();
@@ -261,7 +195,6 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
     self.scrcpyStatus = ScrcpyStatusSDLInited;
     ScrcpyUpdateStatus(ScrcpyStatusSDLInited, "SDL initialized successfully");
     
-    __block int sdlFlags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_FULLSCREEN;
     __block SDL_Texture *sdlTexture = NULL;
     __block SDL_Renderer *sdlRenderer = NULL;
     __block SDL_Window *sdlWindow = nil;
@@ -271,255 +204,28 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
     self.rfbClient->canHandleNewFBSize = true;
     self.rfbClient->listenPort = LISTEN_PORT_OFFSET;
     self.rfbClient->listen6Port = LISTEN_PORT_OFFSET;
+    // 使用远程指针:
+    // - 不使用的话, 无法获取远程鼠标的位置变化, 导致发送点击事件时无法正确定位, 但好处是远程的鼠标指针会正确展示
+    // - 使用的话, 可以正确获取鼠标位置, 但远程鼠标指针会被隐藏, 需要自己绘制
+    self.rfbClient->appData.useRemoteCursor = SDL_TRUE;
     
     // 设置帧缓冲区分配回调
     GetSet_MallocFrameBufferBlockIMP(self.rfbClient, imp_implementationWithBlock(^rfbBool(rfbClient* client){
-        int width = client->width, height = client->height, depth = client->format.bitsPerPixel;
-
-        // 保存原始尺寸（仅在第一次时保存）
-        if (self.imagePixelsSize.width == 0 && self.imagePixelsSize.height == 0) {
-            self.imagePixelsSize = CGSizeMake(width, height);
-            NSLog(@"🔍 [ScrcpyVNCClient] VNC remote screen size: %.0fx%.0f", (double)width, (double)height);
-        }
-        
-        // 释放旧surface并创建新的
-        SDL_FreeSurface(rfbClientGetClientData(client, SDL_Init));
-        SDL_Surface* sdl = SDL_CreateRGBSurface(0, width, height, depth, 0, 0, 0, 0);
-        if (!sdl) {
-            rfbClientErr("resize: error creating surface: %s\n", SDL_GetError());
-            return FALSE;
-        }
-
-        rfbClientSetClientData(client, SDL_Init, sdl);
-        client->width = sdl->pitch / (depth / 8);
-        client->frameBuffer = sdl->pixels;
-
-        // 设置像素格式
-        client->format.bitsPerPixel = depth;
-        client->format.redShift = sdl->format->Rshift;
-        client->format.greenShift = sdl->format->Gshift;
-        client->format.blueShift = sdl->format->Bshift;
-        client->format.redMax = sdl->format->Rmask >> client->format.redShift;
-        client->format.greenMax = sdl->format->Gmask >> client->format.greenShift;
-        client->format.blueMax = sdl->format->Bmask >> client->format.blueShift;
-        
-        CustomSetFormatAndEncodings(client);
-
-        // 获取设备屏幕尺寸（考虑Retina缩放）
-        int screenWidth, screenHeight;
-        SDL_DisplayMode displayMode;
-        SDL_GetCurrentDisplayMode(0, &displayMode);
-        
-        NSLog(@"[VNCScreenDebug] SDL DisplayMode: %dx%d", displayMode.w, displayMode.h);
-        
-        screenWidth = (int)displayMode.w;
-        screenHeight = (int)displayMode.h;
-        
-        NSLog(@"[VNCScreenDebug] Final screen size: %dx%d", screenWidth, screenHeight);
-        NSLog(@"[VNCScreenDebug] Remote screen size: %dx%d", width, height);
-        
-        // 计算缩放比例，保持宽高比
-        float scaleX = (float)screenWidth / width;
-        float scaleY = (float)screenHeight / height;
-        float scale = fminf(scaleX, scaleY);
-        
-        NSLog(@"[VNCScreenDebug] Scale calculation: scaleX=%.3f, scaleY=%.3f, final scale=%.3f", scaleX, scaleY, scale);
-        
-        int scaledWidth = (int)(width * scale);
-        int scaledHeight = (int)(height * scale);
-        
-        NSLog(@"[VNCScreenDebug] Scaled remote size: %dx%d", scaledWidth, scaledHeight);
-        
-        // 创建全屏窗口（使用设备屏幕尺寸）
-        sdlWindow = SDL_CreateWindow(client->desktopName,
-                                     SDL_WINDOWPOS_UNDEFINED,
-                                     SDL_WINDOWPOS_UNDEFINED,
-                                     screenWidth,
-                                     screenHeight,
-                                     sdlFlags);
-                                     
-        NSLog(@"[VNCScreenDebug] Created SDL window with size: %dx%d", screenWidth, screenHeight);
-        if (!sdlWindow) {
-            rfbClientErr("resize: error creating window: %s\n", SDL_GetError());
-            return FALSE;
-        }
-        
-        // 检查实际创建的窗口尺寸
-        int actualWidth, actualHeight;
-        SDL_GetWindowSize(sdlWindow, &actualWidth, &actualHeight);
-        NSLog(@"[VNCScreenDebug] Actual SDL window size: %dx%d", actualWidth, actualHeight);
-        
-        // 检查窗口标志
-        Uint32 windowFlags = SDL_GetWindowFlags(sdlWindow);
-        NSLog(@"[VNCScreenDebug] Window flags: 0x%x (fullscreen: %s)", 
-              windowFlags, (windowFlags & SDL_WINDOW_FULLSCREEN) ? "YES" : "NO");
-
-        // 更新状态
-        self.scrcpyStatus = ScrcpyStatusSDLWindowCreated;
-        ScrcpyUpdateStatus(ScrcpyStatusSDLWindowCreated, "SDL window created successfully");
-
-        // 创建渲染器
-        sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_ACCELERATED);
-        if (!sdlRenderer) {
-            rfbClientErr("resize: error creating renderer: %s\n", SDL_GetError());
-            return FALSE;
-        }
-        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-        
-        // 获取设备缩放因子并设置SDL渲染器缩放
-        float deviceScale = UIScreen.mainScreen.nativeScale;
-        NSLog(@"[VNCScreenDebug] Device scale factor: %.2f", deviceScale);
-        SDL_RenderSetScale(sdlRenderer, deviceScale, deviceScale);
-        
-        // 保存渲染器
-        self.currentRenderer = sdlRenderer;
-        
-        // 设置SDL窗口
-        self.sdlDelegate.window.windowScene = self.currentScene;
-        [self.sdlDelegate.window makeKeyWindow];
-
-        // 创建纹理
-        sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_ARGB8888,
-                                       SDL_TEXTUREACCESS_STREAMING, width, height);
-        
-        if (!sdlTexture) {
-            rfbClientErr("resize: error creating texture: %s\n", SDL_GetError());
-            return FALSE;
-        }
-        
-        // 保存纹理
-        self.currentTexture = sdlTexture;
-        
-        return TRUE;
+        return VNCRuntimeMallocFrameBuffer(client, self, &sdlWindow, &sdlRenderer, &sdlTexture);
     }));
     self.rfbClient->MallocFrameBuffer = MallocFrameBufferBlock;
     
-    // 设置帧缓冲区更新回调
-    self.rfbClient->GotFrameBufferUpdate = GotFrameBufferUpdateBlock;
-    GetSet_GotFrameBufferUpdateBlockIMP(self.rfbClient, imp_implementationWithBlock(^void(rfbClient* cl, int x, int y, int w, int h){
-        SDL_Surface *sdl = rfbClientGetClientData(cl, SDL_Init);
-        SDL_Rect r = {x, y, w, h};
-        
-        if (SDL_UpdateTexture(sdlTexture, &r, sdl->pixels + y*sdl->pitch + x*4, sdl->pitch) < 0) {
-            rfbClientErr("update: failed to update texture: %s\n", SDL_GetError());
-            return;
-        }
-        
-        // 获取窗口和纹理尺寸
-        int windowWidth, windowHeight;
-        SDL_GetWindowSize(sdlWindow, &windowWidth, &windowHeight);
-        
-        int textureWidth, textureHeight;
-        SDL_QueryTexture(sdlTexture, NULL, NULL, &textureWidth, &textureHeight);
-        
-        // 获取渲染器的逻辑尺寸
-        int logicalWidth, logicalHeight;
-        SDL_RenderGetLogicalSize(sdlRenderer, &logicalWidth, &logicalHeight);
-        
-        // 如果设置了逻辑尺寸，使用逻辑尺寸；否则使用窗口尺寸
-        int renderWidth = logicalWidth > 0 ? logicalWidth : windowWidth;
-        int renderHeight = logicalHeight > 0 ? logicalHeight : windowHeight;
-        
-        NSLog(@"[VNCScreenDebug] Render - Window: %dx%d, Logical: %dx%d, Texture: %dx%d", 
-              windowWidth, windowHeight, renderWidth, renderHeight, textureWidth, textureHeight);
-        
-        // 使用渲染尺寸计算缩放
-        float scaleX = (float)renderWidth / textureWidth;
-        float scaleY = (float)renderHeight / textureHeight;
-        float scale = fminf(scaleX, scaleY);
-        
-        int scaledWidth = (int)(textureWidth * scale);
-        int scaledHeight = (int)(textureHeight * scale);
-        
-        int offsetX = (renderWidth - scaledWidth) / 2;
-        int offsetY = (renderHeight - scaledHeight) / 2;
-        
-        SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
-        
-        NSLog(@"[VNCScreenDebug] RenderScale: %.3f, Scaled: %dx%d, Offset: %d,%d", 
-              scale, scaledWidth, scaledHeight, offsetX, offsetY);
-        NSLog(@"[VNCScreenDebug] Expected offset calculation: (%d-%d)/2=%d, (%d-%d)/2=%d", 
-              renderWidth, scaledWidth, (renderWidth-scaledWidth)/2, 
-              renderHeight, scaledHeight, (renderHeight-scaledHeight)/2);
-        
-        // 清除渲染器并绘制纹理（居中并保持比例）
-        SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
-        SDL_RenderClear(sdlRenderer);
-        SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
-        SDL_RenderPresent(sdlRenderer);
-    }));
+    // 设置鼠标指针位置更新回调
+    self.rfbClient->HandleCursorPos = HandleCursorPosBlock;
+    VNCRuntimeSetupHandleCursorPosCallback(self.rfbClient, &_currentMouseX, &_currentMouseY);
     
     // 设置认证回调
     self.rfbClient->GetPassword = GetPasswordBlock;
-    GetSet_GetPasswordBlockIMP(self.rfbClient, imp_implementationWithBlock(^char *(rfbClient* cl){
-        NSLog(@"🔐 [ScrcpyVNCClient] GetPassword callback invoked");
-        
-        if (!password || password.length == 0) {
-            NSLog(@"❌ [ScrcpyVNCClient] Password is empty for VNC authentication");
-            return NULL;
-        }
-        
-        size_t passwordLength = password.length + 1;
-        char *passwordCStr = malloc(passwordLength);
-        if (!passwordCStr) {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC password");
-            return NULL;
-        }
-        
-        strncpy(passwordCStr, password.UTF8String, passwordLength - 1);
-        passwordCStr[passwordLength - 1] = '\0';
-        passwordCStr[strcspn(passwordCStr, "\n")] = '\0';
-        
-        NSLog(@"🔐 [ScrcpyVNCClient] Password provided for VNC authentication");
-        return passwordCStr;
-    }));
+    VNCRuntimeSetupGetPasswordCallback(self.rfbClient, password);
     
     // 设置高级认证回调
     self.rfbClient->GetCredential = GetCredentialBlock;
-    GetSet_GetCredentialBlockIMP(self.rfbClient, imp_implementationWithBlock(^rfbCredential *(rfbClient* cl, int credentialType){
-        NSLog(@"🔐 [ScrcpyVNCClient] GetCredential callback invoked, type: %d", credentialType);
-        
-        rfbCredential *c = malloc(sizeof(rfbCredential));
-        if (!c) {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC credential");
-            return NULL;
-        }
-        
-        if (credentialType != rfbCredentialTypeUser) {
-            NSLog(@"❌ [ScrcpyVNCClient] Unsupported credential type: %d", credentialType);
-            free(c);
-            return NULL;
-        }
-        
-        // 分配并复制用户名
-        c->userCredential.username = malloc(RFB_BUF_SIZE);
-        if (!c->userCredential.username) {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC username");
-            free(c);
-            return NULL;
-        }
-        strncpy(c->userCredential.username, user ? user.UTF8String : "", RFB_BUF_SIZE - 1);
-        c->userCredential.username[RFB_BUF_SIZE - 1] = '\0';
-        
-        // 分配并复制密码
-        c->userCredential.password = malloc(RFB_BUF_SIZE);
-        if (!c->userCredential.password) {
-            NSLog(@"❌ [ScrcpyVNCClient] Failed to allocate memory for VNC password");
-            free(c->userCredential.username);
-            free(c);
-            return NULL;
-        }
-        strncpy(c->userCredential.password, password ? password.UTF8String : "", RFB_BUF_SIZE - 1);
-        c->userCredential.password[RFB_BUF_SIZE - 1] = '\0';
-
-        NSLog(@"🔐 [ScrcpyVNCClient] VNC credentials prepared");
-
-        // 移除尾随换行符
-        c->userCredential.username[strcspn(c->userCredential.username, "\n")] = '\0';
-        c->userCredential.password[strcspn(c->userCredential.password, "\n")] = '\0';
-
-        return c;
-    }));
+    VNCRuntimeSetupGetCredentialCallback(self.rfbClient, user, password);
     
     // 准备连接参数
     const char *argv[] = {"vnc", [NSString stringWithFormat:@"%@:%@", host, port].UTF8String};
@@ -550,6 +256,30 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
     ScrcpyUpdateStatus(ScrcpyStatusConnected, "VNC client connected successfully");
     
     NSLog(@"✅ [ScrcpyVNCClient] VNC connection established successfully");
+    
+    // 初始化鼠标坐标到屏幕中心（作为默认值）
+    if (self.rfbClient) {
+        self.currentMouseX = self.rfbClient->width / 2;
+        self.currentMouseY = self.rfbClient->height / 2;
+        NSLog(@"🐭 [ScrcpyVNCClient] Initialized default mouse position to center: (%d,%d)", self.currentMouseX, self.currentMouseY);
+        
+        // 请求当前光标位置（如果服务器支持）
+        // 这将触发 GotCursorPos 回调来获取真实的光标位置
+        if (self.rfbClient->canHandleNewFBSize) {
+            NSLog(@"🔍 [ScrcpyVNCClient] Requesting current cursor position from VNC server");
+        }
+        
+        // 发送一个轻微的鼠标移动来获取当前位置（某些VNC服务器需要这样做）
+        SendPointerEvent(self.rfbClient, self.currentMouseX, self.currentMouseY, 0);
+        
+        // 延迟500ms后再次请求，确保服务器有时间响应
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            if (self.rfbClient && self.connected) {
+                NSLog(@"🖱️ [ScrcpyVNCClient] Sending additional framebuffer update request for cursor");
+                SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, TRUE);
+            }
+        });
+    }
     
     // 请求初始帧缓冲更新
     if (self.rfbClient) {
@@ -582,6 +312,74 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
     NSLog(@"🔌 [ScrcpyVNCClient] VNC connection stopped");
 }
 
+- (void)moveMouseToX:(int)x y:(int)y {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot move mouse: VNC not connected");
+        return;
+    }
+    
+    // 确保坐标在远程屏幕范围内
+    int maxX = self.rfbClient->width - 1;
+    int maxY = self.rfbClient->height - 1;
+    
+    int clampedX = MAX(0, MIN(x, maxX));
+    int clampedY = MAX(0, MIN(y, maxY));
+    
+    if (clampedX != x || clampedY != y) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Mouse coordinates clamped from (%d,%d) to (%d,%d) for screen size %dx%d", 
+              x, y, clampedX, clampedY, self.rfbClient->width, self.rfbClient->height);
+    }
+    
+    // 发送鼠标指针事件到VNC服务器
+    if (!SendPointerEvent(self.rfbClient, clampedX, clampedY, 0)) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send mouse move event to (%d,%d)", clampedX, clampedY);
+        return;
+    }
+    
+    // 更新存储的鼠标坐标
+    self.currentMouseX = clampedX;
+    self.currentMouseY = clampedY;
+    
+    NSLog(@"🐭 [ScrcpyVNCClient] Mouse moved to position (%d,%d)", clampedX, clampedY);
+}
+
+- (void)sendMouseClickAtX:(int)x y:(int)y isRightClick:(BOOL)isRightClick {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send mouse click: VNC not connected");
+        return;
+    }
+    
+    // 确保坐标在远程屏幕范围内
+    int maxX = self.rfbClient->width - 1;
+    int maxY = self.rfbClient->height - 1;
+    
+    int clampedX = MAX(0, MIN(x, maxX));
+    int clampedY = MAX(0, MIN(y, maxY));
+    
+    if (clampedX != x || clampedY != y) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Mouse click coordinates clamped from (%d,%d) to (%d,%d) for screen size %dx%d", 
+              x, y, clampedX, clampedY, self.rfbClient->width, self.rfbClient->height);
+    }
+    
+    // 确定鼠标按钮掩码
+    int buttonMask = isRightClick ? rfbButton3Mask : rfbButton1Mask;
+    
+    // 发送鼠标按下事件
+    if (!SendPointerEvent(self.rfbClient, clampedX, clampedY, buttonMask)) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send mouse button down event");
+        return;
+    }
+    
+    // 发送鼠标松开事件
+    if (!SendPointerEvent(self.rfbClient, clampedX, clampedY, 0)) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send mouse button up event");
+        return;
+    }
+    
+    NSLog(@"🖱️ [ScrcpyVNCClient] %@ mouse click sent at position (%d,%d)", 
+          isRightClick ? @"Right" : @"Left", clampedX, clampedY);
+}
+
 #pragma mark - 通知处理
 
 - (void)handleDisconnectRequest:(NSNotification *)notification {
@@ -593,6 +391,43 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
     } else {
         NSLog(@"ℹ️ [ScrcpyVNCClient] No active VNC connection to disconnect");
     }
+}
+
+- (void)handleVNCMouseEvent:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle mouse event: VNC not connected");
+        return;
+    }
+    
+    NSDictionary *userInfo = notification.userInfo;
+    if (!userInfo) {
+        NSLog(@"❌ [ScrcpyVNCClient] Mouse event notification missing userInfo");
+        return;
+    }
+    
+    NSString *eventType = userInfo[kKeyType];
+    
+    if (!eventType) {
+        NSLog(@"❌ [ScrcpyVNCClient] Mouse event notification missing event type");
+        return;
+    }
+    
+    NSLog(@"🎯 [ScrcpyVNCClient] Mouse event: %@, using stored coordinates: (%d,%d) on %dx%d screen", 
+          eventType, self.currentMouseX, self.currentMouseY, self.rfbClient->width, self.rfbClient->height);
+    
+    if ([eventType isEqualToString:kMouseEventTypeClick]) {
+        // 处理点击事件 - 忽略传入的坐标，使用存储的鼠标坐标
+        NSNumber *isRightClickNumber = userInfo[kKeyIsRightClick];
+        BOOL isRightClick = [isRightClickNumber boolValue];
+        
+        [self sendMouseClickAtX:self.currentMouseX y:self.currentMouseY isRightClick:isRightClick];
+    } else if ([eventType isEqualToString:kMouseEventTypeMove]) {
+        // 处理鼠标移动事件 - 可以根据需要实现额外的鼠标移动逻辑
+        // 这里可以添加基于其他输入源的鼠标移动逻辑
+        NSLog(@"🐭 [ScrcpyVNCClient] Mouse move event received - current position maintained at (%d,%d)", 
+              self.currentMouseX, self.currentMouseY);
+    }
+    // 其他事件类型（拖拽等）可以在此处添加处理
 }
 
 @end

@@ -2248,22 +2248,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "34C65A70-C06E-4E2F-A2EB-9F5A28F546BA"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VNCClient/ScrcpyVNCClient.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "386"
-            endingLineNumber = "386"
-            landmarkName = "-startWithArguments:completion:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "5B151B4D-6870-48AE-916C-8AE7975EAB22"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -2271,9 +2255,9 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "565"
-            endingLineNumber = "565"
-            landmarkName = "-startWithArguments:completion:"
+            startingLineNumber = "365"
+            endingLineNumber = "365"
+            landmarkName = "-sendMouseClickAtX:y:isRightClick:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2287,9 +2271,9 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "550"
-            endingLineNumber = "550"
-            landmarkName = "-startWithArguments:completion:"
+            startingLineNumber = "350"
+            endingLineNumber = "350"
+            landmarkName = "-sendMouseClickAtX:y:isRightClick:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2404,22 +2388,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "3FDA2FB6-B366-447F-A14D-EA2A82C56369"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VNCClient/ScrcpyVNCClient.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "394"
-            endingLineNumber = "394"
-            landmarkName = "-startWithArguments:completion:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "958E3A1C-6B38-49E0-9E62-333B89B1ADDC"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -2427,9 +2395,9 @@
             filePath = "Scrcpy Remote/ScrcpyMenuView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1799"
-            endingLineNumber = "1799"
-            landmarkName = "-forwardTouchAsMouseMoveToVNC:"
+            startingLineNumber = "1718"
+            endingLineNumber = "1718"
+            landmarkName = "-handleDrag:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2508,6 +2476,102 @@
             startingLineNumber = "130"
             endingLineNumber = "130"
             landmarkName = "-sendMouseDragToLocation:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "C7D3A15B-5B31-476F-A333-14857A05BE38"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Scrcpy Remote/ScrcpyMenuView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1556"
+            endingLineNumber = "1556"
+            landmarkName = "-addTapGesture"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "BC08151C-44CC-4394-92D8-FD890CC6AC34"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VNCClient_legacy/ScrcpyVNCClient.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "540"
+            endingLineNumber = "540"
+            landmarkName = "-startWithArguments:completion:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "80223366-C655-42D3-8DB9-F8DAD82E62CC"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VNCClient_legacy/ScrcpyVNCClient.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "694"
+            endingLineNumber = "694"
+            landmarkName = "-startWithArguments:completion:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "4B16C11B-6036-43FE-B010-E8F65ACFAE24"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VNCClient/ScrcpyVNCClient.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "220"
+            endingLineNumber = "220"
+            landmarkName = "-startWithArguments:completion:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "62742786-A2AE-468C-B102-6C61CEFBB319"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Scrcpy SDL/ScrcpyBlockWrapper.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "160"
+            endingLineNumber = "160"
+            landmarkName = "HandleCursorPosBlock(cl, x, y)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "BA8F055D-46BB-4FC2-9806-0CAB4CEF0D5D"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VNCClient/ScrcpyVNCClient.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "221"
+            endingLineNumber = "221"
+            landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
