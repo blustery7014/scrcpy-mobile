@@ -305,17 +305,54 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
         
         CustomSetFormatAndEncodings(client);
 
-        // 创建或调整窗口大小
+        // 获取设备屏幕尺寸（考虑Retina缩放）
+        int screenWidth, screenHeight;
+        SDL_DisplayMode displayMode;
+        SDL_GetCurrentDisplayMode(0, &displayMode);
+        
+        NSLog(@"[VNCScreenDebug] SDL DisplayMode: %dx%d", displayMode.w, displayMode.h);
+        
+        screenWidth = (int)displayMode.w;
+        screenHeight = (int)displayMode.h;
+        
+        NSLog(@"[VNCScreenDebug] Final screen size: %dx%d", screenWidth, screenHeight);
+        NSLog(@"[VNCScreenDebug] Remote screen size: %dx%d", width, height);
+        
+        // 计算缩放比例，保持宽高比
+        float scaleX = (float)screenWidth / width;
+        float scaleY = (float)screenHeight / height;
+        float scale = fminf(scaleX, scaleY);
+        
+        NSLog(@"[VNCScreenDebug] Scale calculation: scaleX=%.3f, scaleY=%.3f, final scale=%.3f", scaleX, scaleY, scale);
+        
+        int scaledWidth = (int)(width * scale);
+        int scaledHeight = (int)(height * scale);
+        
+        NSLog(@"[VNCScreenDebug] Scaled remote size: %dx%d", scaledWidth, scaledHeight);
+        
+        // 创建全屏窗口（使用设备屏幕尺寸）
         sdlWindow = SDL_CreateWindow(client->desktopName,
                                      SDL_WINDOWPOS_UNDEFINED,
                                      SDL_WINDOWPOS_UNDEFINED,
-                                     width,
-                                     height,
+                                     screenWidth,
+                                     screenHeight,
                                      sdlFlags);
+                                     
+        NSLog(@"[VNCScreenDebug] Created SDL window with size: %dx%d", screenWidth, screenHeight);
         if (!sdlWindow) {
             rfbClientErr("resize: error creating window: %s\n", SDL_GetError());
             return FALSE;
         }
+        
+        // 检查实际创建的窗口尺寸
+        int actualWidth, actualHeight;
+        SDL_GetWindowSize(sdlWindow, &actualWidth, &actualHeight);
+        NSLog(@"[VNCScreenDebug] Actual SDL window size: %dx%d", actualWidth, actualHeight);
+        
+        // 检查窗口标志
+        Uint32 windowFlags = SDL_GetWindowFlags(sdlWindow);
+        NSLog(@"[VNCScreenDebug] Window flags: 0x%x (fullscreen: %s)", 
+              windowFlags, (windowFlags & SDL_WINDOW_FULLSCREEN) ? "YES" : "NO");
 
         // 更新状态
         self.scrcpyStatus = ScrcpyStatusSDLWindowCreated;
@@ -328,6 +365,11 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
             return FALSE;
         }
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+        
+        // 获取设备缩放因子并设置SDL渲染器缩放
+        float deviceScale = UIScreen.mainScreen.nativeScale;
+        NSLog(@"[VNCScreenDebug] Device scale factor: %.2f", deviceScale);
+        SDL_RenderSetScale(sdlRenderer, deviceScale, deviceScale);
         
         // 保存渲染器
         self.currentRenderer = sdlRenderer;
@@ -363,10 +405,47 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
             return;
         }
         
-        // 清除渲染器并绘制纹理
+        // 获取窗口和纹理尺寸
+        int windowWidth, windowHeight;
+        SDL_GetWindowSize(sdlWindow, &windowWidth, &windowHeight);
+        
+        int textureWidth, textureHeight;
+        SDL_QueryTexture(sdlTexture, NULL, NULL, &textureWidth, &textureHeight);
+        
+        // 获取渲染器的逻辑尺寸
+        int logicalWidth, logicalHeight;
+        SDL_RenderGetLogicalSize(sdlRenderer, &logicalWidth, &logicalHeight);
+        
+        // 如果设置了逻辑尺寸，使用逻辑尺寸；否则使用窗口尺寸
+        int renderWidth = logicalWidth > 0 ? logicalWidth : windowWidth;
+        int renderHeight = logicalHeight > 0 ? logicalHeight : windowHeight;
+        
+        NSLog(@"[VNCScreenDebug] Render - Window: %dx%d, Logical: %dx%d, Texture: %dx%d", 
+              windowWidth, windowHeight, renderWidth, renderHeight, textureWidth, textureHeight);
+        
+        // 使用渲染尺寸计算缩放
+        float scaleX = (float)renderWidth / textureWidth;
+        float scaleY = (float)renderHeight / textureHeight;
+        float scale = fminf(scaleX, scaleY);
+        
+        int scaledWidth = (int)(textureWidth * scale);
+        int scaledHeight = (int)(textureHeight * scale);
+        
+        int offsetX = (renderWidth - scaledWidth) / 2;
+        int offsetY = (renderHeight - scaledHeight) / 2;
+        
+        SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
+        
+        NSLog(@"[VNCScreenDebug] RenderScale: %.3f, Scaled: %dx%d, Offset: %d,%d", 
+              scale, scaledWidth, scaledHeight, offsetX, offsetY);
+        NSLog(@"[VNCScreenDebug] Expected offset calculation: (%d-%d)/2=%d, (%d-%d)/2=%d", 
+              renderWidth, scaledWidth, (renderWidth-scaledWidth)/2, 
+              renderHeight, scaledHeight, (renderHeight-scaledHeight)/2);
+        
+        // 清除渲染器并绘制纹理（居中并保持比例）
         SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
         SDL_RenderClear(sdlRenderer);
-        SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, NULL);
+        SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
         SDL_RenderPresent(sdlRenderer);
     }));
     
