@@ -198,6 +198,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ScrcpyVNCClient.h,
+				TestCursorPos.m,
 			);
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
 		};
@@ -211,6 +212,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA18D7532E0FA49B00CD7D92 /* RoyalVNCClient */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = RoyalVNCClient;
+			sourceTree = "<group>";
+		};
 		AA4B6E0C2DEB409D00813661 /* LatencyTest */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -334,6 +340,7 @@
 				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
 				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
+				AA18D7532E0FA49B00CD7D92 /* RoyalVNCClient */,
 				AA7AF6502DF57467002EC51D /* ScrcpyLiveActivityWidget */,
 				AAA4EF322D0D277400D361CA /* Frameworks */,
 				AA7EA5272D01F33E00FF7760 /* Products */,
@@ -457,6 +464,7 @@
 				AA7AF65F2DF57468002EC51D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				AA18D7532E0FA49B00CD7D92 /* RoyalVNCClient */,
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EFC72D1072DE00D361CA /* ADBClient */,

@@ -460,7 +460,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)handleDismissTap:(UITapGestureRecognizer *)gesture {
     if (self.isExpanded) {
-        CGPoint location = [gesture locationInView:self];
+        CGPoint location = [gesture locationInView:self.window];
         if (![self.menuView pointInside:[self.menuView convertPoint:location fromView:self] withEvent:nil] &&
             ![self.capsuleView pointInside:[self.capsuleView convertPoint:location fromView:self] withEvent:nil]) {
             // 停止键盘输入
@@ -865,7 +865,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 // 实现这些方法以防止事件向下传递
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self];
+    CGPoint point = [touch locationInView:self.window];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
@@ -882,7 +882,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self];
+    CGPoint point = [touch locationInView:self.window];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
@@ -899,7 +899,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self];
+    CGPoint point = [touch locationInView:self.window];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
@@ -916,7 +916,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self];
+    CGPoint point = [touch locationInView:self.window];
     
     if ((self.isExpanded && CGRectContainsPoint(self.menuView.frame, point)) || 
         CGRectContainsPoint(self.capsuleView.frame, point)) {
@@ -1856,7 +1856,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     const NSTimeInterval clickTimeThreshold = 0.5; // 时间阈值
     
     if (self.isDragging) {
-        // 结束拖拽
+        // 结束拖拽，忽略点击事件判定
         NSLog(@"🎯 [ScrcpyMenuView] Drag ended at (%.1f, %.1f)", location.x, location.y);
         
         NSDictionary *userInfo = @{

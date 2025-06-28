@@ -104,14 +104,14 @@
 
 #pragma mark - Action Execution Methods
 
-- (void)executeVNCActions:(NSArray<NSNumber *> *)vncActions completion:(void(^)(NSInteger successCount))completion {
+- (void)executeVNCActions:(NSArray<NSNumber *> *)vncActions completion:(void(^)(BOOL success, NSString *error))completion {
     NSLog(@"🖥️ [ScrcpyClientWrapper] Executing %lu VNC actions", (unsigned long)vncActions.count);
     
     // 检查当前客户端是否是 VNC 客户端
     if (![self.currentActiveClient isKindOfClass:[ScrcpyVNCClient class]]) {
         NSLog(@"❌ [ScrcpyClientWrapper] Current client is not VNC client, cannot execute VNC actions");
         if (completion) {
-            completion(0);
+            completion(0, @"Current client is not VNC client, cannot execute VNC actions");
         }
         return;
     }

@@ -24,32 +24,7 @@ typedef NS_ENUM(NSInteger, VNCQuickActionType) {
 
 #pragma mark - Upper Layer Gesture Interface Methods
 
-/// 发送鼠标点击事件到VNC服务器
-/// @param location SDL坐标系中的点击位置
-/// @param isRightClick 是否为右键点击
-- (void)sendMouseClickAtLocation:(CGPoint)location isRightClick:(BOOL)isRightClick;
-
-/// 发送鼠标移动事件到VNC服务器
-/// @param location SDL坐标系中的鼠标位置
-- (void)sendMouseMoveToLocation:(CGPoint)location;
-
-/// 发送鼠标拖拽开始事件到VNC服务器
-/// @param location SDL坐标系中的拖拽开始位置
-- (void)sendMouseDragStartAtLocation:(CGPoint)location;
-
-/// 发送鼠标拖拽移动事件到VNC服务器
-/// @param location SDL坐标系中的拖拽位置
-- (void)sendMouseDragToLocation:(CGPoint)location;
-
-/// 发送鼠标拖拽结束事件到VNC服务器
-/// @param location SDL坐标系中的拖拽结束位置
-- (void)sendMouseDragEndAtLocation:(CGPoint)location;
-
-/// 发送滚轮事件到VNC服务器
-/// @param location SDL坐标系中的滚轮位置
-/// @param deltaX 水平滚动增量
-/// @param deltaY 垂直滚动增量
-- (void)sendMouseWheelAtLocation:(CGPoint)location deltaX:(int)deltaX deltaY:(int)deltaY;
+// Mouse control methods are now available in ScrcpyVNCClient+MouseControl category
 
 #pragma mark - VNC Action Execution Methods
 
@@ -61,11 +36,13 @@ typedef NS_ENUM(NSInteger, VNCQuickActionType) {
 /// 执行多个 VNC 快捷动作
 /// @param actionTypes VNC 动作类型数组
 /// @param completion 完成回调，返回成功执行的动作数量
-- (void)executeVNCActions:(NSArray<NSNumber *> *)actionTypes completion:(void(^)(NSInteger successCount))completion;
+- (void)executeVNCActions:(NSArray<NSNumber *> *)actionTypes completion:(void(^)(BOOL success, NSString *error))completion;
 
 /// 测试光标显示功能
 /// @param cursorType 要测试的系统光标类型 (SDL_SystemCursor)
 - (void)testCursorDisplay:(int)cursorType;
+
+// Cursor management and touchpad integration methods are now available in ScrcpyVNCClient+MouseControl category
 
 @end
 

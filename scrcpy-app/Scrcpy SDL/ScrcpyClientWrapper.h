@@ -48,7 +48,7 @@ static inline UIWindowScene * GetCurrentWindowScene(void)
 /// 执行 VNC Actions
 /// @param vncActions VNC 动作类型数组 (NSNumber array of VNCQuickActionType)
 /// @param completion 完成回调
-- (void)executeVNCActions:(NSArray<NSNumber *> *)vncActions completion:(void(^)(NSInteger successCount))completion;
+- (void)executeVNCActions:(NSArray<NSNumber *> *)vncActions completion:(void(^)(BOOL success, NSString *error))completion;
 
 /// 执行 ADB Home 按键
 /// @param deviceSerial 目标设备序列号
