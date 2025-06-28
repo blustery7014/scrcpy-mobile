@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		AA18D7282E0800BE00CD7D92 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */; };
-		AA4B6E332DEC6CDC00813661 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA4B6E322DEC6CDC00813661 /* Foundation.framework */; };
 		AA7AF64D2DF57467002EC51D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64C2DF57467002EC51D /* WidgetKit.framework */; };
 		AA7AF64F2DF57467002EC51D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64E2DF57467002EC51D /* SwiftUI.framework */; };
 		AA7AF6602DF57468002EC51D /* ScrcpyLiveActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -105,8 +104,6 @@
 
 /* Begin PBXFileReference section */
 		AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
-		AA4B6E322DEC6CDC00813661 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
 		AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ScrcpyLiveActivityWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA7AF64C2DF57467002EC51D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		AA7AF64E2DF57467002EC51D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -151,6 +148,22 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA18D7FE2E0FC11B00CD7D92 /* Exceptions for "VNCClient" folder in "VNCClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyCommonRuntime.m,
+				ScrcpyVNCClient.h,
+				ScrcpyVNCClient.m,
+			);
+			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
+		};
+		AA18D8022E0FC95500CD7D92 /* Exceptions for "VNCClient" folder in "Scrcpy Remote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ScrcpyVNCClient.m,
+			);
+			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
+		};
 		AA4B6E142DEB40C900813661 /* Exceptions for "LatencyTest" folder in "Scrcpy Remote" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -194,10 +207,18 @@
 			);
 			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
 		};
-		AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient" folder in "VNCClient" target */ = {
+		AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient_legacy" folder in "VNCClient" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				CursorPosManager.h,
+				CursorPosManager.m,
+				RenderRegionCalculator.h,
+				RenderRegionCalculator.m,
 				ScrcpyVNCClient.h,
+				ScrcpyVNCClient.m,
+				"ScrcpyVNCClient+MouseControl.h",
+				"ScrcpyVNCClient+MouseControl.m",
+				"ScrcpyVNCClient+Private.h",
 				TestCursorPos.m,
 			);
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
@@ -212,9 +233,13 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA18D7532E0FA49B00CD7D92 /* RoyalVNCClient */ = {
+		AA18D7F82E0FC0CD00CD7D92 /* VNCClient */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = RoyalVNCClient;
+			exceptions = (
+				AA18D8022E0FC95500CD7D92 /* Exceptions for "VNCClient" folder in "Scrcpy Remote" target */,
+				AA18D7FE2E0FC11B00CD7D92 /* Exceptions for "VNCClient" folder in "VNCClient" target */,
+			);
+			path = VNCClient;
 			sourceTree = "<group>";
 		};
 		AA4B6E0C2DEB409D00813661 /* LatencyTest */ = {
@@ -256,12 +281,12 @@
 			path = "Scrcpy SDL";
 			sourceTree = "<group>";
 		};
-		AAA4EF9F2D0FBEB000D361CA /* VNCClient */ = {
+		AAA4EF9F2D0FBEB000D361CA /* VNCClient_legacy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient" folder in "VNCClient" target */,
+				AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient_legacy" folder in "VNCClient" target */,
 			);
-			path = VNCClient;
+			path = VNCClient_legacy;
 			sourceTree = "<group>";
 		};
 		AAA4EFC72D1072DE00D361CA /* ADBClient */ = {
@@ -316,7 +341,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA18D7282E0800BE00CD7D92 /* CoreBluetooth.framework in Frameworks */,
-				AA4B6E332DEC6CDC00813661 /* Foundation.framework in Frameworks */,
 				AAA4EFC22D0FD6D000D361CA /* libz.tbd in Frameworks */,
 				AAA4EFBC2D0FC52000D361CA /* AVFoundation.framework in Frameworks */,
 				AAA4EFBA2D0FC51000D361CA /* CoreHaptics.framework in Frameworks */,
@@ -339,8 +363,8 @@
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
-				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
-				AA18D7532E0FA49B00CD7D92 /* RoyalVNCClient */,
+				AAA4EF9F2D0FBEB000D361CA /* VNCClient_legacy */,
+				AA18D7F82E0FC0CD00CD7D92 /* VNCClient */,
 				AA7AF6502DF57467002EC51D /* ScrcpyLiveActivityWidget */,
 				AAA4EF322D0D277400D361CA /* Frameworks */,
 				AA7EA5272D01F33E00FF7760 /* Products */,
@@ -376,9 +400,7 @@
 		AAA4EF322D0D277400D361CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				AA4B6E352DEC70B300813661 /* CoreBluetooth.framework */,
 				AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */,
-				AA4B6E322DEC6CDC00813661 /* Foundation.framework */,
 				AA8E626B2DC655DD00999976 /* libarchive.tbd */,
 				AA8E62322DC6502300999976 /* libfakefs.a */,
 				AA8E62342DC6502300999976 /* libish_emu.a */,
@@ -464,7 +486,7 @@
 				AA7AF65F2DF57468002EC51D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				AA18D7532E0FA49B00CD7D92 /* RoyalVNCClient */,
+				AA18D7F82E0FC0CD00CD7D92 /* VNCClient */,
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EFC72D1072DE00D361CA /* ADBClient */,
@@ -514,7 +536,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				AAA4EF9F2D0FBEB000D361CA /* VNCClient */,
+				AAA4EF9F2D0FBEB000D361CA /* VNCClient_legacy */,
 			);
 			name = VNCClient;
 			packageProductDependencies = (

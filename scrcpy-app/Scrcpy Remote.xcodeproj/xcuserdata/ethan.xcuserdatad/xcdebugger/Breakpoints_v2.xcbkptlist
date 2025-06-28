@@ -2255,8 +2255,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "367"
-            endingLineNumber = "367"
+            startingLineNumber = "408"
+            endingLineNumber = "408"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2271,8 +2271,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "348"
-            endingLineNumber = "348"
+            startingLineNumber = "389"
+            endingLineNumber = "389"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2288,9 +2288,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "587"
-            endingLineNumber = "587"
-            landmarkName = "-startWithArguments:completion:"
-            landmarkType = "7">
+            endingLineNumber = "587">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -2304,9 +2302,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "572"
-            endingLineNumber = "572"
-            landmarkName = "-startWithArguments:completion:"
-            landmarkType = "7">
+            endingLineNumber = "572">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -2400,9 +2396,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1233"
-            endingLineNumber = "1233"
-            landmarkName = "-handleVNCDragOffsetNotification:"
-            landmarkType = "7">
+            endingLineNumber = "1233">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -2416,9 +2410,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1242"
-            endingLineNumber = "1242"
-            landmarkName = "-resetDragOffset"
-            landmarkType = "7">
+            endingLineNumber = "1242">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -2431,8 +2423,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "375"
-            endingLineNumber = "375"
+            startingLineNumber = "416"
+            endingLineNumber = "416"
             landmarkName = "-startWithArguments:completion:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2464,9 +2456,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1614"
-            endingLineNumber = "1614"
-            landmarkName = "-sendMouseDragFromLocation:toLocation:"
-            landmarkType = "7">
+            endingLineNumber = "1614">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy

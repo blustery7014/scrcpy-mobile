@@ -126,9 +126,7 @@
     #endif
     
     // 发送鼠标指针移动事件
-//    rfbBool result = SendPointerEvent(self.rfbClient, vncX, vncY, self.buttonMask);
-    rfbBool result = SendPointerEvent(self.rfbClient, vncX, vncY, rfbButton4Mask);
-    result = SendPointerEvent(self.rfbClient, vncX, vncY, 0);
+    rfbBool result = SendPointerEvent(self.rfbClient, vncX, vncY, self.buttonMask);
     if (!result) {
         NSLog(@"❌ [ScrcpyVNCClient] Failed to send drag move event");
         return;
