@@ -2255,8 +2255,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "365"
-            endingLineNumber = "365"
+            startingLineNumber = "371"
+            endingLineNumber = "371"
             landmarkName = "-sendMouseClickAtX:y:isRightClick:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2271,8 +2271,8 @@
             filePath = "VNCClient/ScrcpyVNCClient.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "350"
-            endingLineNumber = "350"
+            startingLineNumber = "356"
+            endingLineNumber = "356"
             landmarkName = "-sendMouseClickAtX:y:isRightClick:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2395,8 +2395,8 @@
             filePath = "Scrcpy Remote/ScrcpyMenuView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1718"
-            endingLineNumber = "1718"
+            startingLineNumber = "1722"
+            endingLineNumber = "1722"
             landmarkName = "-handleDrag:"
             landmarkType = "7">
          </BreakpointContent>
@@ -2489,9 +2489,9 @@
             filePath = "Scrcpy Remote/ScrcpyMenuView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1556"
-            endingLineNumber = "1556"
-            landmarkName = "-addTapGesture"
+            startingLineNumber = "1560"
+            endingLineNumber = "1560"
+            landmarkName = "-removeTapGesture"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2530,22 +2530,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "4B16C11B-6036-43FE-B010-E8F65ACFAE24"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VNCClient/ScrcpyVNCClient.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "220"
-            endingLineNumber = "220"
-            landmarkName = "-startWithArguments:completion:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "62742786-A2AE-468C-B102-6C61CEFBB319"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -2562,16 +2546,32 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "BA8F055D-46BB-4FC2-9806-0CAB4CEF0D5D"
+            uuid = "303DA0A0-4576-4BE8-B35B-8B9C02E8F599"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "VNCClient/ScrcpyVNCClient.m"
+            filePath = "Scrcpy Remote/ScrcpyMenuView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "221"
-            endingLineNumber = "221"
-            landmarkName = "-startWithArguments:completion:"
+            startingLineNumber = "620"
+            endingLineNumber = "620"
+            landmarkName = "-updateMenuPosition"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "84458841-4A76-42AB-BBF9-058D17CFB2D2"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Scrcpy Remote/ScrcpyMenuView.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "639"
+            endingLineNumber = "639"
+            landmarkName = "-updateMenuPosition"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // VNC客户端状态
 @property (nonatomic, assign) BOOL connected;
-@property (nonatomic, assign) rfbClient *rfbClient;
+@property (nonatomic, assign, nullable) rfbClient *rfbClient;
 @property (nonatomic, assign) enum ScrcpyStatus scrcpyStatus;
 
 // VNC远程桌面的图像像素大小

@@ -44,4 +44,9 @@ void VNCRuntimeSetupGetCredentialCallback(rfbClient* client, NSString* user, NSS
  */
 void VNCRuntimeCleanupCallbacks(rfbClient* client);
 
+/**
+ * 绘制macOS风格的鼠标光标
+ */
+void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale);
+
 #endif /* ScrcpyVNCRuntime_h */

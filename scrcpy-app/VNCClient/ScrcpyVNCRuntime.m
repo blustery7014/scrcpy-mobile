@@ -12,6 +12,7 @@
 #import <rfb/rfbclient.h>
 #import <arpa/inet.h>
 #import <objc/runtime.h>
+#import <math.h>
 #import "ScrcpyVNCClient.h"
 
 /**
@@ -71,6 +72,9 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
 
 rfbBool VNCRuntimeMallocFrameBuffer(rfbClient* client, ScrcpyVNCClient *vncClient, SDL_Window **sdlWindow, SDL_Renderer **sdlRenderer, SDL_Texture **sdlTexture) {
     int width = client->width, height = client->height, depth = client->format.bitsPerPixel;
+
+    // 保存VNC客户端实例引用，以便在回调中访问
+    rfbClientSetClientData(client, (void*)0x1234, (__bridge void*)vncClient);
 
     // 保存原始尺寸（仅在第一次时保存）
     if (vncClient.imagePixelsSize.width == 0 && vncClient.imagePixelsSize.height == 0) {
@@ -252,6 +256,25 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
     SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
     SDL_RenderClear(sdlRenderer);
     SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
+    
+    // 获取VNC客户端实例以获取鼠标坐标
+    ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(cl, (void*)0x1234);
+    if (vncClient && cl->appData.useRemoteCursor) {
+        // 将远程鼠标坐标转换为屏幕坐标
+        int remoteMouseX = vncClient.currentMouseX;
+        int remoteMouseY = vncClient.currentMouseY;
+        
+        // 转换坐标：从远程屏幕坐标到本地屏幕坐标
+        int screenMouseX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
+        int screenMouseY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
+        
+        // 绘制macOS风格的鼠标光标
+        VNCRuntimeDrawMacOSCursor(sdlRenderer, screenMouseX, screenMouseY, scale);
+        
+        NSLog(@"🖱️ [VNCRuntime] Drawing cursor at remote(%d,%d) -> screen(%d,%d), scale=%.2f", 
+              remoteMouseX, remoteMouseY, screenMouseX, screenMouseY, scale);
+    }
+    
     SDL_RenderPresent(sdlRenderer);
 }
 
@@ -365,4 +388,139 @@ void VNCRuntimeCleanupCallbacks(rfbClient* client) {
     GetSet_GotFrameBufferUpdateBlockIMP(client, nil);
     GetSet_HandleCursorPosBlockIMP(client, nil);
     GetSet_GetPasswordBlockIMP(client, nil);
+}
+
+// 全局光标纹理变量
+static SDL_Texture* g_cursorTexture = NULL;
+static SDL_Renderer* g_cursorRenderer = NULL;
+
+typedef struct {
+    SDL_Texture* texture;
+    int width, height;
+    float alpha;
+} CustomCursor;
+
+static CustomCursor* createCustomCursor(SDL_Renderer* renderer) {
+    CustomCursor* cursor = malloc(sizeof(CustomCursor));
+    if (!cursor) return NULL;
+    
+    // 创建光标纹理
+    SDL_Surface* surface = SDL_CreateRGBSurface(0, 32, 32, 32, 
+        0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+    
+    if (!surface) {
+        free(cursor);
+        return NULL;
+    }
+    
+    // 清空背景（透明）
+    SDL_FillRect(surface, NULL, SDL_MapRGBA(surface->format, 0, 0, 0, 0));
+    
+    Uint32* pixels = (Uint32*)surface->pixels;
+    const int size = 32;
+    const int centerX = size / 2;  // 中心点 X 坐标
+    const int centerY = size / 2;  // 中心点 Y 坐标
+    const int radius = 6;          // 圆点半径
+    
+    // 绘制黑色圆形光标
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            // 计算到圆心的距离
+            int dx = x - centerX;
+            int dy = y - centerY;
+            double distance = sqrt(dx * dx + dy * dy);
+            
+            if (distance <= radius) {
+                // 在圆内 - 绘制黑色
+                if (distance <= radius - 1) {
+                    // 内部：纯黑色
+                    pixels[y * size + x] = SDL_MapRGBA(surface->format, 0, 0, 0, 255);
+                } else {
+                    // 边缘：添加轻微的抗锯齿效果
+                    int alpha = (int)(255 * (radius - distance));
+                    if (alpha > 255) alpha = 255;
+                    if (alpha < 0) alpha = 0;
+                    pixels[y * size + x] = SDL_MapRGBA(surface->format, 0, 0, 0, alpha);
+                }
+            } else if (distance <= radius + 1) {
+                // 外边缘：白色边框用于提高可见性
+                int alpha = (int)(128 * (radius + 1 - distance));
+                if (alpha > 128) alpha = 128;
+                if (alpha < 0) alpha = 0;
+                pixels[y * size + x] = SDL_MapRGBA(surface->format, 255, 255, 255, alpha);
+            }
+        }
+    }
+    
+    cursor->texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_SetTextureBlendMode(cursor->texture, SDL_BLENDMODE_BLEND);
+    
+    cursor->width = 32;
+    cursor->height = 32;
+    cursor->alpha = 1.0f;
+    
+    SDL_FreeSurface(surface);
+    return cursor;
+}
+
+static void freeCustomCursor(CustomCursor* cursor) {
+    if (cursor) {
+        if (cursor->texture) {
+            SDL_DestroyTexture(cursor->texture);
+        }
+        free(cursor);
+    }
+}
+
+void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale) {
+    if (!renderer) return;
+    
+    // 确保光标纹理已创建
+    if (!g_cursorTexture || g_cursorRenderer != renderer) {
+        if (g_cursorTexture && g_cursorRenderer != renderer) {
+            SDL_DestroyTexture(g_cursorTexture);
+            g_cursorTexture = NULL;
+        }
+        
+        CustomCursor* cursor = createCustomCursor(renderer);
+        if (cursor) {
+            g_cursorTexture = cursor->texture;
+            g_cursorRenderer = renderer;
+            // 不释放纹理，只释放结构体
+            free(cursor);
+        }
+    }
+    
+    if (!g_cursorTexture) return;
+    
+    // 计算光标尺寸 - 基于32x32基础尺寸的圆形光标
+    const int baseSize = 16; // 基础尺寸适合圆形光标
+    int cursorSize = (int)(baseSize * scale);
+    
+    // 确保光标尺寸在合理范围内
+    if (cursorSize < 8) cursorSize = 8;
+    if (cursorSize > 32) cursorSize = 32;
+    
+    // 设置透明度
+    SDL_SetTextureAlphaMod(g_cursorTexture, (Uint8)(255));
+    
+    // 圆形光标热点在中心位置
+    SDL_Rect destRect = {
+        x - cursorSize / 2,  // 圆心对准实际点击位置
+        y - cursorSize / 2,  // 圆心对准实际点击位置
+        cursorSize,
+        cursorSize
+    };
+    
+    // 应用高质量渲染选项
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");
+    
+    SDL_RenderCopy(renderer, g_cursorTexture, NULL, &destRect);
+    
+    // 可选：添加调试信息显示当前鼠标位置（仅在调试模式下）
+    #ifdef DEBUG_CURSOR
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 128);
+    SDL_Rect debugPoint = {x - 1, y - 1, 2, 2};
+    SDL_RenderFillRect(renderer, &debugPoint);
+    #endif
 }
