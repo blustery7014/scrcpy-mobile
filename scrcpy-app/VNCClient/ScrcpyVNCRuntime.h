@@ -49,4 +49,9 @@ void VNCRuntimeCleanupCallbacks(rfbClient* client);
  */
 void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale);
 
+/**
+ * 设置鼠标移动标记（由拖拽处理函数调用）
+ */
+void VNCRuntimeSetMouseMoved(void);
+
 #endif /* ScrcpyVNCRuntime_h */

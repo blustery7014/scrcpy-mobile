@@ -528,6 +528,12 @@
     int offsetX = (int)round(finalOffsetX);
     int offsetY = (int)round(finalOffsetY);
     
+    // 检测是否有实际的鼠标移动
+    if (offsetX != 0 || offsetY != 0) {
+        // 设置鼠标移动标记，用于边缘跟随检测
+        VNCRuntimeSetMouseMoved();
+    }
+    
     // 使用拖拽开始时的鼠标位置作为起点计算新的鼠标位置
     int newMouseX = self.dragStartMouseX + offsetX;
     int newMouseY = self.dragStartMouseY + offsetY;
