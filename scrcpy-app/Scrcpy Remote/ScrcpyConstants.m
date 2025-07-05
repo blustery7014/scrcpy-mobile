@@ -26,6 +26,7 @@ NSString * const kUserDefaultsPositionRatioY = @"ScrcpyMenuPositionRatioY";
 NSString * const kNotificationVNCDrag = @"ScrcpyVNCDragNotification";
 NSString * const kNotificationVNCDragOffset = @"ScrcpyVNCDragOffsetNotification";
 NSString * const kNotificationVNCMouseEvent = @"ScrcpyVNCMouseEventNotification";
+NSString * const kNotificationVNCScrollEvent = @"ScrcpyVNCScrollEventNotification";
 
 // Device Types
 NSString * const kDeviceTypeVNC = @"vnc";
@@ -37,6 +38,7 @@ NSString * const kMouseEventTypeDragStart = @"mouseDragStart";
 NSString * const kMouseEventTypeDrag = @"mouseDrag";
 NSString * const kMouseEventTypeDragEnd = @"mouseDragEnd";
 NSString * const kMouseEventTypeClick = @"mouseClick";
+NSString * const kMouseEventTypeScroll = @"mouseScroll";
 
 // Drag States
 NSString * const kDragStateBegan = @"began";

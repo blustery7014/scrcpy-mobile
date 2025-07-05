@@ -31,6 +31,10 @@
         self.currentMouseX = 0;
         self.currentMouseY = 0;
         
+        // 初始化滚动累积器和上一次偏移量
+        self.scrollAccumulatorY = 0.0;
+        self.lastScrollOffset = CGPointZero;
+        
         // 监听断开连接通知
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleDisconnectRequest:)
@@ -53,6 +57,12 @@
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleVNCDragState:)
                                                      name:kNotificationVNCDrag
+                                                   object:nil];
+        
+        // 监听VNC滚动事件通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCScrollEvent:)
+                                                     name:kNotificationVNCScrollEvent
                                                    object:nil];
     }
     return self;
@@ -541,6 +551,159 @@
         // 拖拽结束时可以进行清理（如果需要）
         NSLog(@"🎯 [ScrcpyVNCClient] Drag %@ - start position was: (%d,%d), final position: (%d,%d)", 
               state, self.dragStartMouseX, self.dragStartMouseY, self.currentMouseX, self.currentMouseY);
+    }
+}
+
+- (void)handleVNCScrollEvent:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle scroll event: VNC not connected");
+        return;
+    }
+    
+    NSDictionary *userInfo = notification.userInfo;
+    if (!userInfo) {
+        NSLog(@"❌ [ScrcpyVNCClient] Scroll event notification missing userInfo");
+        return;
+    }
+    
+    NSString *state = userInfo[kKeyState];
+    NSValue *offsetValue = userInfo[kKeyOffset];
+    NSValue *viewSizeValue = userInfo[kKeyViewSize];
+    NSNumber *zoomScaleNumber = userInfo[kKeyZoomScale];
+    
+    if (!state || !offsetValue || !viewSizeValue) {
+        NSLog(@"❌ [ScrcpyVNCClient] Scroll event notification missing required data");
+        return;
+    }
+    
+    CGPoint offset = [offsetValue CGPointValue];
+    CGSize viewSize = [viewSizeValue CGSizeValue];
+    CGFloat zoomScale = zoomScaleNumber ? [zoomScaleNumber floatValue] : 1.0;
+    
+    if ([state isEqualToString:kDragStateBegan]) {
+        // 滚动开始，记录起点位置并重置累积器
+        self.dragStartMouseX = self.currentMouseX;
+        self.dragStartMouseY = self.currentMouseY;
+        self.scrollAccumulatorY = 0.0;  // 重置滚动累积器
+        self.lastScrollOffset = CGPointZero;  // 重置上一次偏移量
+        
+        NSLog(@"📜 [ScrcpyVNCClient] Scroll began - recorded start position: (%d,%d), reset accumulator and last offset", 
+              self.dragStartMouseX, self.dragStartMouseY);
+    } else if ([state isEqualToString:kDragStateChanged]) {
+        // 滚动过程中，计算滚动量并发送滚动事件
+        [self sendMouseScrollWithOffset:offset viewSize:viewSize zoomScale:zoomScale];
+    } else if ([state isEqualToString:kDragStateEnded]) {
+        // 滚动结束，发送最终滚动事件并重置累积器
+        [self sendMouseScrollWithOffset:offset viewSize:viewSize zoomScale:zoomScale];
+        
+        NSLog(@"📜 [ScrcpyVNCClient] Scroll ended - final offset: (%.1f,%.1f), final accumulator: %.2f", 
+              offset.x, offset.y, self.scrollAccumulatorY);
+        
+        // 滚动结束后重置累积器和上一次偏移量
+        self.scrollAccumulatorY = 0.0;
+        self.lastScrollOffset = CGPointZero;
+    } else if ([state isEqualToString:kDragStateCancelled]) {
+        NSLog(@"📜 [ScrcpyVNCClient] Scroll cancelled - resetting accumulator and last offset");
+        // 滚动取消时也重置累积器
+        self.scrollAccumulatorY = 0.0;
+        self.lastScrollOffset = CGPointZero;
+    }
+}
+
+- (void)sendMouseScrollWithOffset:(CGPoint)offset viewSize:(CGSize)viewSize zoomScale:(CGFloat)zoomScale {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send mouse scroll: VNC not connected");
+        return;
+    }
+    
+    // 获取远程屏幕尺寸
+    int remoteWidth = self.rfbClient->width;
+    int remoteHeight = self.rfbClient->height;
+    
+    // 计算远程内容在本地的显示缩放比例（保持宽高比）
+    CGFloat scaleX = viewSize.width / (CGFloat)remoteWidth;
+    CGFloat scaleY = viewSize.height / (CGFloat)remoteHeight;
+    CGFloat displayScale = MIN(scaleX, scaleY);  // 取较小值保持比例
+    
+    // 优化滚动偏移量计算，使用增量计算和累积器实现平滑滚动
+    // 基础滚动敏感度系数
+    static const CGFloat kScrollSensitivity = 0.5;  // 滚动敏感度
+    static const CGFloat kScrollThreshold = 12.0;   // 滚动阈值（累积到这个值才触发滚动）
+    
+    // 计算增量偏移（当前偏移 - 上一次偏移）
+    CGFloat deltaY = offset.y - self.lastScrollOffset.y;
+    
+    // 将增量手势偏移转换为远程坐标偏移（考虑显示缩放）
+    CGFloat remoteDeltaY = deltaY / displayScale;
+    
+    // 考虑用户缩放倍数（zoomScale越大，滚动越精细）
+    CGFloat adjustedDeltaY = remoteDeltaY / zoomScale;
+    
+    // 应用滚动敏感度并累积到累积器中（只累积增量）
+    self.scrollAccumulatorY += adjustedDeltaY * kScrollSensitivity;
+    
+    // 更新上一次偏移量
+    self.lastScrollOffset = offset;
+    
+    // 计算需要执行的滚动步数
+    int scrollSteps = 0;
+    int scrollButton = 0;
+    int scrollButtonMask = 0;
+    
+    if (fabs(self.scrollAccumulatorY) >= kScrollThreshold) {
+        // 确定滚动方向, Nature 自然滚动方向, 跟着手势方向滚动
+        BOOL scrollUp = (self.scrollAccumulatorY > 0);
+        scrollButton = scrollUp ? 4 : 5;  // 按钮4：向上滚动，按钮5：向下滚动
+        scrollButtonMask = scrollUp ? (1 << 3) : (1 << 4);  // rfbButton4Mask or rfbButton5Mask
+        
+        // 计算滚动步数
+        scrollSteps = (int)(fabs(self.scrollAccumulatorY) / kScrollThreshold);
+        scrollSteps = MIN(scrollSteps, 5);  // 限制最大滚动步数
+        
+        // 从累积器中减去已处理的滚动量
+        CGFloat processedScroll = scrollSteps * kScrollThreshold;
+        if (self.scrollAccumulatorY > 0) {
+            self.scrollAccumulatorY -= processedScroll;
+        } else {
+            self.scrollAccumulatorY += processedScroll;
+        }
+    }
+    
+    NSLog(@"📜 [ScrcpyVNCClient] Incremental scroll calculation:");
+    NSLog(@"   Remote: %dx%d, View: %.0fx%.0f, DisplayScale: %.3f, ZoomScale: %.3f", 
+          remoteWidth, remoteHeight, viewSize.width, viewSize.height, displayScale, zoomScale);
+    NSLog(@"   CurrentOffset: %.1f, LastOffset: %.1f -> DeltaY: %.1f", 
+          offset.y, self.lastScrollOffset.y, deltaY);
+    NSLog(@"   RemoteDelta: %.1f -> AdjustedDelta: %.1f -> Accumulator: %.2f", 
+          remoteDeltaY, adjustedDeltaY, self.scrollAccumulatorY);
+    NSLog(@"   Threshold: %.1f, Steps: %d, Button: %d", 
+          kScrollThreshold, scrollSteps, scrollButton);
+    
+    // 只在累积器超过阈值时才发送滚动事件
+    if (scrollSteps > 0) {
+        // 发送滚动事件（使用当前鼠标位置）
+        for (int i = 0; i < scrollSteps; i++) {
+            // 发送滚动按钮按下事件
+            if (!SendPointerEvent(self.rfbClient, self.currentMouseX, self.currentMouseY, scrollButtonMask)) {
+                NSLog(@"❌ [ScrcpyVNCClient] Failed to send scroll button down event (step %d)", i + 1);
+                return;
+            }
+            
+            // 发送滚动按钮松开事件
+            if (!SendPointerEvent(self.rfbClient, self.currentMouseX, self.currentMouseY, 0)) {
+                NSLog(@"❌ [ScrcpyVNCClient] Failed to send scroll button up event (step %d)", i + 1);
+                return;
+            }
+            
+            // 滚动事件之间的小延迟，保证服务器能正确处理
+            usleep(8000);  // 8ms延迟，提高响应速度
+        }
+        
+        NSLog(@"📜 [ScrcpyVNCClient] Scroll event sent: %d steps %@ at position (%d,%d), remaining accumulator: %.2f", 
+              scrollSteps, (scrollButton == 4) ? @"UP" : @"DOWN", self.currentMouseX, self.currentMouseY, self.scrollAccumulatorY);
+    } else {
+        NSLog(@"📜 [ScrcpyVNCClient] Scroll accumulating: %.2f (threshold: %.1f)", 
+              self.scrollAccumulatorY, kScrollThreshold);
     }
 }
 

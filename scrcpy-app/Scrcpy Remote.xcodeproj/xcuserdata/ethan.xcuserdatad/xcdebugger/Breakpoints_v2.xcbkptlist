@@ -2397,7 +2397,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1720"
             endingLineNumber = "1720"
-            landmarkName = "-handleDrag:"
+            landmarkName = "-gestureRecognizer:shouldReceiveTouch:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2491,7 +2491,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1558"
             endingLineNumber = "1558"
-            landmarkName = "-removeTapGesture"
+            landmarkName = "-addTapGesture"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2587,7 +2587,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1368"
             endingLineNumber = "1368"
-            landmarkName = "-handleVNCPinch:"
+            landmarkName = "-getSDLWindow"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2662,6 +2662,22 @@
             startingLineNumber = "497"
             endingLineNumber = "497"
             landmarkName = "-handleVNCDragOffset:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CBABCBC1-8B9A-4A13-85A5-AD3CFCDF3820"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "VNCClient/ScrcpyVNCClient.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "632"
+            endingLineNumber = "632"
+            landmarkName = "-sendMouseScrollWithOffset:viewSize:zoomScale:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

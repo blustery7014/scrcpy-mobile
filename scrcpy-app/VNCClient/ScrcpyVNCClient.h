@@ -43,6 +43,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) int dragStartMouseX;
 @property (nonatomic, assign) int dragStartMouseY;
 
+// 滚动累积值（用于平滑滚动）
+@property (nonatomic, assign) CGFloat scrollAccumulatorY;
+
+// 上一次滚动的偏移量（用于计算增量）
+@property (nonatomic, assign) CGPoint lastScrollOffset;
+
 - (UIWindowScene *)currentScene;
 
 /// 启动VNC连接并显示
@@ -63,6 +69,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param y 点击Y坐标
 /// @param isRightClick 是否为右键点击
 - (void)sendMouseClickAtX:(int)x y:(int)y isRightClick:(BOOL)isRightClick;
+
+/// 发送鼠标滚动事件到远程桌面
+/// @param offset 滚动偏移量
+/// @param viewSize 视图尺寸
+/// @param zoomScale 缩放倍数
+- (void)sendMouseScrollWithOffset:(CGPoint)offset viewSize:(CGSize)viewSize zoomScale:(CGFloat)zoomScale;
 
 @end
 

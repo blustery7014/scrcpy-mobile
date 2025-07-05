@@ -28,6 +28,7 @@ extern NSString * const kUserDefaultsPositionRatioY;
 extern NSString * const kNotificationVNCDrag;
 extern NSString * const kNotificationVNCDragOffset;
 extern NSString * const kNotificationVNCMouseEvent;
+extern NSString * const kNotificationVNCScrollEvent;
 
 // Device Types
 extern NSString * const kDeviceTypeVNC;
@@ -39,6 +40,7 @@ extern NSString * const kMouseEventTypeDragStart;
 extern NSString * const kMouseEventTypeDrag;
 extern NSString * const kMouseEventTypeDragEnd;
 extern NSString * const kMouseEventTypeClick;
+extern NSString * const kMouseEventTypeScroll;
 
 // Drag States
 extern NSString * const kDragStateBegan;

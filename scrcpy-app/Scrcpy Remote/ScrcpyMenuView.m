@@ -82,10 +82,12 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 @property (nonatomic, assign) CGFloat gestureStartCenterY;
 
 // VNC 拖拽相关
-@property (nonatomic, strong) UIPanGestureRecognizer *dragGesture;
+@property (nonatomic, strong) UIPanGestureRecognizer *dragGesture;  // 单指拖拽（鼠标移动）
+@property (nonatomic, strong) UIPanGestureRecognizer *scrollGesture; // 双指滚动
 @property (nonatomic, assign) CGPoint dragStartLocation;
 @property (nonatomic, assign) CGPoint currentDragOffset;
 @property (nonatomic, assign) CGPoint totalDragOffset;
+@property (nonatomic, assign) BOOL isScrolling; // 滚动状态标识
 
 // VNC 点击相关
 @property (nonatomic, strong) UITapGestureRecognizer *vncTapGesture;
@@ -136,6 +138,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         
         // Set initial frame size based on capsule dimensions
         self.frame = CGRectMake(0, 0, kCapsuleWidth, kCapsuleHeight);
+        
+        // 初始化手势状态
+        self.isDragging = NO;
+        self.isScrolling = NO;
+        self.currentZoomScale = 1.0;
+        self.currentDragOffset = CGPointZero;
+        self.totalDragOffset = CGPointZero;
         
         // Register for orientation change notifications
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -985,11 +994,14 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         self.disconnectButton.hidden = NO;
         
         // 为VNC设备添加手势（延迟添加以确保SDL窗口初始化完成）
+        LOG_POSITION(@"🐆 [ScrcpyMenuView] Scheduling VNC gestures setup with 0.3s delay");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            LOG_POSITION(@"🐆 [ScrcpyMenuView] Adding VNC gestures now");
             [self addPinchGesture];
             [self addDragGesture];
             [self addTapGesture];
             [self setupGesturePriorities];
+            LOG_POSITION(@"🐆 [ScrcpyMenuView] VNC gestures setup completed");
         });
         
         LOG_POSITION(@"Configured menu for VNC device - limited buttons visible and pinch gesture enabled");
@@ -1483,17 +1495,28 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return;
     }
     
-    // 创建拖拽手势识别器
+    // 创建单指拖拽手势识别器（鼠标移动）
     self.dragGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
     self.dragGesture.delegate = self;
     self.dragGesture.minimumNumberOfTouches = 1;
-    self.dragGesture.maximumNumberOfTouches = 2;
+    self.dragGesture.maximumNumberOfTouches = 1;  // 仅单指
+    LOG_POSITION(@"✅ Created single-finger drag gesture: %@", self.dragGesture);
+    
+    // 创建双指滚动手势识别器
+    self.scrollGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleScroll:)];
+    self.scrollGesture.delegate = self;
+    self.scrollGesture.minimumNumberOfTouches = 2;
+    self.scrollGesture.maximumNumberOfTouches = 2;  // 仅双指
+    LOG_POSITION(@"✅ Created two-finger scroll gesture: %@", self.scrollGesture);
     
     // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
     if (rootVC && rootVC.view && rootVC.view.window) {
         [rootVC.view.window addGestureRecognizer:self.dragGesture];
-        LOG_POSITION(@"✅ Added drag gesture to SDL window");
+        [rootVC.view.window addGestureRecognizer:self.scrollGesture];
+        LOG_POSITION(@"✅ Added drag and scroll gestures to SDL window: %@", rootVC.view.window);
+        LOG_POSITION(@"✅ Drag gesture added: %@", self.dragGesture);
+        LOG_POSITION(@"✅ Scroll gesture added: %@", self.scrollGesture);
     } else {
         LOG_POSITION(@"⚠️ Cannot add drag gesture - SDL window or root view controller not found");
     }
@@ -1503,15 +1526,21 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     if (self.dragGesture) {
         [self.dragGesture.view removeGestureRecognizer:self.dragGesture];
         self.dragGesture = nil;
-        LOG_POSITION(@"🗑️ Removed VNC drag gesture");
     }
+    if (self.scrollGesture) {
+        [self.scrollGesture.view removeGestureRecognizer:self.scrollGesture];
+        self.scrollGesture = nil;
+    }
+    LOG_POSITION(@"🗑️ Removed VNC drag and scroll gestures");
 }
 
 - (void)resetDragOffset {
     self.currentDragOffset = CGPointZero;
     self.totalDragOffset = CGPointZero;
     self.dragStartLocation = CGPointZero;
-    LOG_POSITION(@"🔄 Reset drag offset to zero");
+    self.isDragging = NO;
+    self.isScrolling = NO;
+    LOG_POSITION(@"🔄 Reset drag offset and states to zero");
 }
 
 #pragma mark - VNC Tap Gesture Management
@@ -1627,29 +1656,39 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 #pragma mark - UIGestureRecognizerDelegate
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
-    // 在拖拽过程中，禁止点击手势与任何其他手势同时进行
-    if (self.isDragging) {
+    LOG_POSITION(@"🤝 [ScrcpyMenuView] shouldRecognizeSimultaneously - gesture1: %@, gesture2: %@", 
+                 gestureRecognizer.class, otherGestureRecognizer.class);
+    
+    // 在拖拽或滚动过程中，禁止点击手势与任何其他手势同时进行
+    if (self.isDragging || self.isScrolling) {
         if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture ||
             otherGestureRecognizer == self.vncTapGesture || otherGestureRecognizer == self.vncTwoFingerTapGesture) {
             return NO;
         }
     }
     
+    // 双指滚动与单指拖拽不能同时进行（互相排斥）
+    if ((gestureRecognizer == self.scrollGesture && otherGestureRecognizer == self.dragGesture) ||
+        (gestureRecognizer == self.dragGesture && otherGestureRecognizer == self.scrollGesture)) {
+        LOG_POSITION(@"⛔ [ScrcpyMenuView] Preventing simultaneous drag and scroll");
+        return NO;
+    }
+    
     // 点击手势不与拖拽手势同时进行
-    if ((gestureRecognizer == self.vncTapGesture && (otherGestureRecognizer == self.dragGesture)) ||
-        (gestureRecognizer == self.dragGesture && (otherGestureRecognizer == self.vncTapGesture))) {
+    if ((gestureRecognizer == self.vncTapGesture && (otherGestureRecognizer == self.dragGesture || otherGestureRecognizer == self.scrollGesture)) ||
+        ((gestureRecognizer == self.dragGesture || gestureRecognizer == self.scrollGesture) && otherGestureRecognizer == self.vncTapGesture)) {
         return NO;
     }
     
-    // 两指点击手势不与拖拽手势同时进行
-    if ((gestureRecognizer == self.vncTwoFingerTapGesture && (otherGestureRecognizer == self.dragGesture)) ||
-        (gestureRecognizer == self.dragGesture && (otherGestureRecognizer == self.vncTwoFingerTapGesture))) {
+    // 两指点击手势不与拖拽或滚动手势同时进行
+    if ((gestureRecognizer == self.vncTwoFingerTapGesture && (otherGestureRecognizer == self.dragGesture || otherGestureRecognizer == self.scrollGesture)) ||
+        ((gestureRecognizer == self.dragGesture || gestureRecognizer == self.scrollGesture) && otherGestureRecognizer == self.vncTwoFingerTapGesture)) {
         return NO;
     }
     
-    // 允许Pinch手势与拖拽手势同时进行
-    if ((gestureRecognizer == self.pinchGesture && otherGestureRecognizer == self.dragGesture) ||
-        (gestureRecognizer == self.dragGesture && otherGestureRecognizer == self.pinchGesture)) {
+    // 允许Pinch手势与拖拽或滚动手势同时进行
+    if ((gestureRecognizer == self.pinchGesture && (otherGestureRecognizer == self.dragGesture || otherGestureRecognizer == self.scrollGesture)) ||
+        ((gestureRecognizer == self.dragGesture || gestureRecognizer == self.scrollGesture) && otherGestureRecognizer == self.pinchGesture)) {
         return YES;
     }
     
@@ -1658,37 +1697,70 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
-    // 在拖拽过程中，阻止点击手势接收触摸事件
-    if (self.isDragging) {
+    LOG_POSITION(@"🐆 [ScrcpyMenuView] shouldReceiveTouch - gesture: %@, isDragging: %@, isScrolling: %@, deviceType: %ld", 
+                 gestureRecognizer.class, self.isDragging ? @"YES" : @"NO", self.isScrolling ? @"YES" : @"NO", (long)self.currentDeviceType);
+    
+    // 在拖拽或滚动过程中，阻止点击手势接收触摸事件
+    if (self.isDragging || self.isScrolling) {
         if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture) {
-            NSLog(@"🚫 [ScrcpyMenuView] Blocking tap gesture during drag");
+            NSLog(@"🚫 [ScrcpyMenuView] Blocking tap gesture during drag/scroll");
             return NO;
         }
     }
     
-    // 确保Pinch手势只在VNC设备时响应
+    // 在滚动过程中，阻止单指拖拽手势接收触摸事件
+    if (self.isScrolling && gestureRecognizer == self.dragGesture) {
+        NSLog(@"🚫 [ScrcpyMenuView] Blocking single-finger drag during scroll");
+        return NO;
+    }
+    
+    // 在单指拖拽过程中，阻止双指滚动手势接收触摸事件
+    if (self.isDragging && gestureRecognizer == self.scrollGesture) {
+        NSLog(@"🚫 [ScrcpyMenuView] Blocking two-finger scroll during drag");
+        return NO;
+    }
+    
+    // 确俚Pinch手势只在VNC设备时响应
     if (gestureRecognizer == self.pinchGesture) {
-        return self.currentDeviceType == ScrcpyDeviceTypeVNC;
+        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
+        LOG_POSITION(@"🔍 [ScrcpyMenuView] Pinch gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
+        return shouldReceive;
     }
     // 确保拖拽手势只在VNC设备时响应
     if (gestureRecognizer == self.dragGesture) {
-        return self.currentDeviceType == ScrcpyDeviceTypeVNC;
+        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
+        LOG_POSITION(@"🔍 [ScrcpyMenuView] Drag gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
+        return shouldReceive;
+    }
+    // 确保滚动手势只在VNC设备时响应
+    if (gestureRecognizer == self.scrollGesture) {
+        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
+        LOG_POSITION(@"🔍 [ScrcpyMenuView] Scroll gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
+        return shouldReceive;
     }
     // 确保点击手势只在VNC设备时响应
     if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture) {
-        return self.currentDeviceType == ScrcpyDeviceTypeVNC;
+        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
+        LOG_POSITION(@"🔍 [ScrcpyMenuView] Tap gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
+        return shouldReceive;
     }
     return YES;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
-    // 让其他手势等待点击手势失败，确保点击优先响应
+    LOG_POSITION(@"⏳ [ScrcpyMenuView] shouldRequireFailure - gesture: %@, waitFor: %@", 
+                 gestureRecognizer.class, otherGestureRecognizer.class);
+    
+    // 简化逻辑：只让非点击手势等待点击手势失败
     if (otherGestureRecognizer == self.vncTapGesture) {
-        // 其他手势应该等待点击手势失败（除了拖拽手势，因为它需要2-3个手指）
-        if (gestureRecognizer != self.dragGesture) {
+        // 其他手势应该等待点击手势失败（除了拖拽和滚动手势，因为它们使用不同数量的手指）
+        if (gestureRecognizer != self.dragGesture && gestureRecognizer != self.scrollGesture) {
+            LOG_POSITION(@"⏳ [ScrcpyMenuView] Gesture %@ will wait for tap to fail", gestureRecognizer.class);
             return YES;
         }
     }
+    
+    // 不设置任何其他优先级，让手势系统根据手指数量自动选择
     return NO;
 }
 
@@ -1700,22 +1772,28 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 #pragma mark - Drag Gesture Handler
 
 - (void)handleDrag:(UIPanGestureRecognizer *)gesture {
+    LOG_POSITION(@"🎯 [ScrcpyMenuView] handleDrag called - state: %ld, deviceType: %ld", (long)gesture.state, (long)self.currentDeviceType);
+    
     if (self.currentDeviceType != ScrcpyDeviceTypeVNC) {
+        LOG_POSITION(@"⚠️ [ScrcpyMenuView] handleDrag ignored - not VNC device");
         return;
     }
     
-    // 获取拖拽位置和视图尺寸
+    // 单指拖拽手势，用于鼠标移动
     CGPoint location = [gesture locationInView:gesture.view];
     CGSize viewSize = gesture.view.bounds.size;
     
+    LOG_POSITION(@"🎯 VNC Single-finger drag gesture - state: %ld, location: (%.1f, %.1f)", 
+                 (long)gesture.state, location.x, location.y);
+    
     switch (gesture.state) {
         case UIGestureRecognizerStateBegan: {
-            // 记录拖拽开始位置并设置拖拽状态
+            // 记录单指拖拽开始位置并设置拖拽状态
             self.dragStartLocation = location;
             self.currentDragOffset = CGPointZero;
             self.isDragging = YES;
             
-            LOG_POSITION(@"🎯 VNC Drag gesture began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f), isDragging: %@", 
+            LOG_POSITION(@"🎯 VNC Single-finger drag began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f), isDragging: %@", 
                          location.x, location.y, viewSize.width, viewSize.height, self.isDragging ? @"YES" : @"NO");
             
             // 通知代理拖拽开始
@@ -1732,7 +1810,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         }
             
         case UIGestureRecognizerStateChanged: {
-            // 计算当前拖拽偏移量（相对于开始位置）
+            // 计算当前单指拖拽偏移量（相对于开始位置）
             CGPoint translation = [gesture translationInView:gesture.view];
             self.currentDragOffset = translation;
             
@@ -1744,7 +1822,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
             normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
             
-            LOG_POSITION(@"🎯 VNC Drag gesture changed - location: (%.1f, %.1f), translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
+            LOG_POSITION(@"🎯 VNC Single-finger drag changed - location: (%.1f, %.1f), translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
                          location.x, location.y, translation.x, translation.y, normalizedOffsetX, normalizedOffsetY);
             
             // 通知代理拖拽移动（包含偏移量信息）
@@ -1771,7 +1849,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         }
             
         case UIGestureRecognizerStateEnded: {
-            // 计算最终拖拽偏移量
+            // 计算最终单指拖拽偏移量
             CGPoint translation = [gesture translationInView:gesture.view];
             self.currentDragOffset = translation;
             self.totalDragOffset = CGPointMake(self.totalDragOffset.x + translation.x, 
@@ -1783,7 +1861,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
             normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
             
-            LOG_POSITION(@"🎯 VNC Drag gesture ended - location: (%.1f, %.1f), final translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
+            LOG_POSITION(@"🎯 VNC Single-finger drag ended - location: (%.1f, %.1f), final translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
                          location.x, location.y, translation.x, translation.y, normalizedOffsetX, normalizedOffsetY);
             
             // 通知代理拖拽结束（包含偏移量信息）
@@ -1809,15 +1887,15 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 重置拖拽状态
             self.isDragging = NO;
-            LOG_POSITION(@"🎯 VNC Drag gesture ended - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
+            LOG_POSITION(@"🎯 VNC Single-finger drag ended - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
             break;
         }
             
         case UIGestureRecognizerStateCancelled: {
-            // 重置拖拽偏移量
+            // 重置单指拖拽偏移量
             self.currentDragOffset = CGPointZero;
             
-            LOG_POSITION(@"🎯 VNC Drag gesture cancelled - location: (%.1f, %.1f)", location.x, location.y);
+            LOG_POSITION(@"🎯 VNC Single-finger drag cancelled - location: (%.1f, %.1f)", location.x, location.y);
             
             // 通知代理拖拽取消
             if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
@@ -1832,7 +1910,101 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 重置拖拽状态
             self.isDragging = NO;
-            LOG_POSITION(@"🎯 VNC Drag gesture cancelled - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
+            LOG_POSITION(@"🎯 VNC Single-finger drag cancelled - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
+            break;
+        }
+            
+        default:
+            break;
+    }
+}
+
+#pragma mark - Scroll Gesture Handler
+
+- (void)handleScroll:(UIPanGestureRecognizer *)gesture {
+    LOG_POSITION(@"📜 [ScrcpyMenuView] handleScroll called - state: %ld, deviceType: %ld", (long)gesture.state, (long)self.currentDeviceType);
+    
+    if (self.currentDeviceType != ScrcpyDeviceTypeVNC) {
+        LOG_POSITION(@"⚠️ [ScrcpyMenuView] handleScroll ignored - not VNC device");
+        return;
+    }
+    
+    // 双指滚动手势，用于滚动操作
+    CGPoint location = [gesture locationInView:gesture.view];
+    CGSize viewSize = gesture.view.bounds.size;
+    
+    LOG_POSITION(@"📜 VNC Two-finger scroll gesture - state: %ld, location: (%.1f, %.1f)", 
+                 (long)gesture.state, location.x, location.y);
+    
+    switch (gesture.state) {
+        case UIGestureRecognizerStateBegan: {
+            // 记录滚动开始位置并设置滚动状态
+            self.dragStartLocation = location;
+            self.currentDragOffset = CGPointZero;
+            self.isScrolling = YES;
+            
+            LOG_POSITION(@"📜 VNC Two-finger scroll began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f), isScrolling: %@", 
+                         location.x, location.y, viewSize.width, viewSize.height, self.isScrolling ? @"YES" : @"NO");
+            
+            // 发送滚动开始通知
+            [self sendScrollNotificationWithState:kDragStateBegan 
+                                          location:location 
+                                          viewSize:viewSize 
+                                            offset:CGPointZero];
+            break;
+        }
+            
+        case UIGestureRecognizerStateChanged: {
+            // 计算当前滚动偏移量（相对于开始位置）
+            CGPoint translation = [gesture translationInView:gesture.view];
+            self.currentDragOffset = translation;
+            
+            LOG_POSITION(@"📜 VNC Two-finger scroll changed - location: (%.1f, %.1f), translation: (%.1f, %.1f)", 
+                         location.x, location.y, translation.x, translation.y);
+            
+            // 发送滚动移动通知
+            [self sendScrollNotificationWithState:kDragStateChanged 
+                                          location:location 
+                                          viewSize:viewSize 
+                                            offset:translation];
+            break;
+        }
+            
+        case UIGestureRecognizerStateEnded: {
+            // 计算最终滚动偏移量
+            CGPoint translation = [gesture translationInView:gesture.view];
+            self.currentDragOffset = translation;
+            
+            LOG_POSITION(@"📜 VNC Two-finger scroll ended - location: (%.1f, %.1f), final translation: (%.1f, %.1f)", 
+                         location.x, location.y, translation.x, translation.y);
+            
+            // 发送滚动结束通知
+            [self sendScrollNotificationWithState:kDragStateEnded 
+                                          location:location 
+                                          viewSize:viewSize 
+                                            offset:translation];
+            
+            // 重置滚动状态
+            self.isScrolling = NO;
+            LOG_POSITION(@"📜 VNC Two-finger scroll ended - isScrolling reset to: %@", self.isScrolling ? @"YES" : @"NO");
+            break;
+        }
+            
+        case UIGestureRecognizerStateCancelled: {
+            // 重置滚动偏移量
+            self.currentDragOffset = CGPointZero;
+            
+            LOG_POSITION(@"📜 VNC Two-finger scroll cancelled - location: (%.1f, %.1f)", location.x, location.y);
+            
+            // 发送滚动取消通知
+            [self sendScrollNotificationWithState:kDragStateCancelled 
+                                          location:location 
+                                          viewSize:viewSize 
+                                            offset:CGPointZero];
+            
+            // 重置滚动状态
+            self.isScrolling = NO;
+            LOG_POSITION(@"📜 VNC Two-finger scroll cancelled - isScrolling reset to: %@", self.isScrolling ? @"YES" : @"NO");
             break;
         }
             
@@ -1882,6 +2054,36 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         kKeyZoomScale: @(self.currentZoomScale)
     };
     [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDragOffset object:nil userInfo:userInfo];
+}
+
+#pragma mark - VNC Scroll Event Handling
+
+// 发送滚动事件通知
+- (void)sendScrollNotificationWithState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize offset:(CGPoint)offset {
+    // 计算归一化的偏移量（相对于视图尺寸的比例）
+    CGFloat normalizedOffsetX = offset.x / viewSize.width;
+    CGFloat normalizedOffsetY = offset.y / viewSize.height;
+    
+    // 确保归一化偏移量在合理范围内
+    normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
+    normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
+    
+    CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
+    
+    LOG_POSITION(@"📜 [ScrcpyMenuView] Sending scroll notification - state: %@, offset: (%.1f, %.1f), normalized: (%.3f, %.3f)", 
+                 state, offset.x, offset.y, normalizedOffset.x, normalizedOffset.y);
+    
+    // 发送VNC滚动事件通知
+    NSDictionary *userInfo = @{
+        kKeyState: state,
+        kKeyLocation: [NSValue valueWithCGPoint:location],
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize],
+        kKeyOffset: [NSValue valueWithCGPoint:offset],
+        kKeyNormalizedOffset: [NSValue valueWithCGPoint:normalizedOffset],
+        kKeyZoomScale: @(self.currentZoomScale),
+        kKeyType: kMouseEventTypeScroll  // 添加滚动事件类型标识
+    };
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCScrollEvent object:nil userInfo:userInfo];
 }
 
 #pragma mark - VNC Touch Event Forwarding
