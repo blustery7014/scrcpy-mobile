@@ -39,6 +39,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) int currentMouseX;
 @property (nonatomic, assign) int currentMouseY;
 
+// 拖拽开始时的鼠标位置（用于计算拖拽偏移的起点）
+@property (nonatomic, assign) int dragStartMouseX;
+@property (nonatomic, assign) int dragStartMouseY;
+
 - (UIWindowScene *)currentScene;
 
 /// 启动VNC连接并显示

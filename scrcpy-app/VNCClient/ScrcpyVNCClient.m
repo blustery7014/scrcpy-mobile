@@ -48,6 +48,12 @@
                                                  selector:@selector(handleVNCDragOffset:)
                                                      name:kNotificationVNCDragOffset
                                                    object:nil];
+        
+        // 监听VNC拖拽状态通知（用于记录拖拽开始位置）
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCDragState:)
+                                                     name:kNotificationVNCDrag
+                                                   object:nil];
     }
     return self;
 }
@@ -461,8 +467,8 @@
     CGSize viewSize = [viewSizeValue CGSizeValue];
     CGFloat zoomScale = zoomScaleNumber ? [zoomScaleNumber floatValue] : 1.0;
     
-    // 计算远程内容在本地屏幕上的实际显示比例
-    // 这样可以保持拖拽距离与鼠标移动距离在视觉上的一致性
+    // 直接将手势移动距离乘以远程桌面的缩放系数
+    // 这样可以保持手势移动距离与远程鼠标移动距离的1:1对应关系
     
     // 获取远程屏幕尺寸
     int remoteWidth = self.rfbClient->width;
@@ -473,37 +479,69 @@
     CGFloat scaleY = viewSize.height / (CGFloat)remoteHeight;
     CGFloat displayScale = MIN(scaleX, scaleY);  // 取较小值保持比例
     
-    // 计算远程内容在本地的实际显示尺寸
-    CGFloat displayedRemoteWidth = remoteWidth * displayScale;
-    CGFloat displayedRemoteHeight = remoteHeight * displayScale;
+    // 将归一化偏移量转换为实际像素距离
+    CGFloat pixelOffsetX = normalizedOffset.x * viewSize.width;
+    CGFloat pixelOffsetY = normalizedOffset.y * viewSize.height;
     
-    // 计算拖拽偏移量相对于远程内容显示区域的比例
-    CGFloat relativeOffsetX = (normalizedOffset.x * viewSize.width) / displayedRemoteWidth;
-    CGFloat relativeOffsetY = (normalizedOffset.y * viewSize.height) / displayedRemoteHeight;
+    // 将手势移动距离乘以远程桌面的缩放系数（displayScale的倒数）
+    // 这样手势在屏幕上移动的距离就等于远程鼠标移动的距离
+    CGFloat remoteOffsetX = pixelOffsetX / displayScale;
+    CGFloat remoteOffsetY = pixelOffsetY / displayScale;
     
     // 考虑用户缩放倍数进行精细控制调整
-    CGFloat finalOffsetX = relativeOffsetX / zoomScale;
-    CGFloat finalOffsetY = relativeOffsetY / zoomScale;
+    CGFloat finalOffsetX = remoteOffsetX / zoomScale;
+    CGFloat finalOffsetY = remoteOffsetY / zoomScale;
     
-    // 转换为远程屏幕像素偏移量
-    int offsetX = (int)(finalOffsetX * remoteWidth);
-    int offsetY = (int)(finalOffsetY * remoteHeight);
+    // 转换为整数像素偏移量
+    int offsetX = (int)round(finalOffsetX);
+    int offsetY = (int)round(finalOffsetY);
     
-    // 计算新的鼠标位置
-    int newMouseX = self.currentMouseX + offsetX;
-    int newMouseY = self.currentMouseY + offsetY;
+    // 使用拖拽开始时的鼠标位置作为起点计算新的鼠标位置
+    int newMouseX = self.dragStartMouseX + offsetX;
+    int newMouseY = self.dragStartMouseY + offsetY;
     
-    NSLog(@"🎯 [ScrcpyVNCClient] Drag offset calculation:");
+    NSLog(@"🎯 [ScrcpyVNCClient] Drag offset calculation (1:1 scale):");
     NSLog(@"   Remote: %dx%d, View: %.0fx%.0f, DisplayScale: %.3f", 
           remoteWidth, remoteHeight, viewSize.width, viewSize.height, displayScale);
-    NSLog(@"   DisplayedRemoteSize: %.1fx%.1f", displayedRemoteWidth, displayedRemoteHeight);
-    NSLog(@"   Normalized: (%.3f,%.3f) -> Relative: (%.3f,%.3f) -> Final: (%.3f,%.3f) / Zoom: %.2f", 
-          normalizedOffset.x, normalizedOffset.y, relativeOffsetX, relativeOffsetY, finalOffsetX, finalOffsetY, zoomScale);
-    NSLog(@"   Pixel offset: (%d,%d), Mouse: (%d,%d) -> (%d,%d)", 
-          offsetX, offsetY, self.currentMouseX, self.currentMouseY, newMouseX, newMouseY);
+    NSLog(@"   Normalized: (%.3f,%.3f) -> Pixel: (%.1f,%.1f) -> Remote: (%.1f,%.1f) -> Final: (%.1f,%.1f) / Zoom: %.2f", 
+          normalizedOffset.x, normalizedOffset.y, pixelOffsetX, pixelOffsetY, remoteOffsetX, remoteOffsetY, finalOffsetX, finalOffsetY, zoomScale);
+    NSLog(@"   Pixel offset: (%d,%d), DragStart: (%d,%d) -> New: (%d,%d)", 
+          offsetX, offsetY, self.dragStartMouseX, self.dragStartMouseY, newMouseX, newMouseY);
     
     // 移动鼠标到新位置
     [self moveMouseToX:newMouseX y:newMouseY];
+}
+
+- (void)handleVNCDragState:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle drag state: VNC not connected");
+        return;
+    }
+    
+    NSDictionary *userInfo = notification.userInfo;
+    if (!userInfo) {
+        NSLog(@"❌ [ScrcpyVNCClient] Drag state notification missing userInfo");
+        return;
+    }
+    
+    NSString *state = userInfo[kKeyState];
+    if (!state) {
+        NSLog(@"❌ [ScrcpyVNCClient] Drag state notification missing state");
+        return;
+    }
+    
+    if ([state isEqualToString:kDragStateBegan]) {
+        // 拖拽开始时记录当前鼠标位置作为起点
+        self.dragStartMouseX = self.currentMouseX;
+        self.dragStartMouseY = self.currentMouseY;
+        
+        NSLog(@"🎯 [ScrcpyVNCClient] Drag began - recorded start position: (%d,%d)", 
+              self.dragStartMouseX, self.dragStartMouseY);
+    } else if ([state isEqualToString:kDragStateEnded] || [state isEqualToString:kDragStateCancelled]) {
+        // 拖拽结束时可以进行清理（如果需要）
+        NSLog(@"🎯 [ScrcpyVNCClient] Drag %@ - start position was: (%d,%d), final position: (%d,%d)", 
+              state, self.dragStartMouseX, self.dragStartMouseY, self.currentMouseX, self.currentMouseY);
+    }
 }
 
 @end
