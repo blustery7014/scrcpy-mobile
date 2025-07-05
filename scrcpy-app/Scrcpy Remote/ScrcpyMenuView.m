@@ -89,7 +89,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 // VNC 点击相关
 @property (nonatomic, strong) UITapGestureRecognizer *vncTapGesture;
-@property (nonatomic, strong) UITapGestureRecognizer *vncDoubleTapGesture;
+@property (nonatomic, strong) UITapGestureRecognizer *vncTwoFingerTapGesture;
 
 // VNC 触摸事件追踪相关
 @property (nonatomic, assign) NSTimeInterval touchStartTime;
@@ -1527,27 +1527,24 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return;
     }
     
-    // 创建点击手势识别器
+    // 创建单指点击手势识别器（左键点击）
     self.vncTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCTap:)];
     self.vncTapGesture.delegate = self;
     self.vncTapGesture.numberOfTapsRequired = 1;
     self.vncTapGesture.numberOfTouchesRequired = 1;
     
-    // 创建双击手势识别器（用于右键点击）
-    self.vncDoubleTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCDoubleTap:)];
-    self.vncDoubleTapGesture.delegate = self;
-    self.vncDoubleTapGesture.numberOfTapsRequired = 2;
-    self.vncDoubleTapGesture.numberOfTouchesRequired = 1;
-    
-    // 让单击手势等待双击手势失败，这样可以正确区分单击和双击
-    [self.vncTapGesture requireGestureRecognizerToFail:self.vncDoubleTapGesture];
+    // 创建两指点击手势识别器（右键点击，类似TrackPad操作）
+    self.vncTwoFingerTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCTwoFingerTap:)];
+    self.vncTwoFingerTapGesture.delegate = self;
+    self.vncTwoFingerTapGesture.numberOfTapsRequired = 1;
+    self.vncTwoFingerTapGesture.numberOfTouchesRequired = 2;
     
     // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
     if (rootVC && rootVC.view && rootVC.view.window) {
         [rootVC.view.window addGestureRecognizer:self.vncTapGesture];
-        [rootVC.view.window addGestureRecognizer:self.vncDoubleTapGesture];
-        LOG_POSITION(@"✅ Added tap and double-tap gestures to SDL window");
+        [rootVC.view.window addGestureRecognizer:self.vncTwoFingerTapGesture];
+        LOG_POSITION(@"✅ Added tap and two-finger tap gestures to SDL window");
     } else {
         LOG_POSITION(@"⚠️ Cannot add tap gesture - SDL window or root view controller not found");
     }
@@ -1558,9 +1555,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         [self.vncTapGesture.view removeGestureRecognizer:self.vncTapGesture];
         self.vncTapGesture = nil;
     }
-    if (self.vncDoubleTapGesture) {
-        [self.vncDoubleTapGesture.view removeGestureRecognizer:self.vncDoubleTapGesture];
-        self.vncDoubleTapGesture = nil;
+    if (self.vncTwoFingerTapGesture) {
+        [self.vncTwoFingerTapGesture.view removeGestureRecognizer:self.vncTwoFingerTapGesture];
+        self.vncTwoFingerTapGesture = nil;
     }
     LOG_POSITION(@"🗑️ Removed VNC tap gestures");
 }
@@ -1589,7 +1586,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
 }
 
-- (void)handleVNCDoubleTap:(UITapGestureRecognizer *)gesture {
+- (void)handleVNCTwoFingerTap:(UITapGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateEnded) {
         return;
     }
@@ -1597,10 +1594,10 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     CGPoint location = [gesture locationInView:gesture.view];
     CGSize viewSize = gesture.view.bounds.size;
     
-    // 双击作为右键点击
+    // 两指点击作为右键点击（类似TrackPad操作）
     BOOL isRightClick = YES;
     
-    NSLog(@"🎯 [ScrcpyMenuView] VNC double-tap gesture (right click) at (%.1f, %.1f), view size: (%.1fx%.1f)", 
+    NSLog(@"🎯 [ScrcpyMenuView] VNC two-finger tap gesture (right click) at (%.1f, %.1f), view size: (%.1fx%.1f)", 
           location.x, location.y, viewSize.width, viewSize.height);
     
     // 发送右键点击事件通知
@@ -1632,8 +1629,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
     // 在拖拽过程中，禁止点击手势与任何其他手势同时进行
     if (self.isDragging) {
-        if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncDoubleTapGesture ||
-            otherGestureRecognizer == self.vncTapGesture || otherGestureRecognizer == self.vncDoubleTapGesture) {
+        if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture ||
+            otherGestureRecognizer == self.vncTapGesture || otherGestureRecognizer == self.vncTwoFingerTapGesture) {
             return NO;
         }
     }
@@ -1644,9 +1641,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return NO;
     }
     
-    // 双击手势不与拖拽手势同时进行
-    if ((gestureRecognizer == self.vncDoubleTapGesture && (otherGestureRecognizer == self.dragGesture)) ||
-        (gestureRecognizer == self.dragGesture && (otherGestureRecognizer == self.vncDoubleTapGesture))) {
+    // 两指点击手势不与拖拽手势同时进行
+    if ((gestureRecognizer == self.vncTwoFingerTapGesture && (otherGestureRecognizer == self.dragGesture)) ||
+        (gestureRecognizer == self.dragGesture && (otherGestureRecognizer == self.vncTwoFingerTapGesture))) {
         return NO;
     }
     
@@ -1663,7 +1660,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
     // 在拖拽过程中，阻止点击手势接收触摸事件
     if (self.isDragging) {
-        if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncDoubleTapGesture) {
+        if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture) {
             NSLog(@"🚫 [ScrcpyMenuView] Blocking tap gesture during drag");
             return NO;
         }
@@ -1678,7 +1675,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return self.currentDeviceType == ScrcpyDeviceTypeVNC;
     }
     // 确保点击手势只在VNC设备时响应
-    if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncDoubleTapGesture) {
+    if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture) {
         return self.currentDeviceType == ScrcpyDeviceTypeVNC;
     }
     return YES;
