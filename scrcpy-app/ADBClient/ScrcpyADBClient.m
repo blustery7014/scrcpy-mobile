@@ -400,6 +400,14 @@ void ScrcpyTryResetVideo(void) {
     
     scrcpy_main((int)startArgs.count, (char **)args);
     SDL_iPhoneSetEventPump(SDL_FALSE);
+    
+    // Remove SDL event filter to avoid blocking events
+    // This caused sync clipboard from remote not working
+    // See: #2    0x00000001053520dc in sc_post_to_main_thread at /Users/ethan/Src/github.com/scrcpy-mobile/scrcpy/app/src/events.c:33
+    // #1    0x0000000102127528 in SDL_PushEvent at /Users/ethan/Downloads/SDL2-2.0.22/src/events/SDL_events.c:1110
+    // Clipboard update event is not processed by SDL event filter
+    NSLog(@"Removing SDL event filter to avoid blocking events");
+    SDL_SetEventFilter(NULL, NULL);
 }
 
 -(void)stopScrcpy {
