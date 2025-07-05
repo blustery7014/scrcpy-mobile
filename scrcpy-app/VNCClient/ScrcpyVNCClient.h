@@ -55,6 +55,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) CGFloat zoomCenterY;
 @property (nonatomic, assign) BOOL zoomUpdatePending;
 
+// 视图偏移量（用于边缘跟随）
+@property (nonatomic, assign) int viewOffsetX;
+@property (nonatomic, assign) int viewOffsetY;
+
+// 渲染参数（用于边缘跟随计算）
+@property (nonatomic, assign) int renderWidth;
+@property (nonatomic, assign) int renderHeight;
+@property (nonatomic, assign) int remoteDesktopWidth;
+@property (nonatomic, assign) int remoteDesktopHeight;
+
 - (UIWindowScene *)currentScene;
 
 /// 启动VNC连接并显示

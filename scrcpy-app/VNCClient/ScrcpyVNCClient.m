@@ -41,6 +41,16 @@
         self.zoomCenterY = 0.5;
         self.zoomUpdatePending = NO;
         
+        // 初始化视图偏移量
+        self.viewOffsetX = 0;
+        self.viewOffsetY = 0;
+        
+        // 初始化渲染参数
+        self.renderWidth = 0;
+        self.renderHeight = 0;
+        self.remoteDesktopWidth = 0;
+        self.remoteDesktopHeight = 0;
+        
         // 监听断开连接通知
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleDisconnectRequest:)
