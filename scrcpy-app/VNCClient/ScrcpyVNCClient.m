@@ -35,6 +35,12 @@
         self.scrollAccumulatorY = 0.0;
         self.lastScrollOffset = CGPointZero;
         
+        // 初始化缩放相关属性
+        self.currentZoomScale = 1.0;
+        self.zoomCenterX = 0.5;
+        self.zoomCenterY = 0.5;
+        self.zoomUpdatePending = NO;
+        
         // 监听断开连接通知
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleDisconnectRequest:)
@@ -63,6 +69,12 @@
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleVNCScrollEvent:)
                                                      name:kNotificationVNCScrollEvent
+                                                   object:nil];
+        
+        // 监听VNC缩放事件通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCZoomEvent:)
+                                                     name:@"ScrcpyVNCZoomNotification"
                                                    object:nil];
     }
     return self;
@@ -704,6 +716,61 @@
     } else {
         NSLog(@"📜 [ScrcpyVNCClient] Scroll accumulating: %.2f (threshold: %.1f)", 
               self.scrollAccumulatorY, kScrollThreshold);
+    }
+}
+
+- (void)handleVNCZoomEvent:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle zoom event: VNC not connected");
+        return;
+    }
+    
+    NSDictionary *userInfo = notification.userInfo;
+    if (!userInfo) {
+        NSLog(@"❌ [ScrcpyVNCClient] Zoom event notification missing userInfo");
+        return;
+    }
+    
+    NSNumber *scaleNumber = userInfo[@"scale"];
+    NSNumber *centerXNumber = userInfo[@"centerX"];
+    NSNumber *centerYNumber = userInfo[@"centerY"];
+    NSNumber *isFinishedNumber = userInfo[@"isFinished"];
+    
+    if (!scaleNumber || !centerXNumber || !centerYNumber || !isFinishedNumber) {
+        NSLog(@"❌ [ScrcpyVNCClient] Zoom event notification missing required data");
+        return;
+    }
+    
+    CGFloat scale = [scaleNumber floatValue];
+    CGFloat centerX = [centerXNumber floatValue];
+    CGFloat centerY = [centerYNumber floatValue];
+    BOOL isFinished = [isFinishedNumber boolValue];
+    
+    NSLog(@"🔍 [ScrcpyVNCClient] Zoom event - scale: %.2f, center: (%.3f, %.3f), finished: %@", 
+          scale, centerX, centerY, isFinished ? @"YES" : @"NO");
+    
+    // 这里应该实现实际的缩放逻辑，比如调整SDL视图的缩放
+    // 由于VNC协议本身不支持缩放，这里需要在客户端实现视图缩放
+    // 可以通过修改SDL渲染的视口和缩放来实现
+    
+    // 发送缩放更新到SDL渲染层
+    [self applyZoomScale:scale withCenterX:centerX centerY:centerY isFinished:isFinished];
+}
+
+- (void)applyZoomScale:(CGFloat)scale withCenterX:(CGFloat)centerX centerY:(CGFloat)centerY isFinished:(BOOL)isFinished {
+    NSLog(@"🔍 [ScrcpyVNCClient] Setting zoom scale: %.2f at center (%.3f, %.3f), finished: %@", 
+          scale, centerX, centerY, isFinished ? @"YES" : @"NO");
+    
+    // 更新缩放参数
+    self.currentZoomScale = scale;
+    self.zoomCenterX = centerX;
+    self.zoomCenterY = centerY;
+    self.zoomUpdatePending = YES;
+    
+    // 请求帧缓冲更新以触发重新渲染
+    if (self.rfbClient && self.connected) {
+        SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, FALSE);
+        NSLog(@"🔍 [ScrcpyVNCClient] Requested framebuffer update for zoom application");
     }
 }
 

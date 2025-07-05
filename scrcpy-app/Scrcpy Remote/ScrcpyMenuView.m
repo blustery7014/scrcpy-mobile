@@ -1321,6 +1321,11 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     self.pinchGesture = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(handleVNCPinch:)];
     self.pinchGesture.delegate = self;
     
+    // 配置缩放手势的基本属性
+    self.pinchGesture.delaysTouchesBegan = NO;      // 允许正常响应
+    self.pinchGesture.delaysTouchesEnded = NO;      // 允许正常结束  
+    self.pinchGesture.cancelsTouchesInView = YES;   // 取消其他手势的触摸
+    
     // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
     if (rootVC && rootVC.view && rootVC.view.window) {
@@ -1507,7 +1512,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     self.scrollGesture.delegate = self;
     self.scrollGesture.minimumNumberOfTouches = 2;
     self.scrollGesture.maximumNumberOfTouches = 2;  // 仅双指
-    LOG_POSITION(@"✅ Created two-finger scroll gesture: %@", self.scrollGesture);
+    
+    // 配置滚动手势的基本属性，不过于激进
+    self.scrollGesture.delaysTouchesBegan = NO;     // 不延迟开始触摸
+    self.scrollGesture.delaysTouchesEnded = NO;     // 不延迟结束触摸
+    self.scrollGesture.cancelsTouchesInView = NO;   // 不取消其他手势，允许竞争
+    
+    LOG_POSITION(@"✅ Created two-finger scroll gesture with priority settings: %@", self.scrollGesture);
     
     // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
@@ -1686,9 +1697,17 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return NO;
     }
     
-    // 允许Pinch手势与拖拽或滚动手势同时进行
-    if ((gestureRecognizer == self.pinchGesture && (otherGestureRecognizer == self.dragGesture || otherGestureRecognizer == self.scrollGesture)) ||
-        ((gestureRecognizer == self.dragGesture || gestureRecognizer == self.scrollGesture) && otherGestureRecognizer == self.pinchGesture)) {
+    // 双指滚动与双指缩放可以尝试同时开始，通过手势特征判断优先级
+    // 不在这里完全禁止，而是在手势开始时通过shouldBegin来判断
+    if ((gestureRecognizer == self.scrollGesture && otherGestureRecognizer == self.pinchGesture) ||
+        (gestureRecognizer == self.pinchGesture && otherGestureRecognizer == self.scrollGesture)) {
+        LOG_POSITION(@"🤝 [ScrcpyMenuView] Allowing scroll and pinch to compete");
+        return YES;  // 允许同时尝试，让系统根据手势特征选择
+    }
+    
+    // 允许Pinch手势与单指拖拽手势同时进行
+    if ((gestureRecognizer == self.pinchGesture && otherGestureRecognizer == self.dragGesture) ||
+        (gestureRecognizer == self.dragGesture && otherGestureRecognizer == self.pinchGesture)) {
         return YES;
     }
     
@@ -1711,6 +1730,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     // 在滚动过程中，阻止单指拖拽手势接收触摸事件
     if (self.isScrolling && gestureRecognizer == self.dragGesture) {
         NSLog(@"🚫 [ScrcpyMenuView] Blocking single-finger drag during scroll");
+        return NO;
+    }
+    
+    // 在明确的滚动过程中（已经确定为滚动），阻止缩放手势
+    // 但只有在滚动手势真正激活后才阻止，避免过早阻断
+    if (self.isScrolling && gestureRecognizer == self.pinchGesture && self.scrollGesture.state == UIGestureRecognizerStateChanged) {
+        NSLog(@"🚫 [ScrcpyMenuView] Blocking pinch gesture during active scroll");
         return NO;
     }
     
@@ -1760,6 +1786,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         }
     }
     
+    // 移除严格的等待逻辑，让手势系统根据手势特征自然选择
+    // 滚动和缩放手势应该能够公平竞争，而不是强制等待
+    if (gestureRecognizer == self.pinchGesture && otherGestureRecognizer == self.scrollGesture) {
+        LOG_POSITION(@"🤝 [ScrcpyMenuView] Pinch and scroll gestures compete naturally");
+        return NO;  // 不强制等待，让系统自然选择
+    }
+    
     // 不设置任何其他优先级，让手势系统根据手指数量自动选择
     return NO;
 }
@@ -1767,6 +1800,29 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
     // 点击手势不需要等待其他手势失败（除了双击需要等待单击失败）
     return NO;
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
+    // 智能判断：基于手势特征决定是否应该开始
+    if (gestureRecognizer == self.pinchGesture || gestureRecognizer == self.scrollGesture) {
+        // 如果另一个双指手势已经在进行中，进行智能判断
+        if (gestureRecognizer == self.pinchGesture && self.isScrolling) {
+            // 如果已经在滚动，只有在明显的缩放动作时才允许切换到缩放
+            // 检查是否有明显的缩放意图（两指距离变化）
+            if (gestureRecognizer.numberOfTouches >= 2) {
+                LOG_POSITION(@"🤔 [ScrcpyMenuView] Pinch gesture wants to start during scroll - allowing competition");
+            }
+            return YES; // 允许尝试，让系统决定
+        }
+        
+        if (gestureRecognizer == self.scrollGesture && self.pinchGesture.state == UIGestureRecognizerStateChanged) {
+            // 如果缩放手势已经在进行，通常不应该开始滚动
+            LOG_POSITION(@"🤔 [ScrcpyMenuView] Scroll gesture wants to start during pinch - allowing competition");
+            return YES; // 允许尝试
+        }
+    }
+    
+    return YES; // 默认允许所有手势开始
 }
 
 #pragma mark - Drag Gesture Handler

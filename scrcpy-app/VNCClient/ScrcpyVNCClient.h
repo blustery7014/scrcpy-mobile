@@ -49,6 +49,12 @@ NS_ASSUME_NONNULL_BEGIN
 // 上一次滚动的偏移量（用于计算增量）
 @property (nonatomic, assign) CGPoint lastScrollOffset;
 
+// 缩放相关属性
+@property (nonatomic, assign) CGFloat currentZoomScale;
+@property (nonatomic, assign) CGFloat zoomCenterX;
+@property (nonatomic, assign) CGFloat zoomCenterY;
+@property (nonatomic, assign) BOOL zoomUpdatePending;
+
 - (UIWindowScene *)currentScene;
 
 /// 启动VNC连接并显示
@@ -75,6 +81,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param viewSize 视图尺寸
 /// @param zoomScale 缩放倍数
 - (void)sendMouseScrollWithOffset:(CGPoint)offset viewSize:(CGSize)viewSize zoomScale:(CGFloat)zoomScale;
+
+/// 应用缩放设置到SDL渲染层
+/// @param scale 缩放比例
+/// @param centerX 缩放中心X坐标（归一化）
+/// @param centerY 缩放中心Y坐标（归一化）
+/// @param isFinished 是否为最终缩放
+- (void)applyZoomScale:(CGFloat)scale withCenterX:(CGFloat)centerX centerY:(CGFloat)centerY isFinished:(BOOL)isFinished;
 
 @end
 

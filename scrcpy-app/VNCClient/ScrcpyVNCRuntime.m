@@ -233,46 +233,91 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
     NSLog(@"[VNCScreenDebug] Render - Window: %dx%d, Logical: %dx%d, Texture: %dx%d", 
           windowWidth, windowHeight, renderWidth, renderHeight, textureWidth, textureHeight);
     
-    // 使用渲染尺寸计算缩放
-    float scaleX = (float)renderWidth / textureWidth;
-    float scaleY = (float)renderHeight / textureHeight;
-    float scale = fminf(scaleX, scaleY);
+    // 获取VNC客户端实例以获取缩放参数
+    ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(cl, (void*)0x1234);
     
-    int scaledWidth = (int)(textureWidth * scale);
-    int scaledHeight = (int)(textureHeight * scale);
+    // 计算基础缩放（保持比例的适配缩放）
+    float baseScaleX = (float)renderWidth / textureWidth;
+    float baseScaleY = (float)renderHeight / textureHeight;
+    float baseScale = fminf(baseScaleX, baseScaleY);
     
-    int offsetX = (renderWidth - scaledWidth) / 2;
-    int offsetY = (renderHeight - scaledHeight) / 2;
+    // 应用用户缩放（从双指手势）
+    float userZoomScale = 1.0f;
+    float zoomCenterX = 0.5f;
+    float zoomCenterY = 0.5f;
+    
+    if (vncClient) {
+        userZoomScale = vncClient.currentZoomScale;
+        zoomCenterX = vncClient.zoomCenterX;
+        zoomCenterY = vncClient.zoomCenterY;
+        
+        // 清除更新标志
+        if (vncClient.zoomUpdatePending) {
+            vncClient.zoomUpdatePending = NO;
+            NSLog(@"🔍 [VNCRuntime] Applying user zoom: %.2f at center (%.3f, %.3f)", 
+                  userZoomScale, zoomCenterX, zoomCenterY);
+        }
+    }
+    
+    // 最终缩放 = 基础缩放 × 用户缩放
+    float finalScale = baseScale * userZoomScale;
+    
+    int scaledWidth = (int)(textureWidth * finalScale);
+    int scaledHeight = (int)(textureHeight * finalScale);
+    
+    // 计算偏移量，考虑缩放中心
+    int centerX = (int)(renderWidth * zoomCenterX);
+    int centerY = (int)(renderHeight * zoomCenterY);
+    
+    int offsetX = centerX - (int)(scaledWidth * zoomCenterX);
+    int offsetY = centerY - (int)(scaledHeight * zoomCenterY);
+    
+    // 边界检查
+    if (scaledWidth <= renderWidth) {
+        // 如果缩放后内容小于等于屏幕，居中显示
+        offsetX = (renderWidth - scaledWidth) / 2;
+    } else {
+        // 如果缩放后内容大于屏幕，限制边界
+        if (offsetX > 0) offsetX = 0;  // 不能超出左边界
+        if (offsetX + scaledWidth < renderWidth) offsetX = renderWidth - scaledWidth;  // 不能超出右边界
+    }
+    
+    if (scaledHeight <= renderHeight) {
+        // 如果缩放后内容小于等于屏幕，居中显示
+        offsetY = (renderHeight - scaledHeight) / 2;
+    } else {
+        // 如果缩放后内容大于屏幕，限制边界
+        if (offsetY > 0) offsetY = 0;  // 不能超出上边界
+        if (offsetY + scaledHeight < renderHeight) offsetY = renderHeight - scaledHeight;  // 不能超出下边界
+    }
     
     SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
     
-    NSLog(@"[VNCScreenDebug] RenderScale: %.3f, Scaled: %dx%d, Offset: %d,%d", 
-          scale, scaledWidth, scaledHeight, offsetX, offsetY);
-    NSLog(@"[VNCScreenDebug] Expected offset calculation: (%d-%d)/2=%d, (%d-%d)/2=%d", 
-          renderWidth, scaledWidth, (renderWidth-scaledWidth)/2, 
-          renderHeight, scaledHeight, (renderHeight-scaledHeight)/2);
+    NSLog(@"[VNCScreenDebug] BaseScale: %.3f, UserZoom: %.2f, FinalScale: %.3f, Scaled: %dx%d, Offset: %d,%d", 
+          baseScale, userZoomScale, finalScale, scaledWidth, scaledHeight, offsetX, offsetY);
+    NSLog(@"[VNCScreenDebug] ZoomCenter: (%.3f, %.3f), ScreenCenter: (%d, %d)", 
+          zoomCenterX, zoomCenterY, centerX, centerY);
     
     // 清除渲染器并绘制纹理（居中并保持比例）
     SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
     SDL_RenderClear(sdlRenderer);
     SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
     
-    // 获取VNC客户端实例以获取鼠标坐标
-    ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(cl, (void*)0x1234);
+    // 绘制鼠标光标（已经获取了vncClient）
     if (vncClient && cl->appData.useRemoteCursor) {
         // 将远程鼠标坐标转换为屏幕坐标
         int remoteMouseX = vncClient.currentMouseX;
         int remoteMouseY = vncClient.currentMouseY;
         
-        // 转换坐标：从远程屏幕坐标到本地屏幕坐标
+        // 转换坐标：从远程屏幕坐标到本地屏幕坐标（考虑用户缩放）
         int screenMouseX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
         int screenMouseY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
         
-        // 绘制macOS风格的鼠标光标
-        VNCRuntimeDrawMacOSCursor(sdlRenderer, screenMouseX, screenMouseY, scale);
+        // 绘制macOS风格的鼠标光标（使用最终缩放）
+        VNCRuntimeDrawMacOSCursor(sdlRenderer, screenMouseX, screenMouseY, finalScale);
         
-        NSLog(@"🖱️ [VNCRuntime] Drawing cursor at remote(%d,%d) -> screen(%d,%d), scale=%.2f", 
-              remoteMouseX, remoteMouseY, screenMouseX, screenMouseY, scale);
+        NSLog(@"🖱️ [VNCRuntime] Drawing cursor at remote(%d,%d) -> screen(%d,%d), finalScale=%.2f", 
+              remoteMouseX, remoteMouseY, screenMouseX, screenMouseY, finalScale);
     }
     
     SDL_RenderPresent(sdlRenderer);
