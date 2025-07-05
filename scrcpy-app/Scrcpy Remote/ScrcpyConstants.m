@@ -27,6 +27,7 @@ NSString * const kNotificationVNCDrag = @"ScrcpyVNCDragNotification";
 NSString * const kNotificationVNCDragOffset = @"ScrcpyVNCDragOffsetNotification";
 NSString * const kNotificationVNCMouseEvent = @"ScrcpyVNCMouseEventNotification";
 NSString * const kNotificationVNCScrollEvent = @"ScrcpyVNCScrollEventNotification";
+NSString * const kNotificationVNCKeyboardEvent = @"ScrcpyVNCKeyboardEventNotification";
 
 // Device Types
 NSString * const kDeviceTypeVNC = @"vnc";
@@ -39,6 +40,11 @@ NSString * const kMouseEventTypeDrag = @"mouseDrag";
 NSString * const kMouseEventTypeDragEnd = @"mouseDragEnd";
 NSString * const kMouseEventTypeClick = @"mouseClick";
 NSString * const kMouseEventTypeScroll = @"mouseScroll";
+
+// Keyboard Event Types
+NSString * const kKeyboardEventTypeKeyDown = @"keyDown";
+NSString * const kKeyboardEventTypeKeyUp = @"keyUp";
+NSString * const kKeyboardEventTypeTextInput = @"textInput";
 
 // Drag States
 NSString * const kDragStateBegan = @"began";
@@ -55,6 +61,11 @@ NSString * const kKeyNormalizedOffset = @"normalizedOffset";
 NSString * const kKeyZoomScale = @"zoomScale";
 NSString * const kKeyType = @"type";
 NSString * const kKeyIsRightClick = @"isRightClick";
+
+// Keyboard Event Keys
+NSString * const kKeyKeyCode = @"keyCode";
+NSString * const kKeyText = @"text";
+NSString * const kKeyModifiers = @"modifiers";
 
 // Button Type Names
 NSString * const kButtonTypeBack = @"back";

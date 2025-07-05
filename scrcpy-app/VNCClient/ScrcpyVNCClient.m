@@ -86,6 +86,12 @@
                                                  selector:@selector(handleVNCZoomEvent:)
                                                      name:@"ScrcpyVNCZoomNotification"
                                                    object:nil];
+        
+        // 监听VNC键盘事件通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCKeyboardEvent:)
+                                                     name:kNotificationVNCKeyboardEvent
+                                                   object:nil];
     }
     return self;
 }
@@ -191,8 +197,19 @@
                 self.connected = NO;
                 break;
                 
+            case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                // 处理键盘按键事件
+                [self handleSDLKeyboardEvent:&e];
+                break;
+                
+            case SDL_TEXTINPUT:
+                // 处理文本输入事件
+                [self handleSDLTextInputEvent:&e];
+                break;
+                
             default:
-                // 忽略其他事件，包括鼠标和键盘事件（由上层处理）
+                // 忽略其他事件，包括鼠标事件（由上层处理）
                 break;
         }
     }
@@ -422,6 +439,168 @@
     
     NSLog(@"🖱️ [ScrcpyVNCClient] %@ mouse click sent at position (%d,%d)", 
           isRightClick ? @"Right" : @"Left", clampedX, clampedY);
+}
+
+#pragma mark - SDL键盘事件处理
+
+- (void)handleSDLKeyboardEvent:(SDL_Event *)event {
+    if (!self.connected || !self.rfbClient) {
+        return;
+    }
+    
+    // 将SDL键码转换为VNC键码
+    int vncKeyCode = [self convertSDLKeyToVNCKey:event->key.keysym.sym];
+    if (vncKeyCode == -1) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Unknown SDL key: %d", event->key.keysym.sym);
+        return;
+    }
+    
+    BOOL isPressed = (event->type == SDL_KEYDOWN);
+    
+    // 发送键盘事件到VNC服务器
+    [self sendKeyEvent:vncKeyCode isPressed:isPressed];
+}
+
+- (void)handleSDLTextInputEvent:(SDL_Event *)event {
+    if (!self.connected || !self.rfbClient) {
+        return;
+    }
+    
+    // 获取输入的文本
+    NSString *text = [NSString stringWithUTF8String:event->text.text];
+    if (text && text.length > 0) {
+        [self sendTextInput:text];
+    }
+}
+
+// 将SDL键码转换为VNC键码（X11 KeySym）
+- (int)convertSDLKeyToVNCKey:(SDL_Keycode)sdlKey {
+    switch (sdlKey) {
+        // 字母键
+        case SDLK_a: return XK_a;
+        case SDLK_b: return XK_b;
+        case SDLK_c: return XK_c;
+        case SDLK_d: return XK_d;
+        case SDLK_e: return XK_e;
+        case SDLK_f: return XK_f;
+        case SDLK_g: return XK_g;
+        case SDLK_h: return XK_h;
+        case SDLK_i: return XK_i;
+        case SDLK_j: return XK_j;
+        case SDLK_k: return XK_k;
+        case SDLK_l: return XK_l;
+        case SDLK_m: return XK_m;
+        case SDLK_n: return XK_n;
+        case SDLK_o: return XK_o;
+        case SDLK_p: return XK_p;
+        case SDLK_q: return XK_q;
+        case SDLK_r: return XK_r;
+        case SDLK_s: return XK_s;
+        case SDLK_t: return XK_t;
+        case SDLK_u: return XK_u;
+        case SDLK_v: return XK_v;
+        case SDLK_w: return XK_w;
+        case SDLK_x: return XK_x;
+        case SDLK_y: return XK_y;
+        case SDLK_z: return XK_z;
+        
+        // 数字键
+        case SDLK_0: return XK_0;
+        case SDLK_1: return XK_1;
+        case SDLK_2: return XK_2;
+        case SDLK_3: return XK_3;
+        case SDLK_4: return XK_4;
+        case SDLK_5: return XK_5;
+        case SDLK_6: return XK_6;
+        case SDLK_7: return XK_7;
+        case SDLK_8: return XK_8;
+        case SDLK_9: return XK_9;
+        
+        // 功能键
+        case SDLK_F1: return XK_F1;
+        case SDLK_F2: return XK_F2;
+        case SDLK_F3: return XK_F3;
+        case SDLK_F4: return XK_F4;
+        case SDLK_F5: return XK_F5;
+        case SDLK_F6: return XK_F6;
+        case SDLK_F7: return XK_F7;
+        case SDLK_F8: return XK_F8;
+        case SDLK_F9: return XK_F9;
+        case SDLK_F10: return XK_F10;
+        case SDLK_F11: return XK_F11;
+        case SDLK_F12: return XK_F12;
+        
+        // 特殊键
+        case SDLK_RETURN: return XK_Return;
+        case SDLK_ESCAPE: return XK_Escape;
+        case SDLK_BACKSPACE: return XK_BackSpace;
+        case SDLK_TAB: return XK_Tab;
+        case SDLK_SPACE: return XK_space;
+        case SDLK_DELETE: return XK_Delete;
+        
+        // 修饰键
+        case SDLK_LSHIFT: return XK_Shift_L;
+        case SDLK_RSHIFT: return XK_Shift_R;
+        case SDLK_LCTRL: return XK_Control_L;
+        case SDLK_RCTRL: return XK_Control_R;
+        case SDLK_LALT: return XK_Alt_L;
+        case SDLK_RALT: return XK_Alt_R;
+        case SDLK_LGUI: return XK_Super_L;
+        case SDLK_RGUI: return XK_Super_R;
+        
+        // 方向键
+        case SDLK_UP: return XK_Up;
+        case SDLK_DOWN: return XK_Down;
+        case SDLK_LEFT: return XK_Left;
+        case SDLK_RIGHT: return XK_Right;
+        
+        // 其他常用键
+        case SDLK_INSERT: return XK_Insert;
+        case SDLK_HOME: return XK_Home;
+        case SDLK_END: return XK_End;
+        case SDLK_PAGEUP: return XK_Page_Up;
+        case SDLK_PAGEDOWN: return XK_Page_Down;
+        case SDLK_CAPSLOCK: return XK_Caps_Lock;
+        case SDLK_SCROLLLOCK: return XK_Scroll_Lock;
+        case SDLK_NUMLOCKCLEAR: return XK_Num_Lock;
+        case SDLK_PRINTSCREEN: return XK_Print;
+        case SDLK_PAUSE: return XK_Pause;
+        
+        // 符号键
+        case SDLK_MINUS: return XK_minus;
+        case SDLK_EQUALS: return XK_equal;
+        case SDLK_LEFTBRACKET: return XK_bracketleft;
+        case SDLK_RIGHTBRACKET: return XK_bracketright;
+        case SDLK_BACKSLASH: return XK_backslash;
+        case SDLK_SEMICOLON: return XK_semicolon;
+        case SDLK_QUOTE: return XK_apostrophe;
+        case SDLK_BACKQUOTE: return XK_grave;
+        case SDLK_COMMA: return XK_comma;
+        case SDLK_PERIOD: return XK_period;
+        case SDLK_SLASH: return XK_slash;
+        
+        // 数字键盘
+        case SDLK_KP_0: return XK_KP_0;
+        case SDLK_KP_1: return XK_KP_1;
+        case SDLK_KP_2: return XK_KP_2;
+        case SDLK_KP_3: return XK_KP_3;
+        case SDLK_KP_4: return XK_KP_4;
+        case SDLK_KP_5: return XK_KP_5;
+        case SDLK_KP_6: return XK_KP_6;
+        case SDLK_KP_7: return XK_KP_7;
+        case SDLK_KP_8: return XK_KP_8;
+        case SDLK_KP_9: return XK_KP_9;
+        case SDLK_KP_DECIMAL: return XK_KP_Decimal;
+        case SDLK_KP_DIVIDE: return XK_KP_Divide;
+        case SDLK_KP_MULTIPLY: return XK_KP_Multiply;
+        case SDLK_KP_MINUS: return XK_KP_Subtract;
+        case SDLK_KP_PLUS: return XK_KP_Add;
+        case SDLK_KP_ENTER: return XK_KP_Enter;
+        case SDLK_KP_EQUALS: return XK_KP_Equal;
+        
+        default:
+            return -1; // 未知键
+    }
 }
 
 #pragma mark - 通知处理
@@ -787,6 +966,87 @@
     if (self.rfbClient && self.connected) {
         SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, FALSE);
         NSLog(@"🔍 [ScrcpyVNCClient] Requested framebuffer update for zoom application");
+    }
+}
+
+#pragma mark - 键盘事件处理
+
+- (void)sendKeyEvent:(int)keyCode isPressed:(BOOL)isPressed {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send key event: VNC not connected");
+        return;
+    }
+    
+    // 发送键盘事件到VNC服务器
+    if (!SendKeyEvent(self.rfbClient, keyCode, isPressed)) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send key event: keyCode=%d, pressed=%@", keyCode, isPressed ? @"YES" : @"NO");
+        return;
+    }
+    
+    NSLog(@"⌨️ [ScrcpyVNCClient] Key event sent: keyCode=%d, pressed=%@", keyCode, isPressed ? @"YES" : @"NO");
+}
+
+- (void)sendTextInput:(NSString *)text {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send text input: VNC not connected");
+        return;
+    }
+    
+    if (!text || text.length == 0) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send empty text input");
+        return;
+    }
+    
+    // 将文本转换为UTF-8字符串并发送到VNC服务器
+    const char *utf8Text = [text UTF8String];
+    if (!SendClientCutText(self.rfbClient, (char *)utf8Text, (int)strlen(utf8Text))) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send text input: %@", text);
+        return;
+    }
+    
+    NSLog(@"📝 [ScrcpyVNCClient] Text input sent: %@", text);
+}
+
+- (void)handleVNCKeyboardEvent:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle keyboard event: VNC not connected");
+        return;
+    }
+    
+    NSDictionary *userInfo = notification.userInfo;
+    if (!userInfo) {
+        NSLog(@"❌ [ScrcpyVNCClient] Keyboard event notification missing userInfo");
+        return;
+    }
+    
+    NSString *eventType = userInfo[kKeyType];
+    if (!eventType) {
+        NSLog(@"❌ [ScrcpyVNCClient] Keyboard event notification missing event type");
+        return;
+    }
+    
+    NSLog(@"⌨️ [ScrcpyVNCClient] Keyboard event received: %@", eventType);
+    
+    if ([eventType isEqualToString:kKeyboardEventTypeKeyDown]) {
+        // 处理按键按下事件
+        NSNumber *keyCodeNumber = userInfo[kKeyKeyCode];
+        if (keyCodeNumber) {
+            int keyCode = [keyCodeNumber intValue];
+            [self sendKeyEvent:keyCode isPressed:YES];
+        }
+    } else if ([eventType isEqualToString:kKeyboardEventTypeKeyUp]) {
+        // 处理按键释放事件
+        NSNumber *keyCodeNumber = userInfo[kKeyKeyCode];
+        if (keyCodeNumber) {
+            int keyCode = [keyCodeNumber intValue];
+            [self sendKeyEvent:keyCode isPressed:NO];
+        }
+    } else if ([eventType isEqualToString:kKeyboardEventTypeTextInput]) {
+        // 处理文本输入事件
+        NSString *text = userInfo[kKeyText];
+        if (text) {
+            [self sendTextInput:text];
+        }
     }
 }
 

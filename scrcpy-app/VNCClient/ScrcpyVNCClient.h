@@ -99,6 +99,15 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param isFinished 是否为最终缩放
 - (void)applyZoomScale:(CGFloat)scale withCenterX:(CGFloat)centerX centerY:(CGFloat)centerY isFinished:(BOOL)isFinished;
 
+/// 发送键盘按键事件到远程桌面
+/// @param keyCode 按键码
+/// @param isPressed 是否按下（YES为按下，NO为释放）
+- (void)sendKeyEvent:(int)keyCode isPressed:(BOOL)isPressed;
+
+/// 发送文本输入到远程桌面
+/// @param text 要输入的文本
+- (void)sendTextInput:(NSString *)text;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -29,6 +29,7 @@ extern NSString * const kNotificationVNCDrag;
 extern NSString * const kNotificationVNCDragOffset;
 extern NSString * const kNotificationVNCMouseEvent;
 extern NSString * const kNotificationVNCScrollEvent;
+extern NSString * const kNotificationVNCKeyboardEvent;
 
 // Device Types
 extern NSString * const kDeviceTypeVNC;
@@ -41,6 +42,11 @@ extern NSString * const kMouseEventTypeDrag;
 extern NSString * const kMouseEventTypeDragEnd;
 extern NSString * const kMouseEventTypeClick;
 extern NSString * const kMouseEventTypeScroll;
+
+// Keyboard Event Types
+extern NSString * const kKeyboardEventTypeKeyDown;
+extern NSString * const kKeyboardEventTypeKeyUp;
+extern NSString * const kKeyboardEventTypeTextInput;
 
 // Drag States
 extern NSString * const kDragStateBegan;
@@ -57,6 +63,11 @@ extern NSString * const kKeyNormalizedOffset;
 extern NSString * const kKeyZoomScale;
 extern NSString * const kKeyType;
 extern NSString * const kKeyIsRightClick;
+
+// Keyboard Event Keys
+extern NSString * const kKeyKeyCode;
+extern NSString * const kKeyText;
+extern NSString * const kKeyModifiers;
 
 // Button Type Names
 extern NSString * const kButtonTypeBack;
