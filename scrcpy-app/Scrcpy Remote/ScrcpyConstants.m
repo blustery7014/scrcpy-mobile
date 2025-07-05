@@ -50,6 +50,7 @@ NSString * const kKeyLocation = @"location";
 NSString * const kKeyViewSize = @"viewSize";
 NSString * const kKeyOffset = @"offset";
 NSString * const kKeyNormalizedOffset = @"normalizedOffset";
+NSString * const kKeyZoomScale = @"zoomScale";
 NSString * const kKeyType = @"type";
 NSString * const kKeyIsRightClick = @"isRightClick";
 

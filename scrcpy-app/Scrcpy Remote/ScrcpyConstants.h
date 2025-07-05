@@ -52,6 +52,7 @@ extern NSString * const kKeyLocation;
 extern NSString * const kKeyViewSize;
 extern NSString * const kKeyOffset;
 extern NSString * const kKeyNormalizedOffset;
+extern NSString * const kKeyZoomScale;
 extern NSString * const kKeyType;
 extern NSString * const kKeyIsRightClick;
 

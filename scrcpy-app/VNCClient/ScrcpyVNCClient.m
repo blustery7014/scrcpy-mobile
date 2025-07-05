@@ -42,6 +42,12 @@
                                                  selector:@selector(handleVNCMouseEvent:)
                                                      name:kNotificationVNCMouseEvent
                                                    object:nil];
+        
+        // 监听VNC拖拽偏移量通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCDragOffset:)
+                                                     name:kNotificationVNCDragOffset
+                                                   object:nil];
     }
     return self;
 }
@@ -428,6 +434,76 @@
               self.currentMouseX, self.currentMouseY);
     }
     // 其他事件类型（拖拽等）可以在此处添加处理
+}
+
+- (void)handleVNCDragOffset:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle drag offset: VNC not connected");
+        return;
+    }
+    
+    NSDictionary *userInfo = notification.userInfo;
+    if (!userInfo) {
+        NSLog(@"❌ [ScrcpyVNCClient] Drag offset notification missing userInfo");
+        return;
+    }
+    
+    NSValue *normalizedOffsetValue = userInfo[kKeyNormalizedOffset];
+    NSValue *viewSizeValue = userInfo[kKeyViewSize];
+    NSNumber *zoomScaleNumber = userInfo[kKeyZoomScale];
+    
+    if (!normalizedOffsetValue || !viewSizeValue) {
+        NSLog(@"❌ [ScrcpyVNCClient] Drag offset notification missing required data");
+        return;
+    }
+    
+    CGPoint normalizedOffset = [normalizedOffsetValue CGPointValue];
+    CGSize viewSize = [viewSizeValue CGSizeValue];
+    CGFloat zoomScale = zoomScaleNumber ? [zoomScaleNumber floatValue] : 1.0;
+    
+    // 计算远程内容在本地屏幕上的实际显示比例
+    // 这样可以保持拖拽距离与鼠标移动距离在视觉上的一致性
+    
+    // 获取远程屏幕尺寸
+    int remoteWidth = self.rfbClient->width;
+    int remoteHeight = self.rfbClient->height;
+    
+    // 计算远程内容在本地的显示缩放比例（保持宽高比）
+    CGFloat scaleX = viewSize.width / (CGFloat)remoteWidth;
+    CGFloat scaleY = viewSize.height / (CGFloat)remoteHeight;
+    CGFloat displayScale = MIN(scaleX, scaleY);  // 取较小值保持比例
+    
+    // 计算远程内容在本地的实际显示尺寸
+    CGFloat displayedRemoteWidth = remoteWidth * displayScale;
+    CGFloat displayedRemoteHeight = remoteHeight * displayScale;
+    
+    // 计算拖拽偏移量相对于远程内容显示区域的比例
+    CGFloat relativeOffsetX = (normalizedOffset.x * viewSize.width) / displayedRemoteWidth;
+    CGFloat relativeOffsetY = (normalizedOffset.y * viewSize.height) / displayedRemoteHeight;
+    
+    // 考虑用户缩放倍数进行精细控制调整
+    CGFloat finalOffsetX = relativeOffsetX / zoomScale;
+    CGFloat finalOffsetY = relativeOffsetY / zoomScale;
+    
+    // 转换为远程屏幕像素偏移量
+    int offsetX = (int)(finalOffsetX * remoteWidth);
+    int offsetY = (int)(finalOffsetY * remoteHeight);
+    
+    // 计算新的鼠标位置
+    int newMouseX = self.currentMouseX + offsetX;
+    int newMouseY = self.currentMouseY + offsetY;
+    
+    NSLog(@"🎯 [ScrcpyVNCClient] Drag offset calculation:");
+    NSLog(@"   Remote: %dx%d, View: %.0fx%.0f, DisplayScale: %.3f", 
+          remoteWidth, remoteHeight, viewSize.width, viewSize.height, displayScale);
+    NSLog(@"   DisplayedRemoteSize: %.1fx%.1f", displayedRemoteWidth, displayedRemoteHeight);
+    NSLog(@"   Normalized: (%.3f,%.3f) -> Relative: (%.3f,%.3f) -> Final: (%.3f,%.3f) / Zoom: %.2f", 
+          normalizedOffset.x, normalizedOffset.y, relativeOffsetX, relativeOffsetY, finalOffsetX, finalOffsetY, zoomScale);
+    NSLog(@"   Pixel offset: (%d,%d), Mouse: (%d,%d) -> (%d,%d)", 
+          offsetX, offsetY, self.currentMouseX, self.currentMouseY, newMouseX, newMouseY);
+    
+    // 移动鼠标到新位置
+    [self moveMouseToX:newMouseX y:newMouseY];
 }
 
 @end

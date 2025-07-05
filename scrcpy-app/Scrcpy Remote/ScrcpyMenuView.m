@@ -10,8 +10,6 @@
 // Add logging macro
 #define LOG_POSITION(fmt, ...) NSLog(@"[ScrcpyMenuView] " fmt, ##__VA_ARGS__)
 
-// MARK: - UI Constants
-
 // Capsule View Constants
 static const CGFloat kCapsuleWidth = 55.0f;
 static const CGFloat kCapsuleHeight = 26.0f;
@@ -1488,8 +1486,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     // 创建拖拽手势识别器
     self.dragGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
     self.dragGesture.delegate = self;
-    self.dragGesture.minimumNumberOfTouches = 2;
-    self.dragGesture.maximumNumberOfTouches = 3;
+    self.dragGesture.minimumNumberOfTouches = 1;
+    self.dragGesture.maximumNumberOfTouches = 2;
     
     // 添加到SDL窗口上
     UIViewController *rootVC = sdlWindow.rootViewController;
@@ -1632,9 +1630,24 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 #pragma mark - UIGestureRecognizerDelegate
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
-    // 点击手势（单击和双击）优先级最高，不与其他手势同时进行
-    if (gestureRecognizer == self.vncTapGesture) {
-        return YES;
+    // 在拖拽过程中，禁止点击手势与任何其他手势同时进行
+    if (self.isDragging) {
+        if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncDoubleTapGesture ||
+            otherGestureRecognizer == self.vncTapGesture || otherGestureRecognizer == self.vncDoubleTapGesture) {
+            return NO;
+        }
+    }
+    
+    // 点击手势不与拖拽手势同时进行
+    if ((gestureRecognizer == self.vncTapGesture && (otherGestureRecognizer == self.dragGesture)) ||
+        (gestureRecognizer == self.dragGesture && (otherGestureRecognizer == self.vncTapGesture))) {
+        return NO;
+    }
+    
+    // 双击手势不与拖拽手势同时进行
+    if ((gestureRecognizer == self.vncDoubleTapGesture && (otherGestureRecognizer == self.dragGesture)) ||
+        (gestureRecognizer == self.dragGesture && (otherGestureRecognizer == self.vncDoubleTapGesture))) {
+        return NO;
     }
     
     // 允许Pinch手势与拖拽手势同时进行
@@ -1648,6 +1661,14 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+    // 在拖拽过程中，阻止点击手势接收触摸事件
+    if (self.isDragging) {
+        if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncDoubleTapGesture) {
+            NSLog(@"🚫 [ScrcpyMenuView] Blocking tap gesture during drag");
+            return NO;
+        }
+    }
+    
     // 确保Pinch手势只在VNC设备时响应
     if (gestureRecognizer == self.pinchGesture) {
         return self.currentDeviceType == ScrcpyDeviceTypeVNC;
@@ -1657,7 +1678,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return self.currentDeviceType == ScrcpyDeviceTypeVNC;
     }
     // 确保点击手势只在VNC设备时响应
-    if (gestureRecognizer == self.vncTapGesture) {
+    if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncDoubleTapGesture) {
         return self.currentDeviceType == ScrcpyDeviceTypeVNC;
     }
     return YES;
@@ -1692,12 +1713,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     switch (gesture.state) {
         case UIGestureRecognizerStateBegan: {
-            // 记录拖拽开始位置
+            // 记录拖拽开始位置并设置拖拽状态
             self.dragStartLocation = location;
             self.currentDragOffset = CGPointZero;
+            self.isDragging = YES;
             
-            LOG_POSITION(@"🎯 VNC Drag gesture began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f)", 
-                         location.x, location.y, viewSize.width, viewSize.height);
+            LOG_POSITION(@"🎯 VNC Drag gesture began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f), isDragging: %@", 
+                         location.x, location.y, viewSize.width, viewSize.height, self.isDragging ? @"YES" : @"NO");
             
             // 通知代理拖拽开始
             if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
@@ -1787,6 +1809,10 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             // 调用自己的代理方法实现
             CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
             [self didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+            
+            // 重置拖拽状态
+            self.isDragging = NO;
+            LOG_POSITION(@"🎯 VNC Drag gesture ended - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
             break;
         }
             
@@ -1806,6 +1832,10 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
             
             // 调用自己的代理方法实现
             [self didDragWithState:kDragStateCancelled location:location viewSize:viewSize offset:self.currentDragOffset];
+            
+            // 重置拖拽状态
+            self.isDragging = NO;
+            LOG_POSITION(@"🎯 VNC Drag gesture cancelled - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
             break;
         }
             
@@ -1838,19 +1868,21 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (void)didDragWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize {
-    // 发送VNC拖拽偏移量通知
+    // 发送VNC拖拽偏移量通知（包含当前缩放倍数）
     NSDictionary *userInfo = @{
         kKeyNormalizedOffset: [NSValue valueWithCGPoint:normalizedOffset],
-        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize],
+        kKeyZoomScale: @(self.currentZoomScale)
     };
     [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDragOffset object:nil userInfo:userInfo];
 }
 
 - (void)didDragEndWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize {
-    // 发送VNC拖拽结束偏移量通知
+    // 发送VNC拖拽结束偏移量通知（包含当前缩放倍数）
     NSDictionary *userInfo = @{
         kKeyNormalizedOffset: [NSValue valueWithCGPoint:normalizedOffset],
-        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
+        kKeyViewSize: [NSValue valueWithCGSize:viewSize],
+        kKeyZoomScale: @(self.currentZoomScale)
     };
     [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCDragOffset object:nil userInfo:userInfo];
 }
