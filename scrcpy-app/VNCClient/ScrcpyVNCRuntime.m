@@ -15,6 +15,9 @@
 #import <math.h>
 #import "ScrcpyVNCClient.h"
 
+// 前向声明
+void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale);
+
 /**
  * 自定义的SetFormatAndEncodings函数，确保包含光标编码
  */
@@ -435,6 +438,14 @@ void VNCRuntimeCleanupCallbacks(rfbClient* client) {
     GetSet_GetPasswordBlockIMP(client, nil);
 }
 
+// 光标尺寸常量定义 - 支持Retina显示
+static const int CURSOR_TEXTURE_SIZE = 128;      // 光标纹理尺寸（Retina）
+static const int CURSOR_BASE_SIZE = 5;           // 光标基础显示尺寸（8的2/3约等于5）
+static const int CURSOR_RADIUS = 12;             // 光标圆点半径（在128x128纹理中）
+static const int CURSOR_BORDER_WIDTH = 4;        // 光标白色边框宽度（增加以改善锐度）
+static const int CURSOR_MIN_SIZE = 12;            // 光标最小显示尺寸（4的2/3约等于3）
+static const int CURSOR_MAX_SIZE = 14;           // 光标最大显示尺寸（16的2/3约等于11）
+
 // 全局光标纹理变量
 static SDL_Texture* g_cursorTexture = NULL;
 static SDL_Renderer* g_cursorRenderer = NULL;
@@ -450,7 +461,7 @@ static CustomCursor* createCustomCursor(SDL_Renderer* renderer) {
     if (!cursor) return NULL;
     
     // 创建光标纹理
-    SDL_Surface* surface = SDL_CreateRGBSurface(0, 32, 32, 32, 
+    SDL_Surface* surface = SDL_CreateRGBSurface(0, CURSOR_TEXTURE_SIZE, CURSOR_TEXTURE_SIZE, 32, 
         0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
     
     if (!surface) {
@@ -462,36 +473,67 @@ static CustomCursor* createCustomCursor(SDL_Renderer* renderer) {
     SDL_FillRect(surface, NULL, SDL_MapRGBA(surface->format, 0, 0, 0, 0));
     
     Uint32* pixels = (Uint32*)surface->pixels;
-    const int size = 32;
+    const int size = CURSOR_TEXTURE_SIZE;
     const int centerX = size / 2;  // 中心点 X 坐标
     const int centerY = size / 2;  // 中心点 Y 坐标
-    const int radius = 6;          // 圆点半径
+    const int radius = CURSOR_RADIUS;
     
-    // 绘制黑色圆形光标
+    // 绘制高质量抗锯齿圆形光标
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
-            // 计算到圆心的距离
-            int dx = x - centerX;
-            int dy = y - centerY;
-            double distance = sqrt(dx * dx + dy * dy);
+            // 使用子像素采样进行抗锯齿处理
+            float totalAlpha = 0.0f;
+            float totalWhiteAlpha = 0.0f;
+            const int samples = 4; // 2x2子像素采样
             
-            if (distance <= radius) {
-                // 在圆内 - 绘制黑色
-                if (distance <= radius - 1) {
-                    // 内部：纯黑色
-                    pixels[y * size + x] = SDL_MapRGBA(surface->format, 0, 0, 0, 255);
-                } else {
-                    // 边缘：添加轻微的抗锯齿效果
-                    int alpha = (int)(255 * (radius - distance));
-                    if (alpha > 255) alpha = 255;
-                    if (alpha < 0) alpha = 0;
-                    pixels[y * size + x] = SDL_MapRGBA(surface->format, 0, 0, 0, alpha);
+            for (int sy = 0; sy < samples; sy++) {
+                for (int sx = 0; sx < samples; sx++) {
+                    // 计算子像素位置
+                    float subX = x + (sx + 0.5f) / samples - 0.5f;
+                    float subY = y + (sy + 0.5f) / samples - 0.5f;
+                    
+                    // 计算到圆心的距离
+                    float dx = subX - centerX;
+                    float dy = subY - centerY;
+                    float distance = sqrtf(dx * dx + dy * dy);
+                    
+                    // 内圆（黑色部分）- 使用平滑过渡
+                    float innerRadius = radius - CURSOR_BORDER_WIDTH;
+                    if (distance <= innerRadius) {
+                        totalAlpha += 1.0f;
+                    } else if (distance <= innerRadius + 1.0f) {
+                        // 内圆边缘的平滑过渡
+                        totalAlpha += (innerRadius + 1.0f - distance);
+                    }
+                    
+                    // 外圆（白色边框）- 使用平滑过渡
+                    float outerRadius = radius + CURSOR_BORDER_WIDTH;
+                    if (distance >= radius - 0.5f && distance <= outerRadius) {
+                        if (distance <= radius + 0.5f) {
+                            // 边框内侧的平滑过渡
+                            totalWhiteAlpha += 1.0f;
+                        } else if (distance <= outerRadius) {
+                            // 边框外侧的平滑过渡
+                            totalWhiteAlpha += (outerRadius - distance) / CURSOR_BORDER_WIDTH;
+                        }
+                    }
                 }
-            } else if (distance <= radius + 1) {
-                // 外边缘：白色边框用于提高可见性
-                int alpha = (int)(128 * (radius + 1 - distance));
-                if (alpha > 128) alpha = 128;
-                if (alpha < 0) alpha = 0;
+            }
+            
+            // 计算最终的alpha值
+            totalAlpha /= (samples * samples);
+            totalWhiteAlpha /= (samples * samples);
+            
+            // 应用颜色
+            if (totalAlpha > 0.0f) {
+                // 黑色圆心
+                int alpha = (int)(255 * totalAlpha);
+                if (alpha > 255) alpha = 255;
+                pixels[y * size + x] = SDL_MapRGBA(surface->format, 0, 0, 0, alpha);
+            } else if (totalWhiteAlpha > 0.0f) {
+                // 白色边框
+                int alpha = (int)(200 * totalWhiteAlpha); // 稍微降低白色边框的不透明度
+                if (alpha > 200) alpha = 200;
                 pixels[y * size + x] = SDL_MapRGBA(surface->format, 255, 255, 255, alpha);
             }
         }
@@ -500,8 +542,8 @@ static CustomCursor* createCustomCursor(SDL_Renderer* renderer) {
     cursor->texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_SetTextureBlendMode(cursor->texture, SDL_BLENDMODE_BLEND);
     
-    cursor->width = 32;
-    cursor->height = 32;
+    cursor->width = CURSOR_TEXTURE_SIZE;
+    cursor->height = CURSOR_TEXTURE_SIZE;
     cursor->alpha = 1.0f;
     
     SDL_FreeSurface(surface);
@@ -538,13 +580,16 @@ void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale
     
     if (!g_cursorTexture) return;
     
-    // 计算光标尺寸 - 基于32x32基础尺寸的圆形光标
-    const int baseSize = 16; // 基础尺寸适合圆形光标
-    int cursorSize = (int)(baseSize * scale);
+    // 获取设备缩放因子以支持Retina显示
+    float deviceScale = [[UIScreen mainScreen] nativeScale];
+    
+    // 计算光标尺寸 - 使用常量定义并考虑设备缩放
+    int baseCursorSize = (int)(CURSOR_BASE_SIZE / scale); // 反向缩放：内容越大光标越小，内容越小光标越大
+    int cursorSize = (int)(baseCursorSize * deviceScale); // 应用设备缩放以支持Retina
     
     // 确保光标尺寸在合理范围内
-    if (cursorSize < 8) cursorSize = 8;
-    if (cursorSize > 32) cursorSize = 32;
+    if (cursorSize < (int)(CURSOR_MIN_SIZE * deviceScale)) cursorSize = (int)(CURSOR_MIN_SIZE * deviceScale);
+    if (cursorSize > (int)(CURSOR_MAX_SIZE * deviceScale)) cursorSize = (int)(CURSOR_MAX_SIZE * deviceScale);
     
     // 设置透明度
     SDL_SetTextureAlphaMod(g_cursorTexture, (Uint8)(255));
@@ -557,8 +602,12 @@ void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale
         cursorSize
     };
     
-    // 应用高质量渲染选项
+    // 应用最高质量渲染选项以减少锯齿
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");
+    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+    
+    // 使用高质量纹理过滤
+    SDL_SetTextureScaleMode(g_cursorTexture, SDL_ScaleModeLinear);
     
     SDL_RenderCopy(renderer, g_cursorTexture, NULL, &destRect);
     
