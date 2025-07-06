@@ -102,9 +102,7 @@ struct MainContentView: View {
         return connectionManager.isConnecting || 
                connectionManager.connectionStatus == ScrcpyStatusConnectingFailed ||
                (connectionManager.currentSession != nil && 
-                connectionManager.connectionStatus != ScrcpyStatusDisconnected &&
-                connectionManager.connectionStatus != ScrcpyStatusConnected &&
-                connectionManager.connectionStatus != ScrcpyStatusSDLWindowAppeared)
+                connectionManager.connectionStatus.rawValue < ScrcpyStatusSDLWindowAppeared.rawValue)
     }
 
     var body: some View {

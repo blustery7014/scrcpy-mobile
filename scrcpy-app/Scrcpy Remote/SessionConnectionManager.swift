@@ -73,6 +73,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     /// 当前连接的会话信息
     @Published var currentSession: ScrcpySessionModel?
     
+    /// 正在连接中的会话信息（用于在等待当前连接断开时临时保存）
+    @Published var connectingSession: ScrcpySessionModel?
+    
     /// 当前连接状态
     @Published var connectionStatus: ScrcpyStatus = ScrcpyStatusDisconnected
     
@@ -326,6 +329,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     ) {
         print("🚀 [SessionConnectionManager] Starting connection to session: \(session.sessionName)")
         
+        // 保存将要连接的会话信息
+        connectingSession = session
+        
         // 保存回调闭包
         currentConnectionCallback = statusCallback
         currentErrorCallback = errorCallback
@@ -496,6 +502,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         isConnecting = false
         connectionStatus = ScrcpyStatusConnectingFailed
         
+        // 清除连接中的会话信息，因为连接失败了
+        connectingSession = nil
+        
         // 通过状态回调传递错误信息到 ConnectionStatusView
         if let callback = currentConnectionCallback {
             callback(ScrcpyStatusConnectingFailed, message, false)
@@ -510,6 +519,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     ///   - connectionInfo: 连接信息（包含实际的 host 和 port）
     func setCurrentSession(_ session: ScrcpySessionModel, connectionInfo: NetworkConnectionInfo?) {
         currentSession = session
+        
+        // 清除连接中的会话信息，因为现在已经设置为当前会话
+        connectingSession = nil
         
         if let info = connectionInfo {
             actualHost = info.host

@@ -528,6 +528,13 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
     }
     
     SDL_RenderPresent(sdlRenderer);
+    
+    // 检查是否是第一帧渲染，如果是则更新状态为窗口已显示
+    if (vncClient && vncClient.scrcpyStatus <= ScrcpyStatusConnected) {
+        vncClient.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
+        ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "First frame rendered, SDL window appeared");
+        NSLog(@"✅ [ScrcpyVNCRuntime] First frame rendered, updating status to SDL Window Appeared");
+    }
 }
 
 static inline rfbBool VNCRuntimeHandleCursorPos(rfbClient* cl, int x, int y, int* currentMouseX, int* currentMouseY) {

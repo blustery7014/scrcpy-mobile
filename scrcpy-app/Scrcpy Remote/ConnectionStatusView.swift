@@ -13,6 +13,8 @@ struct ConnectionStatusView: View {
     let statusMessage: String?
     let onCancel: () -> Void
     
+    @ObservedObject private var connectionManager = SessionConnectionManager.shared
+    
     @State private var animationPhase: Int = 0
     @State private var pulseScale: CGFloat = 1.0
     @State private var rotationAngle: Double = 0
@@ -78,12 +80,12 @@ struct ConnectionStatusView: View {
             previousConnectionStatus = connectionStatus
             currentIconName = connectionStatusIcon
             currentIconColor = connectionStatusColor
-            print("🎭 [ConnectionStatusView] View appeared for session: \(session.title)")
+            print("🎭 [ConnectionStatusView] View appeared for session: \(displaySession.title)")
         }
         .onDisappear {
             // 视图消失时停止 Timer 和动画
             isTimerActive = false
-            print("🎭 [ConnectionStatusView] View disappeared for session: \(session.title)")
+            print("🎭 [ConnectionStatusView] View disappeared for session: \(displaySession.title)")
         }
         .onChange(of: connectionStatus) { newStatus in
             // 检测状态变化
@@ -158,6 +160,14 @@ struct ConnectionStatusView: View {
     
     // MARK: - Computed Properties
     
+    /// 获取要显示的会话信息（优先使用connectingSession，如果没有则使用传入的session）
+    private var displaySession: ScrcpySession {
+        if let connectingSessionModel = connectionManager.connectingSession {
+            return ScrcpySession(sessionModel: connectingSessionModel)
+        }
+        return session
+    }
+    
     /// 判断是否应该继续运行动画
     private var shouldContinueAnimating: Bool {
         // 只有在连接中或连接失败时才继续动画
@@ -205,13 +215,13 @@ struct ConnectionStatusView: View {
             deviceTypeIcon
             
             // 设备名称
-            Text(session.title)
+            Text(displaySession.title)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
             
             // Tailscale 连接指示器
-            if session.sessionModel.useTailscale {
+            if displaySession.sessionModel.useTailscale {
                 tailscaleIndicator
             }
         }
@@ -222,7 +232,7 @@ struct ConnectionStatusView: View {
         let iconName: String
         let iconColor: Color
         
-        switch session.deviceType {
+        switch displaySession.deviceType {
         case "adb":
             iconName = "android-large"
             iconColor = .green
@@ -439,7 +449,7 @@ struct ConnectionStatusView: View {
     private var defaultStatusMessage: String {
         switch connectionStatus {
         case ScrcpyStatusConnecting:
-            return "Establishing network connection to \(session.sessionModel.hostReal):\(session.sessionModel.port)"
+            return "Establishing network connection to \(displaySession.sessionModel.hostReal):\(displaySession.sessionModel.port)"
         case ScrcpyStatusADBConnected:
             return "ADB protocol connection established successfully"
         case ScrcpyStatusSDLWindowCreated:
