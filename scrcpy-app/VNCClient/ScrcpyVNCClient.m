@@ -288,8 +288,52 @@
     self.rfbClient->GetCredential = GetCredentialBlock;
     VNCRuntimeSetupGetCredentialCallback(self.rfbClient, user, password);
     
-    // 准备连接参数
-    const char *argv[] = {"vnc", [NSString stringWithFormat:@"%@:%@", host, port].UTF8String};
+    // 获取VNC选项
+    NSDictionary *vncOptions = arguments[@"vncOptions"];
+    NSString *compressionLevelString = vncOptions[@"compressionLevel"];
+    NSString *qualityLevelString = vncOptions[@"qualityLevel"];
+    
+    // 准备VNC压缩等级参数
+    int compressionLevel = 6; // 默认标准压缩
+    if (compressionLevelString) {
+        if ([compressionLevelString isEqualToString:@"none"]) {
+            compressionLevel = 0;
+        } else if ([compressionLevelString isEqualToString:@"standard"]) {
+            compressionLevel = 6;
+        } else if ([compressionLevelString isEqualToString:@"maximum"]) {
+            compressionLevel = 9;
+        }
+    }
+    
+    // 准备VNC质量等级参数
+    int qualityLevel = 5; // 默认标准质量
+    if (qualityLevelString) {
+        if ([qualityLevelString isEqualToString:@"lowest"]) {
+            qualityLevel = 0;
+        } else if ([qualityLevelString isEqualToString:@"low"]) {
+            qualityLevel = 2;
+        } else if ([qualityLevelString isEqualToString:@"standard"]) {
+            qualityLevel = 5;
+        } else if ([qualityLevelString isEqualToString:@"high"]) {
+            qualityLevel = 7;
+        } else if ([qualityLevelString isEqualToString:@"highest"]) {
+            qualityLevel = 9;
+        }
+    }
+    
+    NSLog(@"✅ [ScrcpyVNCClient] Using compression level %d (%@), quality level %d (%@)", 
+          compressionLevel, compressionLevelString ?: @"default", 
+          qualityLevel, qualityLevelString ?: @"default");
+    
+    // 准备连接参数，包含压缩设置
+    NSString *compressionLevelStr = [NSString stringWithFormat:@"%d", compressionLevel];
+    NSString *hostPortStr = [NSString stringWithFormat:@"%@:%@", host, port];
+    
+    const char *argv[] = {
+        "vnc",
+        "-compress", compressionLevelStr.UTF8String,
+        hostPortStr.UTF8String
+    };
     int argc = sizeof(argv) / sizeof(char *);
     
     // 更新状态为连接中
@@ -307,6 +351,13 @@
             completion(ScrcpyStatusConnectingFailed, @"Failed to connect to VNC server");
         }
         return;
+    }
+    
+    // 设置质量等级（rfbInitClient不直接支持quality参数，所以在连接后设置）
+    if (self.rfbClient) {
+        self.rfbClient->appData.qualityLevel = qualityLevel;
+        self.rfbClient->appData.enableJPEG = (qualityLevel > 0) ? TRUE : FALSE;
+        NSLog(@"✅ [ScrcpyVNCClient] Applied quality level %d after connection", qualityLevel);
     }
     
     // 标记为已连接
@@ -333,11 +384,13 @@
         // 发送一个轻微的鼠标移动来获取当前位置（某些VNC服务器需要这样做）
         SendPointerEvent(self.rfbClient, self.currentMouseX, self.currentMouseY, 0);
         
-        // 延迟500ms后再次请求，确保服务器有时间响应
+        // 延迟100ms后再次请求，确保服务器有时间响应
+        __weak typeof(self) weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            if (self.rfbClient && self.connected) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (strongSelf && strongSelf.rfbClient && strongSelf.connected) {
                 NSLog(@"🖱️ [ScrcpyVNCClient] Sending additional framebuffer update request for cursor");
-                SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, TRUE);
+                SendFramebufferUpdateRequest(strongSelf.rfbClient, 0, 0, strongSelf.rfbClient->width, strongSelf.rfbClient->height, TRUE);
             }
         });
     }

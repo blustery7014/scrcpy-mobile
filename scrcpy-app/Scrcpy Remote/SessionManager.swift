@@ -8,11 +8,81 @@
 import KeychainSwift
 import Foundation
 
+// VNC压缩等级枚举
+enum VNCCompressionLevel: String, Codable, CaseIterable {
+    case none = "none"
+    case standard = "standard"
+    case maximum = "maximum"
+    
+    var displayName: String {
+        switch self {
+        case .none:
+            return "不压缩"
+        case .standard:
+            return "标准压缩"
+        case .maximum:
+            return "最大压缩"
+        }
+    }
+    
+    var compressionValue: Int {
+        switch self {
+        case .none:
+            return 0
+        case .standard:
+            return 6
+        case .maximum:
+            return 9
+        }
+    }
+}
+
+// VNC质量等级枚举
+enum VNCQualityLevel: String, Codable, CaseIterable {
+    case lowest = "lowest"      // rfbEncodingQualityLevel0
+    case low = "low"           // rfbEncodingQualityLevel2
+    case standard = "standard"  // rfbEncodingQualityLevel5
+    case high = "high"         // rfbEncodingQualityLevel7
+    case highest = "highest"    // rfbEncodingQualityLevel9
+    
+    var displayName: String {
+        switch self {
+        case .lowest:
+            return "最低质量"
+        case .low:
+            return "低质量"
+        case .standard:
+            return "标准质量"
+        case .high:
+            return "高质量"
+        case .highest:
+            return "最高质量"
+        }
+    }
+    
+    var qualityValue: Int {
+        switch self {
+        case .lowest:
+            return 0
+        case .low:
+            return 2
+        case .standard:
+            return 5
+        case .high:
+            return 7
+        case .highest:
+            return 9
+        }
+    }
+}
+
 // VNC Session Model can be saved to AppStorage
 struct VNCSessionOptions: Codable, Identifiable {
     var id = UUID()
     var vncUser: String = ""
     var vncPassword: String = ""
+    var compressionLevel: VNCCompressionLevel = .standard
+    var qualityLevel: VNCQualityLevel = .standard
     
     init() { }
     
@@ -21,6 +91,8 @@ struct VNCSessionOptions: Codable, Identifiable {
         self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         self.vncUser = try container.decodeIfPresent(String.self, forKey: .vncUser) ?? ""
         self.vncPassword = try container.decodeIfPresent(String.self, forKey: .vncPassword) ?? ""
+        self.compressionLevel = try container.decodeIfPresent(VNCCompressionLevel.self, forKey: .compressionLevel) ?? .standard
+        self.qualityLevel = try container.decodeIfPresent(VNCQualityLevel.self, forKey: .qualityLevel) ?? .standard
     }
 }
 

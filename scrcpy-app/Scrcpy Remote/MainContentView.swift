@@ -224,9 +224,7 @@ struct MainContentView: View {
                 }
                 .onChange(of: connectionManager.isConnecting) { isConnecting in
                     if isConnecting {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = true
-                        }
+                        isNavigationBarHidden = true
                     }
                     
                     if !isConnecting && connectionManager.connectionStatus != ScrcpyStatusConnectingFailed {
@@ -246,9 +244,7 @@ struct MainContentView: View {
                     switch newStatus {
                     case ScrcpyStatusSDLWindowAppeared:
                         print("✅ [MainContentView] SDL Window appeared, restoring navigation bar and hiding status view")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = false
-                        }
+                        isNavigationBarHidden = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             currentStatusMessage = nil
                             print("🧹 [MainContentView] currentStatusMessage cleared after SDL window appeared")
@@ -264,15 +260,11 @@ struct MainContentView: View {
                     case ScrcpyStatusConnectingFailed:
                         print("❌ [MainContentView] Connection failed, will show error briefly")
                         print("❌ [MainContentView] Current currentStatusMessage: \(currentStatusMessage ?? "nil")")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = true
-                        }
+                        isNavigationBarHidden = true
                         
                     case ScrcpyStatusDisconnected:
                         print("🔌 [MainContentView] Connection disconnected, restoring navigation bar and cleaning up")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = false
-                        }
+                        isNavigationBarHidden = false
                         currentStatusMessage = nil
                         print("🧹 [MainContentView] currentStatusMessage cleared after disconnect")
                         
@@ -394,9 +386,7 @@ struct MainContentView: View {
                 }
                 .onChange(of: connectionManager.isConnecting) { isConnecting in
                     if isConnecting {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = true
-                        }
+                        isNavigationBarHidden = true
                     }
                     
                     if !isConnecting && connectionManager.connectionStatus != ScrcpyStatusConnectingFailed {
@@ -416,9 +406,7 @@ struct MainContentView: View {
                     switch newStatus {
                     case ScrcpyStatusSDLWindowAppeared:
                         print("✅ [MainContentView] SDL Window appeared, restoring navigation bar and hiding status view")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = false
-                        }
+                        isNavigationBarHidden = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             currentStatusMessage = nil
                             print("🧹 [MainContentView] currentStatusMessage cleared after SDL window appeared")
@@ -434,15 +422,11 @@ struct MainContentView: View {
                     case ScrcpyStatusConnectingFailed:
                         print("❌ [MainContentView] Connection failed, will show error briefly")
                         print("❌ [MainContentView] Current currentStatusMessage: \(currentStatusMessage ?? "nil")")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = true
-                        }
+                        isNavigationBarHidden = true
                         
                     case ScrcpyStatusDisconnected:
                         print("🔌 [MainContentView] Connection disconnected, restoring navigation bar and cleaning up")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isNavigationBarHidden = false
-                        }
+                        isNavigationBarHidden = false
                         currentStatusMessage = nil
                         print("🧹 [MainContentView] currentStatusMessage cleared after disconnect")
                         

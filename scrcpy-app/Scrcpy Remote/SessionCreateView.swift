@@ -128,6 +128,20 @@ struct SessionCreateView: View {
                             .autocorrectionDisabled(true)
                         SecureField("VNC Password", text: $sessionModel.vncOptions.vncPassword)
                             .textContentType(.password)
+                        
+                        Picker("Compress Level", selection: $sessionModel.vncOptions.compressionLevel) {
+                            ForEach(VNCCompressionLevel.allCases, id: \.self) { level in
+                                Text(level.displayName).tag(level)
+                            }
+                        }
+                        .pickerStyle(MenuPickerStyle())
+                        
+                        Picker("Quality Level", selection: $sessionModel.vncOptions.qualityLevel) {
+                            ForEach(VNCQualityLevel.allCases, id: \.self) { level in
+                                Text(level.displayName).tag(level)
+                            }
+                        }
+                        .pickerStyle(MenuPickerStyle())
                     }
                 }
                 if effectiveDeviceType == .adb {
