@@ -283,6 +283,13 @@
     self.rfbClient->canHandleNewFBSize = true;
     self.rfbClient->listenPort = LISTEN_PORT_OFFSET;
     self.rfbClient->listen6Port = LISTEN_PORT_OFFSET;
+    
+    // 设置连接超时（30秒）
+    self.rfbClient->connectTimeout = 30;
+    
+    // 设置读取超时（15秒）
+    self.rfbClient->readTimeout = 15;
+    
     // 使用远程指针:
     // - 不使用的话, 无法获取远程鼠标的位置变化, 导致发送点击事件时无法正确定位, 但好处是远程的鼠标指针会正确展示
     // - 使用的话, 可以正确获取鼠标位置, 但远程鼠标指针会被隐藏, 需要自己绘制

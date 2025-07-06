@@ -19,6 +19,7 @@ struct MainContentView: View {
     @State private var currentStatusMessage: String?
     @State private var isNavigationBarHidden: Bool = false
     @State private var shouldShowNavigationBarAfterDismiss: Bool = false
+    @State private var userDismissedConnection: Bool = false
     @EnvironmentObject var appSettings: AppSettings
     
     init(sessions: [ScrcpySession] = []) {
@@ -53,6 +54,9 @@ struct MainContentView: View {
     /// 连接到指定会话
     private func connectToSession(_ session: ScrcpySession) {
         print("Connecting to session:", session.title)
+        
+        // 重置用户关闭标志，允许显示新的连接状态
+        userDismissedConnection = false
         
         // 使用 SessionConnectionManager 进行连接
         SessionConnectionManager.shared.connectToSession(
@@ -95,13 +99,20 @@ struct MainContentView: View {
     
     /// 判断是否应该显示连接状态视图
     private var shouldShowConnectionStatusView: Bool {
+        // 如果用户主动关闭了连接状态视图，立即隐藏
+        guard !userDismissedConnection else {
+            return false
+        }
+        
         // 只有在以下情况下才显示 ConnectionStatusView：
         // 1. 正在连接中
-        // 2. 连接失败（给用户时间看到错误信息）
-        // 3. 有当前会话且状态不是已断开
+        // 2. 连接失败（等待用户主动点击 dismiss 按钮）
+        // 3. 有当前会话且状态处于连接过程中（不包括连接失败）
         return connectionManager.isConnecting || 
-               connectionManager.connectionStatus == ScrcpyStatusConnectingFailed ||
+               (connectionManager.connectionStatus == ScrcpyStatusConnectingFailed && currentStatusMessage != nil) ||
                (connectionManager.currentSession != nil && 
+                connectionManager.connectionStatus != ScrcpyStatusDisconnected &&
+                connectionManager.connectionStatus != ScrcpyStatusConnectingFailed &&
                 connectionManager.connectionStatus.rawValue < ScrcpyStatusSDLWindowAppeared.rawValue)
     }
 
@@ -192,12 +203,25 @@ struct MainContentView: View {
                             connectionStatus: connectionManager.connectionStatus,
                             statusMessage: currentStatusMessage,
                             onCancel: {
-                                print("🚫 [MainContentView] User cancelled connection, restoring navigation bar")
+                                print("🚫 [MainContentView] User dismissed connection, restoring navigation bar")
+                                
+                                // 立即设置用户关闭标志，强制隐藏连接状态视图
+                                userDismissedConnection = true
+                                
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     isNavigationBarHidden = false
                                 }
                                 currentStatusMessage = nil
+                                
+                                // 断开连接并清理会话状态
                                 SessionConnectionManager.shared.disconnectCurrent()
+                                
+                                // 对于连接失败的情况，需要手动清理会话状态
+                                if connectionManager.connectionStatus == ScrcpyStatusConnectingFailed {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        SessionConnectionManager.shared.clearCurrentSession()
+                                    }
+                                }
                             }
                         )
                         .transition(.opacity.combined(with: .scale))
@@ -245,6 +269,7 @@ struct MainContentView: View {
                     case ScrcpyStatusSDLWindowAppeared:
                         print("✅ [MainContentView] SDL Window appeared, restoring navigation bar and hiding status view")
                         isNavigationBarHidden = false
+                        userDismissedConnection = false // 重置用户关闭标志
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             currentStatusMessage = nil
                             print("🧹 [MainContentView] currentStatusMessage cleared after SDL window appeared")
@@ -258,13 +283,16 @@ struct MainContentView: View {
                         }
                         
                     case ScrcpyStatusConnectingFailed:
-                        print("❌ [MainContentView] Connection failed, will show error briefly")
+                        print("❌ [MainContentView] Connection failed, waiting for user to dismiss")
                         print("❌ [MainContentView] Current currentStatusMessage: \(currentStatusMessage ?? "nil")")
                         isNavigationBarHidden = true
+                        
+                        // 不自动清除状态消息，等待用户点击 dismiss 按钮
                         
                     case ScrcpyStatusDisconnected:
                         print("🔌 [MainContentView] Connection disconnected, restoring navigation bar and cleaning up")
                         isNavigationBarHidden = false
+                        userDismissedConnection = false // 重置用户关闭标志
                         currentStatusMessage = nil
                         print("🧹 [MainContentView] currentStatusMessage cleared after disconnect")
                         
@@ -354,12 +382,25 @@ struct MainContentView: View {
                             connectionStatus: connectionManager.connectionStatus,
                             statusMessage: currentStatusMessage,
                             onCancel: {
-                                print("🚫 [MainContentView] User cancelled connection, restoring navigation bar")
+                                print("🚫 [MainContentView] User dismissed connection, restoring navigation bar")
+                                
+                                // 立即设置用户关闭标志，强制隐藏连接状态视图
+                                userDismissedConnection = true
+                                
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     isNavigationBarHidden = false
                                 }
                                 currentStatusMessage = nil
+                                
+                                // 断开连接并清理会话状态
                                 SessionConnectionManager.shared.disconnectCurrent()
+                                
+                                // 对于连接失败的情况，需要手动清理会话状态
+                                if connectionManager.connectionStatus == ScrcpyStatusConnectingFailed {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        SessionConnectionManager.shared.clearCurrentSession()
+                                    }
+                                }
                             }
                         )
                         .transition(.opacity.combined(with: .scale))
@@ -407,6 +448,7 @@ struct MainContentView: View {
                     case ScrcpyStatusSDLWindowAppeared:
                         print("✅ [MainContentView] SDL Window appeared, restoring navigation bar and hiding status view")
                         isNavigationBarHidden = false
+                        userDismissedConnection = false // 重置用户关闭标志
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             currentStatusMessage = nil
                             print("🧹 [MainContentView] currentStatusMessage cleared after SDL window appeared")
@@ -420,13 +462,16 @@ struct MainContentView: View {
                         }
                         
                     case ScrcpyStatusConnectingFailed:
-                        print("❌ [MainContentView] Connection failed, will show error briefly")
+                        print("❌ [MainContentView] Connection failed, waiting for user to dismiss")
                         print("❌ [MainContentView] Current currentStatusMessage: \(currentStatusMessage ?? "nil")")
                         isNavigationBarHidden = true
+                        
+                        // 不自动清除状态消息，等待用户点击 dismiss 按钮
                         
                     case ScrcpyStatusDisconnected:
                         print("🔌 [MainContentView] Connection disconnected, restoring navigation bar and cleaning up")
                         isNavigationBarHidden = false
+                        userDismissedConnection = false // 重置用户关闭标志
                         currentStatusMessage = nil
                         print("🧹 [MainContentView] currentStatusMessage cleared after disconnect")
                         

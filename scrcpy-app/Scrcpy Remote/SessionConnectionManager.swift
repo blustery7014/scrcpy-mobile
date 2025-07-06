@@ -242,8 +242,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
                     print("📝 [SessionConnectionManager] No specific error message, using default")
                 }
                 
-                // 连接失败后，延迟清理回调
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                // 连接失败后，不自动清理，等待用户主动 dismiss
+                // 只清理回调以避免重复调用
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     self.cleanupCallbacksAfterFailure()
                 }
                 
@@ -509,6 +510,8 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         if let callback = currentConnectionCallback {
             callback(ScrcpyStatusConnectingFailed, message, false)
         }
+        
+        // 不自动清理当前会话，等待用户主动 dismiss
         
         print("📝 [SessionConnectionManager] Error message passed to ConnectionStatusView: \(message)")
     }
