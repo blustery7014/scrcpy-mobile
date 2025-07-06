@@ -54,4 +54,9 @@ void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale
  */
 void VNCRuntimeSetMouseMoved(void);
 
+/**
+ * 清理全局光标纹理资源
+ */
+void VNCRuntimeCleanupGlobalCursorTexture(void);
+
 #endif /* ScrcpyVNCRuntime_h */

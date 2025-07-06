@@ -214,8 +214,26 @@
         }
     }
 
+    // 清理全局光标纹理
+    VNCRuntimeCleanupGlobalCursorTexture();
+    
+    // 清理SDL纹理
+    if (self.currentTexture) {
+        SDL_DestroyTexture(self.currentTexture);
+        self.currentTexture = NULL;
+    }
+    
+    // 清理SDL渲染器（Metal后端）
+    if (self.currentRenderer) {
+        SDL_DestroyRenderer(self.currentRenderer);
+        self.currentRenderer = NULL;
+    }
+    
     // 清理VNC客户端
     if (self.rfbClient) {
+        // 释放SDL_Surface避免内存泄漏
+        SDL_FreeSurface(rfbClientGetClientData(self.rfbClient, SDL_Init));
+        
         rfbClientCleanup(self.rfbClient);
         self.rfbClient = NULL;
     }
@@ -271,8 +289,9 @@
     self.rfbClient->appData.useRemoteCursor = SDL_TRUE;
     
     // 设置帧缓冲区分配回调
+    __weak typeof(self) weakSelf = self;
     GetSet_MallocFrameBufferBlockIMP(self.rfbClient, imp_implementationWithBlock(^rfbBool(rfbClient* client){
-        return VNCRuntimeMallocFrameBuffer(client, self, &sdlWindow, &sdlRenderer, &sdlTexture);
+        return VNCRuntimeMallocFrameBuffer(client, weakSelf, &sdlWindow, &sdlRenderer, &sdlTexture);
     }));
     self.rfbClient->MallocFrameBuffer = MallocFrameBufferBlock;
     
@@ -385,7 +404,6 @@
         SendPointerEvent(self.rfbClient, self.currentMouseX, self.currentMouseY, 0);
         
         // 延迟100ms后再次请求，确保服务器有时间响应
-        __weak typeof(self) weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (strongSelf && strongSelf.rfbClient && strongSelf.connected) {
@@ -667,6 +685,9 @@
     } else {
         NSLog(@"ℹ️ [ScrcpyVNCClient] No active VNC connection to disconnect");
     }
+    
+    // Clean references
+    [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
 - (void)handleVNCMouseEvent:(NSNotification *)notification {

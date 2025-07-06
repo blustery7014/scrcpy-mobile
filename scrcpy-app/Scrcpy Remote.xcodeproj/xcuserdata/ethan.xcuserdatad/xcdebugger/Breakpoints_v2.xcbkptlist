@@ -2581,7 +2581,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "444"
             endingLineNumber = "444"
-            landmarkName = "-moveMouseToX:y:"
+            landmarkName = "-stopVNC"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

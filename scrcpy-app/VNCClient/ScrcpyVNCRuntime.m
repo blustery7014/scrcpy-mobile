@@ -991,3 +991,13 @@ void VNCRuntimeSetMouseMoved(void) {
     g_mouseJustStopped = NO; // 重置刚停止标记（鼠标重新开始移动）
     NSLog(@"🖱️ [MouseMoved] Flag set from drag handler - IsMoving: YES, reset justStopped");
 }
+
+// 清理全局光标纹理资源
+void VNCRuntimeCleanupGlobalCursorTexture(void) {
+    if (g_cursorTexture) {
+        SDL_DestroyTexture(g_cursorTexture);
+        g_cursorTexture = NULL;
+        g_cursorRenderer = NULL;
+        NSLog(@"🧹 [VNCRuntime] Global cursor texture cleaned up");
+    }
+}
