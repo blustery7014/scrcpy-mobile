@@ -17,6 +17,8 @@
 @property (nonatomic, strong)   NSOperationQueue    *connectionQueue;
 // Current connection operation
 @property (nonatomic, strong)   NSBlockOperation    *currentConnectionOperation;
+// Control force stop
+@property (nonatomic, assign)   BOOL                forceStop;
 // Cleanup flag to prevent multiple cleanup calls
 @property (nonatomic, assign)   BOOL                isCleaningUp;
 
@@ -123,8 +125,8 @@
     // 移除通知观察者
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     
-    // 停止VNC连接
-    [self stopVNC];
+    // 断开VNC连接
+    [self disconnect];
     
     NSLog(@"🔌 [ScrcpyVNCClient] dealloc completed");
 }
@@ -141,14 +143,7 @@
 #pragma mark - VNC消息循环
 
 - (void)vncMessageLoop {
-    // 确保在后台线程中运行
-    if ([NSThread isMainThread]) {
-        NSLog(@"🔌 [ScrcpyVNCClient] vncMessageLoop called from main thread, switching to background thread");
-        [NSThread detachNewThreadSelector:@selector(vncMessageLoop) toTarget:self withObject:nil];
-        return;
-    }
-    
-    while (self.connected && ![[NSThread currentThread] isCancelled]) {
+    while (self.connected && !self.forceStop && ![[NSThread currentThread] isCancelled]) {
         // 检查当前连接操作是否被取消
         if (self.currentConnectionOperation && self.currentConnectionOperation.isCancelled) {
             NSLog(@"🔌 [ScrcpyVNCClient] Current connection operation cancelled, stopping message loop");
@@ -191,7 +186,7 @@
     SDL_iPhoneSetEventPump(SDL_TRUE);
     SDL_Event e;
 
-    while (self.connected) {
+    while (self.connected && !self.forceStop) {
         if (!SDL_PollEvent(&e)) {
             SDL_Delay(1);
             continue;
@@ -234,8 +229,8 @@
                 break;
                 
             case SDL_QUIT:
-                NSLog(@"🔌 [ScrcpyVNCClient] SDL_QUIT event received, breaking VNC loop");
-                self.connected = NO;
+                NSLog(@"🔌 [ScrcpyVNCClient] SDL_QUIT event received");
+                self.forceStop = YES;
                 break;
                 
             case SDL_KEYDOWN:
@@ -272,10 +267,16 @@
     
     // 清理VNC客户端
     if (self.rfbClient) {
+        // 清理 SDL Surface
+        SDL_Surface *surface = rfbClientGetClientData(self.rfbClient, SDL_Init);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            SDL_FreeSurface(surface);
+        });
+
         // 清理VNC运行时回调
         VNCRuntimeCleanupCallbacks(self.rfbClient);
         
-        // 清理RFB客户端（rfbClientCleanup会自动处理内部的SDL_Surface）
+        // 清理RFB客户端
         rfbClientCleanup(self.rfbClient);
         self.rfbClient = NULL;
     }
@@ -300,7 +301,7 @@
     // 确保清理之前的连接状态
     if (self.connected || self.rfbClient) {
         NSLog(@"⚠️ [ScrcpyVNCClient] Previous connection detected, cleaning up first");
-        [self stopVNC];
+        [self disconnect];
         
         // 等待清理完成
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -528,7 +529,7 @@
         // 只有在没有被取消的情况下才启动消息循环
         if (!connectionOperation.isCancelled) {
             // 在后台线程启动消息循环
-            [weakSelf vncMessageLoop];
+            [NSThread detachNewThreadSelector:@selector(vncMessageLoop) toTarget:weakSelf withObject:nil];
 
             // 启动SDL事件循环
             [weakSelf performSelectorOnMainThread:@selector(SDLEventLoop) withObject:nil waitUntilDone:NO];
@@ -544,68 +545,6 @@
     [self.connectionQueue addOperation:connectionOperation];
 }
 
-- (void)stopVNC {
-    NSLog(@"🔌 [ScrcpyVNCClient] stopVNC called");
-    
-    // 防止重复清理
-    if (self.isCleaningUp) {
-        NSLog(@"⚠️ [ScrcpyVNCClient] Already cleaning up, skipping");
-        return;
-    }
-    self.isCleaningUp = YES;
-    
-    // 首先取消所有正在进行的连接操作
-    if (self.connectionQueue) {
-        NSLog(@"🔌 [ScrcpyVNCClient] Cancelling all connection operations");
-        [self.connectionQueue cancelAllOperations];
-        NSLog(@"🔌 [ScrcpyVNCClient] All connection operations cancelled");
-    }
-    
-    // 清理当前操作引用
-    self.currentConnectionOperation = nil;
-    
-    // 立即清理 RFB 客户端状态
-    if (self.rfbClient && self.connected) {
-        NSLog(@"🔌 [ScrcpyVNCClient] Cleaning up RFB client");
-        
-        // 清理VNC运行时回调
-        VNCRuntimeCleanupCallbacks(self.rfbClient);
-        
-        // 退出SDL
-        SDL_Quit();
-        SDL_iPhoneSetEventPump(SDL_FALSE);
-        
-        self.rfbClient = NULL;
-
-        NSLog(@"🔌 [ScrcpyVNCClient] RFB client cleaned up");
-    }
-    
-    // 标记为断开连接
-    self.connected = NO;
-
-    // 清理全局光标纹理
-    VNCRuntimeCleanupGlobalCursorTexture();
-    
-    // 清理SDL纹理和渲染器
-    if (self.currentTexture) {
-        SDL_DestroyTexture(self.currentTexture);
-        self.currentTexture = NULL;
-    }
-    
-    if (self.currentRenderer) {
-        SDL_DestroyRenderer(self.currentRenderer);
-        self.currentRenderer = NULL;
-    }
-    
-    // 更新状态
-    self.scrcpyStatus = ScrcpyStatusDisconnected;
-    ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC client disconnected");
-    
-    // 重置清理标志
-    self.isCleaningUp = NO;
-    
-    NSLog(@"🔌 [ScrcpyVNCClient] VNC connection stopped and cleaned up completely");
-}
 
 - (void)moveMouseToX:(int)x y:(int)y {
     if (!self.connected || !self.rfbClient) {
@@ -837,11 +776,95 @@
     }
 }
 
+#pragma mark - SDL Cleanup Methods
+
+- (void)cleanup {
+    NSLog(@"🔌 [ScrcpyVNCClient] Cleanup method called");
+    
+    // 参考 libvncclient 的 cleanup 实现
+    // 重启 SDL 视频子系统来关闭 viewer 窗口
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+    SDL_InitSubSystem(SDL_INIT_VIDEO);
+    
+    if (self.rfbClient) {
+        // 清理VNC运行时回调
+        VNCRuntimeCleanupCallbacks(self.rfbClient);
+        
+        // 清理RFB客户端
+        rfbClientCleanup(self.rfbClient);
+        self.rfbClient = NULL;
+    }
+    
+    // 标记为断开连接
+    self.connected = NO;
+    self.scrcpyStatus = ScrcpyStatusDisconnected;
+    ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC client cleaned up");
+    
+    // 重置清理标志
+    self.isCleaningUp = NO;
+    
+    NSLog(@"🔌 [ScrcpyVNCClient] Cleanup completed");
+}
+
 #pragma mark - ScrcpyClientProtocol
 
 - (void)disconnect {
     NSLog(@"🔌 [ScrcpyVNCClient] disconnect method called (ScrcpyClientProtocol)");
-    [self stopVNC];
+    
+    // 防止重复清理
+    if (self.isCleaningUp) {
+        NSLog(@"⚠️ [ScrcpyVNCClient] Already cleaning up, skipping");
+        return;
+    }
+    self.isCleaningUp = YES;
+    
+    // 首先取消所有正在进行的连接操作
+    if (self.connectionQueue) {
+        NSLog(@"🔌 [ScrcpyVNCClient] Cancelling all connection operations");
+        [self.connectionQueue cancelAllOperations];
+        NSLog(@"🔌 [ScrcpyVNCClient] All connection operations cancelled");
+    }
+    
+    // 清理当前操作引用
+    self.currentConnectionOperation = nil;
+    
+    // 判断当前连接状态，分别处理
+    self.forceStop = YES;
+    if (self.connected && self.rfbClient) {
+        NSLog(@"🔌 [ScrcpyVNCClient] Connected client detected, using SDL_Quit for normal exit");
+        // 如果已连接并启动了SDL事件循环
+        SDL_Event event;
+        event.type = SDL_QUIT;
+        SDL_PushEvent(&event);
+    } else if (self.rfbClient) {
+        NSLog(@"🔌 [ScrcpyVNCClient] Connecting state detected, cancelling connection and cleaning up RFB client");
+        // 清理VNC运行时回调
+        VNCRuntimeCleanupCallbacks(self.rfbClient);
+        
+        // 清理连接队列
+        [self.currentConnectionOperation cancel];
+        [self.connectionQueue cancelAllOperations];
+        
+        // 清理RFB客户端
+        self.rfbClient = NULL;
+        
+        NSLog(@"🔌 [ScrcpyVNCClient] RFB client cleaned up");
+        
+        // 手动更新状态（因为没有SDL事件循环处理）
+        self.connected = NO;
+        self.scrcpyStatus = ScrcpyStatusDisconnected;
+        ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC connection cancelled");
+    } else {
+        NSLog(@"🔌 [ScrcpyVNCClient] No active connection to disconnect");
+    }
+    
+    // 清理全局光标纹理
+    VNCRuntimeCleanupGlobalCursorTexture();
+    
+    // 重置清理标志
+    self.isCleaningUp = NO;
+    
+    NSLog(@"🔌 [ScrcpyVNCClient] Disconnect completed");
 }
 
 #pragma mark - 通知处理
@@ -851,7 +874,7 @@
     
     if (self.connected && self.scrcpyStatus != ScrcpyStatusDisconnected) {
         NSLog(@"🔌 [ScrcpyVNCClient] Stopping VNC connection due to disconnect request");
-        [self stopVNC];
+        [self disconnect];
     } else {
         NSLog(@"ℹ️ [ScrcpyVNCClient] No active VNC connection to disconnect");
     }

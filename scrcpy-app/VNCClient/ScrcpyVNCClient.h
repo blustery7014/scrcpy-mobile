@@ -32,8 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) CGSize imagePixelsSize;
 
 // SDL渲染对象
-@property (nonatomic, assign) SDL_Renderer *currentRenderer;
-@property (nonatomic, assign) SDL_Texture *currentTexture;
+@property (nonatomic, assign, nullable) SDL_Renderer *currentRenderer;
+@property (nonatomic, assign, nullable) SDL_Texture *currentTexture;
 
 // 鼠标坐标管理
 @property (nonatomic, assign) int currentMouseX;
@@ -72,8 +72,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param completion 连接完成回调
 - (void)startWithArguments:(NSDictionary *)arguments completion:(void (^)(enum ScrcpyStatus, NSString *))completion;
 
-/// 停止VNC连接
-- (void)stopVNC;
 
 /// 移动远程鼠标到指定位置
 /// @param x 目标X坐标

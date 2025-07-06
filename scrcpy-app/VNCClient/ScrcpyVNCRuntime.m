@@ -779,7 +779,6 @@ void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale
     // 确保光标纹理已创建
     if (!g_cursorTexture || g_cursorRenderer != renderer) {
         if (g_cursorTexture && g_cursorRenderer != renderer) {
-            SDL_DestroyTexture(g_cursorTexture);
             g_cursorTexture = NULL;
         }
         
