@@ -673,7 +673,8 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         if let wrapper = scrcpyClientWrapper {
             wrapper.disconnectCurrentClient()
         } else {
-            // 备用方案：发送断开通知
+            // 备用方案：发送断开通知（用于向后兼容）
+            print("⚠️ [SessionConnectionManager] No ScrcpyClientWrapper available, using notification fallback")
             NotificationCenter.default.post(
                 name: Notification.Name("ScrcpyRequestDisconnectNotification"),
                 object: nil
