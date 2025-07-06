@@ -13,6 +13,9 @@
 
 
 @interface ScrcpyVNCClient () <ScrcpyClientProtocol>
+// NSOperationQueue to manange connections
+@property (nonatomic, strong)   NSOperationQueue    *connectionQueue;
+
 @end
 
 @implementation ScrcpyVNCClient
@@ -50,6 +53,11 @@
         self.renderHeight = 0;
         self.remoteDesktopWidth = 0;
         self.remoteDesktopHeight = 0;
+        
+        // Connection Queue
+        self.connectionQueue = [[NSOperationQueue alloc] init];
+        self.connectionQueue.maxConcurrentOperationCount = 1; // 确保串行执行连接操作
+        self.connectionQueue.qualityOfService = NSQualityOfServiceUserInteractive;
         
         // 监听断开连接通知
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -298,7 +306,11 @@
     // 设置帧缓冲区分配回调
     __weak typeof(self) weakSelf = self;
     GetSet_MallocFrameBufferBlockIMP(self.rfbClient, imp_implementationWithBlock(^rfbBool(rfbClient* client){
-        return VNCRuntimeMallocFrameBuffer(client, weakSelf, &sdlWindow, &sdlRenderer, &sdlTexture);
+        dispatch_queue_t mainQueue = dispatch_get_main_queue();
+        dispatch_sync(mainQueue, ^{
+            VNCRuntimeMallocFrameBuffer(client, weakSelf, &sdlWindow, &sdlRenderer, &sdlTexture);
+        });
+        return TRUE;
     }));
     self.rfbClient->MallocFrameBuffer = MallocFrameBufferBlock;
     
@@ -355,85 +367,87 @@
     NSString *compressionLevelStr = [NSString stringWithFormat:@"%d", compressionLevel];
     NSString *hostPortStr = [NSString stringWithFormat:@"%@:%@", host, port];
     
-    const char *argv[] = {
-        "vnc",
-        "-compress", compressionLevelStr.UTF8String,
-        hostPortStr.UTF8String
-    };
-    int argc = sizeof(argv) / sizeof(char *);
-    
     // 更新状态为连接中
     self.scrcpyStatus = ScrcpyStatusConnecting;
     ScrcpyUpdateStatus(ScrcpyStatusConnecting, [[NSString stringWithFormat:@"Connecting to %@:%@", host, port] UTF8String]);
     
     // 初始化VNC客户端连接
-    if (!rfbInitClient(self.rfbClient, &argc, (char **)argv)) {
-        self.rfbClient = NULL;
+    [self.connectionQueue addOperationWithBlock:^{
+        const char *argv[] = {
+            "vnc",
+            "-compress", compressionLevelStr.UTF8String,
+            hostPortStr.UTF8String
+        };
+        int argc = sizeof(argv) / sizeof(char *);
         
-        self.scrcpyStatus = ScrcpyStatusConnectingFailed;
-        ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed, [[NSString stringWithFormat:@"Failed to connect to VNC server %@:%@", host, port] UTF8String]);
+        if (!rfbInitClient(self.rfbClient, &argc, (char **)argv)) {
+            weakSelf.rfbClient = NULL;
+            
+            weakSelf.scrcpyStatus = ScrcpyStatusConnectingFailed;
+            ScrcpyUpdateStatus(ScrcpyStatusConnectingFailed, [[NSString stringWithFormat:@"Failed to connect to VNC server %@:%@", host, port] UTF8String]);
+            
+            if (completion) {
+                completion(ScrcpyStatusConnectingFailed, @"Failed to connect to VNC server");
+            }
+            return;
+        }
+    
+        // 设置质量等级（rfbInitClient不直接支持quality参数，所以在连接后设置）
+        if (weakSelf.rfbClient) {
+            weakSelf.rfbClient->appData.qualityLevel = qualityLevel;
+            weakSelf.rfbClient->appData.enableJPEG = (qualityLevel > 0) ? TRUE : FALSE;
+            NSLog(@"✅ [ScrcpyVNCClient] Applied quality level %d after connection", qualityLevel);
+        }
+    
+        // 标记为已连接
+        weakSelf.connected = YES;
+    
+        // 更新状态为已连接
+        weakSelf.scrcpyStatus = ScrcpyStatusConnected;
+        ScrcpyUpdateStatus(ScrcpyStatusConnected, "VNC client connected successfully");
+    
+        NSLog(@"✅ [ScrcpyVNCClient] VNC connection established successfully");
+    
+        // 初始化鼠标坐标到屏幕中心（作为默认值）
+        if (weakSelf.rfbClient) {
+            weakSelf.currentMouseX = weakSelf.rfbClient->width / 2;
+            weakSelf.currentMouseY = weakSelf.rfbClient->height / 2;
+            NSLog(@"🐭 [ScrcpyVNCClient] Initialized default mouse position to center: (%d,%d)", weakSelf.currentMouseX, weakSelf.currentMouseY);
+            
+            // 请求当前光标位置（如果服务器支持）
+            // 这将触发 GotCursorPos 回调来获取真实的光标位置
+            if (weakSelf.rfbClient->canHandleNewFBSize) {
+                NSLog(@"🔍 [ScrcpyVNCClient] Requesting current cursor position from VNC server");
+            }
+            
+            // 发送一个轻微的鼠标移动来获取当前位置（某些VNC服务器需要这样做）
+            SendPointerEvent(weakSelf.rfbClient, weakSelf.currentMouseX, weakSelf.currentMouseY, 0);
+            
+            // 延迟100ms后再次请求，确保服务器有时间响应
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                __strong typeof(weakSelf) strongSelf = weakSelf;
+                if (strongSelf && strongSelf.rfbClient && strongSelf.connected) {
+                    NSLog(@"🖱️ [ScrcpyVNCClient] Sending additional framebuffer update request for cursor");
+                    SendFramebufferUpdateRequest(strongSelf.rfbClient, 0, 0, strongSelf.rfbClient->width, strongSelf.rfbClient->height, TRUE);
+                }
+            });
+        }
+        
+        // 请求初始帧缓冲更新
+        if (weakSelf.rfbClient) {
+            SendFramebufferUpdateRequest(weakSelf.rfbClient, 0, 0, weakSelf.rfbClient->width, weakSelf.rfbClient->height, FALSE);
+        }
         
         if (completion) {
-            completion(ScrcpyStatusConnectingFailed, @"Failed to connect to VNC server");
-        }
-        return;
-    }
-    
-    // 设置质量等级（rfbInitClient不直接支持quality参数，所以在连接后设置）
-    if (self.rfbClient) {
-        self.rfbClient->appData.qualityLevel = qualityLevel;
-        self.rfbClient->appData.enableJPEG = (qualityLevel > 0) ? TRUE : FALSE;
-        NSLog(@"✅ [ScrcpyVNCClient] Applied quality level %d after connection", qualityLevel);
-    }
-    
-    // 标记为已连接
-    self.connected = YES;
-    
-    // 更新状态为已连接
-    self.scrcpyStatus = ScrcpyStatusConnected;
-    ScrcpyUpdateStatus(ScrcpyStatusConnected, "VNC client connected successfully");
-    
-    NSLog(@"✅ [ScrcpyVNCClient] VNC connection established successfully");
-    
-    // 初始化鼠标坐标到屏幕中心（作为默认值）
-    if (self.rfbClient) {
-        self.currentMouseX = self.rfbClient->width / 2;
-        self.currentMouseY = self.rfbClient->height / 2;
-        NSLog(@"🐭 [ScrcpyVNCClient] Initialized default mouse position to center: (%d,%d)", self.currentMouseX, self.currentMouseY);
-        
-        // 请求当前光标位置（如果服务器支持）
-        // 这将触发 GotCursorPos 回调来获取真实的光标位置
-        if (self.rfbClient->canHandleNewFBSize) {
-            NSLog(@"🔍 [ScrcpyVNCClient] Requesting current cursor position from VNC server");
+            completion(ScrcpyStatusConnected, @"VNC connected successfully");
         }
         
-        // 发送一个轻微的鼠标移动来获取当前位置（某些VNC服务器需要这样做）
-        SendPointerEvent(self.rfbClient, self.currentMouseX, self.currentMouseY, 0);
-        
-        // 延迟100ms后再次请求，确保服务器有时间响应
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            __strong typeof(weakSelf) strongSelf = weakSelf;
-            if (strongSelf && strongSelf.rfbClient && strongSelf.connected) {
-                NSLog(@"🖱️ [ScrcpyVNCClient] Sending additional framebuffer update request for cursor");
-                SendFramebufferUpdateRequest(strongSelf.rfbClient, 0, 0, strongSelf.rfbClient->width, strongSelf.rfbClient->height, TRUE);
-            }
-        });
-    }
-    
-    // 请求初始帧缓冲更新
-    if (self.rfbClient) {
-        SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, FALSE);
-    }
-    
-    if (completion) {
-        completion(ScrcpyStatusConnected, @"VNC connected successfully");
-    }
-    
-    // 在后台线程启动消息循环
-    [self vncMessageLoop];
+        // 在后台线程启动消息循环
+        [weakSelf vncMessageLoop];
 
-    // 启动SDL事件循环（异步，避免阻塞主线程）
-    [self performSelector:@selector(SDLEventLoop) withObject:nil afterDelay:0];
+        // 启动SDL事件循环
+        [weakSelf performSelectorOnMainThread:@selector(SDLEventLoop) withObject:nil waitUntilDone:NO];
+    }];
 }
 
 - (void)stopVNC {
