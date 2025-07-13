@@ -20,6 +20,8 @@ struct MainContentView: View {
     @State private var isNavigationBarHidden: Bool = false
     @State private var shouldShowNavigationBarAfterDismiss: Bool = false
     @State private var userDismissedConnection: Bool = false
+    @State private var showMigrationAlert: Bool = false
+    @State private var legacyDeviceInfo: (host: String, port: String)?
     @EnvironmentObject var appSettings: AppSettings
     
     init(sessions: [ScrcpySession] = []) {
@@ -95,6 +97,30 @@ struct MainContentView: View {
         )
     }
 
+    // MARK: - Computed Properties
+    
+    // MARK: - Migration Methods
+    
+    private func checkForMigration() {
+        DispatchQueue.main.async {
+            if SessionManager.shared.shouldShowMigrationPrompt() {
+                self.legacyDeviceInfo = SessionManager.shared.getLegacyDeviceInfo()
+                self.showMigrationAlert = true
+            }
+        }
+    }
+    
+    private func performMigration() {
+        SessionManager.shared.performUserRequestedMigration()
+        reloadSessions()
+        showMigrationAlert = false
+    }
+    
+    private func declineMigration() {
+        SessionManager.shared.declineMigration()
+        showMigrationAlert = false
+    }
+    
     // MARK: - Computed Properties
     
     /// 判断是否应该显示连接状态视图
@@ -245,6 +271,7 @@ struct MainContentView: View {
                     if savedSessions.isEmpty {
                         reloadSessions()
                     }
+                    checkForMigration()
                 }
                 .onChange(of: connectionManager.isConnecting) { isConnecting in
                     if isConnecting {
@@ -298,6 +325,21 @@ struct MainContentView: View {
                         
                     default:
                         break
+                    }
+                }
+                // Migration prompt
+                .alert("Legacy Data Found", isPresented: $showMigrationAlert) {
+                    Button("Migrate") {
+                        performMigration()
+                    }
+                    Button("Skip", role: .cancel) {
+                        declineMigration()
+                    }
+                } message: {
+                    if let deviceInfo = legacyDeviceInfo {
+                        Text("We found device settings from the previous versions:\n\n📱 Device: \(deviceInfo.host):\(deviceInfo.port)\n\nWould you like to migrate this device to the new app? A new ADB device will be created with your previous settings.")
+                    } else {
+                        Text("We found settings from the previous versions. Would you like to migrate them to the new version?")
                     }
                 }
             }
@@ -424,6 +466,7 @@ struct MainContentView: View {
                     if savedSessions.isEmpty {
                         reloadSessions()
                     }
+                    checkForMigration()
                 }
                 .onChange(of: connectionManager.isConnecting) { isConnecting in
                     if isConnecting {
@@ -478,6 +521,27 @@ struct MainContentView: View {
                     default:
                         break
                     }
+                }
+                // Migration prompt
+                .alert(isPresented: $showMigrationAlert) {
+                    let title = "Legacy Data Found"
+                    let message: String
+                    if let deviceInfo = legacyDeviceInfo {
+                        message = "We found device settings from the previous scrcpy-ios app:\n\n📱 Device: \(deviceInfo.host):\(deviceInfo.port)\n\nWould you like to migrate this device to the new app? A new ADB device will be created with your previous settings."
+                    } else {
+                        message = "We found settings from the previous scrcpy-ios app. Would you like to migrate them to the new version?"
+                    }
+                    
+                    return Alert(
+                        title: Text(title),
+                        message: Text(message),
+                        primaryButton: .default(Text("Migrate")) {
+                            performMigration()
+                        },
+                        secondaryButton: .cancel(Text("Skip")) {
+                            declineMigration()
+                        }
+                    )
                 }
             }
             .navigationViewStyle(StackNavigationViewStyle())

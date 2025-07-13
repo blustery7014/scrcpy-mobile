@@ -7,6 +7,7 @@
 
 import KeychainSwift
 import Foundation
+import Security
 
 // VNC压缩等级枚举
 enum VNCCompressionLevel: String, Codable, CaseIterable {
@@ -300,9 +301,11 @@ class SessionManager {
     private let keychain = KeychainSwift()
     
     private let sessionKey = "scrcpy.sessions"
+    private let migrationKey = "scrcpy.migration.completed"
     
     private init() {
         keychain.synchronizable = true
+        checkAndPerformMigration()
     }
     
     func saveSession(_ session: ScrcpySessionModel) {
@@ -392,6 +395,188 @@ class SessionManager {
     func clearSessions() {
         // Clear all saved sessions
         keychain.delete(sessionKey)
+    }
+    
+    // MARK: - Migration Logic
+    
+    private func checkAndPerformMigration() {
+        // Check if migration has already been completed or declined
+        if keychain.getBool(migrationKey) == true {
+            print("📱 [SessionManager] Migration already processed, skipping")
+            return
+        }
+        
+        print("📱 [SessionManager] Checking for old scrcpy-ios data...")
+        
+        // Check if legacy data exists but don't auto-migrate
+        if hasLegacyData() {
+            print("📱 [SessionManager] Found legacy data, waiting for user decision...")
+            // Don't auto-migrate, let UI handle the user prompt
+        } else {
+            print("📱 [SessionManager] No legacy data found")
+            // Mark as processed to avoid future checks
+            keychain.set(true, forKey: migrationKey)
+        }
+    }
+    
+    private func hasLegacyData() -> Bool {
+        // Check for legacy keychain keys that indicate old scrcpy-ios data
+        let legacyKeys = ["adb-host", "adb-port", "max-size", "video-bit-rate", "max-fps"]
+        
+        for key in legacyKeys {
+            if getLegacyKeychainValue(for: key) != nil {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    private func performMigration() {
+        // Extract legacy settings from keychain using old KFKeychain format
+        let legacyHost = getLegacyKeychainValue(for: "adb-host") ?? ""
+        let legacyPort = getLegacyKeychainValue(for: "adb-port") ?? "5555"
+        
+        // Only create migration session if we have meaningful host data
+        guard !legacyHost.isEmpty else {
+            print("📱 [SessionManager] No valid host found in legacy data, skipping migration")
+            return
+        }
+        
+        print("📱 [SessionManager] Migrating legacy device: \(legacyHost):\(legacyPort)")
+        
+        // Create new ADB session from legacy data
+        var migratedSession = ScrcpySessionModel(
+            host: "adb://\(legacyHost)",
+            port: legacyPort,
+            sessionName: "Migrated Device"
+        )
+        
+        // Migrate ADB options
+        migratedSession.adbOptions = createADBOptionsFromLegacy()
+        
+        // Save the migrated session
+        saveSession(migratedSession)
+        
+        print("📱 [SessionManager] Successfully created migrated session: \(migratedSession.sessionName)")
+    }
+    
+    private func createADBOptionsFromLegacy() -> ADBSessionOptions {
+        var adbOptions = ADBSessionOptions()
+        
+        // Migrate text-based settings with defaults using legacy keychain format
+        adbOptions.maxScreenSize = getLegacyKeychainValue(for: "max-size") ?? ""
+        adbOptions.bitRate = getLegacyKeychainValue(for: "video-bit-rate") ?? ""
+        adbOptions.maxFPS = getLegacyKeychainValue(for: "max-fps") ?? "60"
+        
+        // Migrate boolean settings using legacy keychain format
+        adbOptions.turnScreenOff = getLegacyBoolFromKeychain("turn-screen-off", defaultValue: true)
+        adbOptions.stayAwake = getLegacyBoolFromKeychain("stay-awake", defaultValue: false)
+        adbOptions.forceAdbForward = getLegacyBoolFromKeychain("force-adb-forward", defaultValue: false)
+        adbOptions.powerOffOnClose = getLegacyBoolFromKeychain("power-off-on-close", defaultValue: false)
+        adbOptions.enableAudio = getLegacyBoolFromKeychain("enable-audio", defaultValue: false)
+        adbOptions.enableClipboardSync = true // Default for new sessions
+        
+        return adbOptions
+    }
+    
+    private func getBoolFromKeychain(_ key: String, defaultValue: Bool) -> Bool {
+        if let stringValue = keychain.get(key) {
+            // Handle both string and number representations
+            if stringValue.lowercased() == "true" || stringValue == "1" {
+                return true
+            } else if stringValue.lowercased() == "false" || stringValue == "0" {
+                return false
+            }
+        }
+        return defaultValue
+    }
+    
+    // MARK: - Public Migration Methods
+    
+    func shouldShowMigrationPrompt() -> Bool {
+        // Show prompt if migration hasn't been processed and legacy data exists
+        return keychain.getBool(migrationKey) != true && hasLegacyData()
+    }
+    
+    func getLegacyDeviceInfo() -> (host: String, port: String)? {
+        guard hasLegacyData() else { return nil }
+        
+        let host = getLegacyKeychainValue(for: "adb-host") ?? ""
+        let port = getLegacyKeychainValue(for: "adb-port") ?? "5555"
+        
+        guard !host.isEmpty else { return nil }
+        
+        return (host: host, port: port)
+    }
+    
+    func performUserRequestedMigration() {
+        guard hasLegacyData() else {
+            print("📱 [SessionManager] No legacy data to migrate")
+            return
+        }
+        
+        print("📱 [SessionManager] User requested migration, performing...")
+        performMigration()
+        
+        // Mark migration as completed
+        keychain.set(true, forKey: migrationKey)
+        print("📱 [SessionManager] User-requested migration completed successfully")
+    }
+    
+    func declineMigration() {
+        // Mark migration as processed (declined) to avoid showing prompt again
+        keychain.set(true, forKey: migrationKey)
+        print("📱 [SessionManager] User declined migration")
+    }
+    
+    // MARK: - Legacy Keychain Access (KFKeychain compatible)
+    
+    private func getLegacyKeychainValue(for key: String) -> String? {
+        let query = createLegacyKeychainQuery(for: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        guard status == errSecSuccess,
+              let data = result as? Data else {
+            return nil
+        }
+        
+        // Try to unarchive the data using NSKeyedUnarchiver (like KFKeychain does)
+        do {
+            if let unarchivedObject = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) {
+                return unarchivedObject as? String
+            }
+        } catch {
+            // If unarchiving fails, try to read as plain string
+            return String(data: data, encoding: .utf8)
+        }
+        
+        return nil
+    }
+    
+    private func getLegacyBoolFromKeychain(_ key: String, defaultValue: Bool) -> Bool {
+        if let value = getLegacyKeychainValue(for: key) {
+            // Handle both string and number representations
+            if value.lowercased() == "true" || value == "1" {
+                return true
+            } else if value.lowercased() == "false" || value == "0" {
+                return false
+            }
+        }
+        return defaultValue
+    }
+    
+    private func createLegacyKeychainQuery(for key: String) -> NSMutableDictionary {
+        return [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: key,
+            kSecAttrAccount as String: key,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
     }
 }
 
