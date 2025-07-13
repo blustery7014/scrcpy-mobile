@@ -217,6 +217,7 @@
 				"ScrcpyVNCClient+MouseControl.h",
 				"ScrcpyVNCClient+MouseControl.m",
 				"ScrcpyVNCClient+Private.h",
+				TestCursorPos,
 				TestCursorPos.m,
 			);
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;

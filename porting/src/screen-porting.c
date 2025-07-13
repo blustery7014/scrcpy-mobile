@@ -49,6 +49,12 @@ sc_screen_init(struct sc_screen *screen,
 
 bool
 sc_screen_handle_event(struct sc_screen *screen, SDL_Event *event) {
+	printf("sc_screen_handle_event: type=%d\n", event->type);
+	if (event->type == SDL_MOUSEBUTTONDOWN || event->type == SDL_MOUSEBUTTONUP || event->type == SDL_FINGERDOWN ||
+        event->type == SDL_FINGERUP) {
+		printf("sc_screen_handle_event: mouse event, type=%d, x=%d, y=%d\n",
+               event->type, event->button.x, event->button.y);
+    }
     // Handle Clipboard Event to Sync Clipboard to Remote
     if (event->type == SDL_CLIPBOARDUPDATE) {
         char *text = SDL_GetClipboardText();

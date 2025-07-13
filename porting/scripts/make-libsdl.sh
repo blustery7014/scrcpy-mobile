@@ -7,7 +7,7 @@ OUTPUT=$(cd $OUTPUT && pwd);
 BUILD_DIR=$(mktemp -d -t SDL);
 cd $BUILD_DIR;
 
-curl -O https://www.libsdl.org/release/SDL2-2.0.22.tar.gz;
+curl -O https://www.libsdl.org/release/SDL2-2.32.8.tar.gz;
 tar xzvf SDL*.tar.gz;
 
 # Add Function SDL_UpdateCommandGeneration
@@ -20,6 +20,16 @@ SDL_UpdateCommandGeneration(SDL_Renderer *renderer) {
 EOF
 )" >> SDL2-*/src/render/SDL_render.c;
 
+# Disable ENABLE_GCMOUSE / ENABLE_GCKEYBOARD
+sdl_events_source_file=$(ls SDL2-*/src/video/uikit/SDL_uikitevents.m);
+sed -e 's/^#define ENABLE_GCKEYBOARD.*//' -e 's/^#define ENABLE_GCMOUSE.*//' $sdl_events_source_file > $sdl_events_source_file.replaced;
+mv -v $sdl_events_source_file.replaced $sdl_events_source_file;
+
+# Disable Pointer type based touch events
+sdl_uikitview_source_file=$(ls SDL2-*/src/video/uikit/SDL_uikitview.m);
+sed -e 's/UITouchTypeIndirectPointer/UITouchTypeIndirectPointer+1000/g' $sdl_uikitview_source_file > $sdl_uikitview_source_file.replaced;
+mv -v $sdl_uikitview_source_file.replaced $sdl_uikitview_source_file;
+
 # Build iOS Libraries
 echo "=> Building for iOS..";
 
@@ -27,19 +37,19 @@ xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphoneos/arm64 \
 	ARCHS="arm64" \
 	CONFIGURATION=Release \
-	GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
+    GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphoneos;
 xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphonesimulator/x86_64 \
 	ARCHS="x86_64" \
 	CONFIGURATION=Release \
-	GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
+    GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphonesimulator;
 xcodebuild clean build OTHER_CFLAGS="-fembed-bitcode" \
 	BUILD_DIR=$BUILD_DIR/build/iphonesimulator/arm64 \
 	ARCHS="arm64" \
 	CONFIGURATION=Release \
-	GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
+    GCC_PREPROCESSOR_DEFINITIONS='CFRunLoopRunInMode=CFRunLoopRunInMode_fix' \
 	-project SDL2-*/Xcode/SDL/SDL.xcodeproj -scheme "Static Library-iOS" -sdk iphonesimulator;
 
 ls -la $BUILD_DIR/build/*/*/*/libSDL2.a;
