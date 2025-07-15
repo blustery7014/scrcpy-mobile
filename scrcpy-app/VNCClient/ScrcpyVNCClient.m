@@ -61,6 +61,11 @@
         self.remoteDesktopWidth = 0;
         self.remoteDesktopHeight = 0;
         
+        // 初始化连续更新状态（基于RoyalVNC实现）
+        self.areContinuousUpdatesSupported = NO;
+        self.areContinuousUpdatesEnabled = NO;
+        self.incrementalUpdatesEnabled = NO;
+        
         // Connection Queue
         self.connectionQueue = [[NSOperationQueue alloc] init];
         self.connectionQueue.maxConcurrentOperationCount = 1; // 确保串行执行连接操作
@@ -150,7 +155,10 @@
             break;
         }
         
-        int i = WaitForMessage(self.rfbClient, 500);
+        // 智能超时策略：连续更新模式使用更长的超时时间
+        int timeout = self.areContinuousUpdatesEnabled ? 5000 : 500;  // 5秒 vs 0.5秒
+        
+        int i = WaitForMessage(self.rfbClient, timeout);
         
         if (i < 0) {
             NSLog(@"🔌 [ScrcpyVNCClient] VNC message wait failed, breaking loop");
@@ -171,6 +179,15 @@
             self.scrcpyStatus = ScrcpyStatusDisconnected;
             ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC server message handling failed");
             return;
+        }
+        
+        // 检查是否有连续更新相关的消息
+        VNCRuntimeCheckForContinuousUpdatesMessage(self.rfbClient);
+        
+        // 在传统模式下，如果没有消息则主动请求更新
+        if (i == 0 && !self.areContinuousUpdatesEnabled) {
+            NSLog(@"🔄 [ScrcpyVNCClient] Timeout in traditional mode, sending update request");
+            [self sendSmartFramebufferUpdateRequest];
         }
     }
     
@@ -201,7 +218,8 @@
                 switch (e.window.event) {
                     case SDL_WINDOWEVENT_EXPOSED:
                         if (self.rfbClient) {
-                            SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, FALSE);
+                            // 使用智能帧更新请求
+                            [self sendSmartFramebufferUpdateRequest];
                         }
                         break;
                         
@@ -379,6 +397,9 @@
     self.rfbClient->GetCredential = GetCredentialBlock;
     VNCRuntimeSetupGetCredentialCallback(self.rfbClient, user, password);
     
+    // 设置连续更新支持
+    VNCRuntimeSetupContinuousUpdatesHook(self.rfbClient);
+    
     // 获取VNC选项
     NSDictionary *vncOptions = arguments[@"vncOptions"];
     NSString *compressionLevelString = vncOptions[@"compressionLevel"];
@@ -517,9 +538,9 @@
             });
         }
         
-        // 请求初始帧缓冲更新
+        // 请求初始帧缓冲更新（使用智能策略）
         if (weakSelf.rfbClient && !connectionOperation.isCancelled) {
-            SendFramebufferUpdateRequest(weakSelf.rfbClient, 0, 0, weakSelf.rfbClient->width, weakSelf.rfbClient->height, FALSE);
+            [weakSelf sendSmartFramebufferUpdateRequest];
         }
         
         if (completion && !connectionOperation.isCancelled) {
@@ -1229,9 +1250,9 @@
     self.zoomCenterY = centerY;
     self.zoomUpdatePending = YES;
     
-    // 请求帧缓冲更新以触发重新渲染
+    // 请求帧缓冲更新以触发重新渲染（使用智能策略）
     if (self.rfbClient && self.connected) {
-        SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, FALSE);
+        [self sendSmartFramebufferUpdateRequest];
         NSLog(@"🔍 [ScrcpyVNCClient] Requested framebuffer update for zoom application");
     }
 }
@@ -1314,6 +1335,106 @@
         if (text) {
             [self sendTextInput:text];
         }
+    }
+}
+
+#pragma mark - 连续更新支持（基于RoyalVNC实现）
+
+- (void)sendEnableContinuousUpdates:(BOOL)enable x:(int)x y:(int)y width:(int)width height:(int)height {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send continuous updates message: VNC not connected");
+        return;
+    }
+    
+    // 构建EnableContinuousUpdates消息（消息类型150）
+    uint8_t messageType = 150;
+    uint8_t enableFlag = enable ? 1 : 0;
+    uint16_t xPos = htons((uint16_t)x);
+    uint16_t yPos = htons((uint16_t)y);
+    uint16_t msgWidth = htons((uint16_t)width);
+    uint16_t msgHeight = htons((uint16_t)height);
+    
+    // 构建10字节的消息
+    uint8_t message[10] = {
+        messageType,           // 1字节：消息类型
+        enableFlag,           // 1字节：启用标志
+        (uint8_t)(xPos >> 8), (uint8_t)(xPos & 0xFF),         // 2字节：X坐标
+        (uint8_t)(yPos >> 8), (uint8_t)(yPos & 0xFF),         // 2字节：Y坐标
+        (uint8_t)(msgWidth >> 8), (uint8_t)(msgWidth & 0xFF), // 2字节：宽度
+        (uint8_t)(msgHeight >> 8), (uint8_t)(msgHeight & 0xFF) // 2字节：高度
+    };
+    
+    // 发送消息到VNC服务器
+    if (!WriteToRFBServer(self.rfbClient, (char*)message, sizeof(message))) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send EnableContinuousUpdates message");
+        return;
+    }
+    
+    NSLog(@"📡 [ScrcpyVNCClient] Sent EnableContinuousUpdates: enable=%@, region=(%d,%d,%d,%d)", 
+          enable ? @"YES" : @"NO", x, y, width, height);
+}
+
+- (void)sendSmartFramebufferUpdateRequest {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot send framebuffer update request: VNC not connected");
+        return;
+    }
+    
+    // 如果连续更新已启用，则不发送传统的更新请求
+    if (self.areContinuousUpdatesEnabled) {
+        NSLog(@"🔄 [ScrcpyVNCClient] Skipping traditional update request - continuous updates enabled");
+        return;
+    }
+    
+    // 使用增量更新标志（首次为全量，后续为增量）
+    BOOL incremental = self.incrementalUpdatesEnabled;
+    
+    if (!SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, incremental)) {
+        NSLog(@"❌ [ScrcpyVNCClient] Failed to send framebuffer update request");
+        return;
+    }
+    
+    // 首次发送后启用增量更新
+    if (!incremental) {
+        self.incrementalUpdatesEnabled = YES;
+        NSLog(@"🔄 [ScrcpyVNCClient] Sent full framebuffer update request, enabling incremental updates");
+    } else {
+        NSLog(@"🔄 [ScrcpyVNCClient] Sent incremental framebuffer update request");
+    }
+}
+
+- (void)handleEndOfContinuousUpdates {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"❌ [ScrcpyVNCClient] Cannot handle EndOfContinuousUpdates: VNC not connected");
+        return;
+    }
+    
+    // 检查是否是首次收到该消息
+    BOOL isFirstTime = !self.areContinuousUpdatesSupported;
+    
+    // 标记服务器支持连续更新
+    self.areContinuousUpdatesSupported = YES;
+    
+    if (isFirstTime) {
+        // 首次收到 - 启用连续更新模式
+        self.areContinuousUpdatesEnabled = YES;
+        NSLog(@"✅ [ScrcpyVNCClient] Server supports continuous updates - enabling continuous mode");
+        
+        // 发送启用连续更新的消息
+        [self sendEnableContinuousUpdates:YES 
+                                        x:0 
+                                        y:0 
+                                    width:self.rfbClient->width 
+                                   height:self.rfbClient->height];
+    } else {
+        // 非首次收到 - 禁用连续更新，回退到传统模式
+        self.areContinuousUpdatesEnabled = NO;
+        NSLog(@"⚠️ [ScrcpyVNCClient] Continuous updates disabled by server - falling back to traditional mode");
+        
+        // 立即发送传统的帧缓冲更新请求以确保连续性
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [self sendSmartFramebufferUpdateRequest];
+        });
     }
 }
 

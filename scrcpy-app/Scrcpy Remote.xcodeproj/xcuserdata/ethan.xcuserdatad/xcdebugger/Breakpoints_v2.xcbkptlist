@@ -2550,38 +2550,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "DB92ABCB-E31C-4261-BF6D-C907199057C6"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VNCClient/ScrcpyVNCRuntime.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "378"
-            endingLineNumber = "378"
-            landmarkName = "VNCRuntimeGotFrameBufferUpdate(cl, x, y, w, h, sdlTexture, sdlRenderer, sdlWindow)"
-            landmarkType = "9">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "13EFD4A4-C973-409B-A348-BCA8EC758CA4"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "VNCClient/ScrcpyVNCRuntime.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "381"
-            endingLineNumber = "381"
-            landmarkName = "VNCRuntimeGotFrameBufferUpdate(cl, x, y, w, h, sdlTexture, sdlRenderer, sdlWindow)"
-            landmarkType = "9">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "C45CA4F6-535E-4812-AADA-405FCBCA3E13"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -2589,8 +2557,8 @@
             filePath = "VNCClient/ScrcpyVNCRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "361"
-            endingLineNumber = "361"
+            startingLineNumber = "354"
+            endingLineNumber = "354"
             landmarkName = "VNCRuntimeGotFrameBufferUpdate(cl, x, y, w, h, sdlTexture, sdlRenderer, sdlWindow)"
             landmarkType = "9">
          </BreakpointContent>
@@ -2605,8 +2573,8 @@
             filePath = "VNCClient/ScrcpyVNCRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "390"
-            endingLineNumber = "390"
+            startingLineNumber = "369"
+            endingLineNumber = "369"
             landmarkName = "VNCRuntimeGotFrameBufferUpdate(cl, x, y, w, h, sdlTexture, sdlRenderer, sdlWindow)"
             landmarkType = "9">
          </BreakpointContent>
@@ -2685,9 +2653,9 @@
             filePath = "VNCClient/ScrcpyVNCRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "553"
-            endingLineNumber = "553"
-            landmarkName = "VNCRuntimeGetPassword(cl, password)"
+            startingLineNumber = "501"
+            endingLineNumber = "501"
+            landmarkName = "VNCRuntimeHandleCursorPos(cl, x, y, currentMouseX, currentMouseY)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2906,20 +2874,6 @@
             symbolName = "SDL_GetFinger"
             moduleName = "">
             <Locations>
-               <Location
-                  uuid = "D0C86425-18B3-46C8-8626-58291ED2FC8F - 6de820dd843138e8"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "SDL_GetFinger"
-                  moduleName = "VNCClient"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///var/folders/hr/xw76b5ps73n6t_4n674pt1qc0000gn/T/SDL.u4FDzO11y3/SDL2-2.32.8/src/events/SDL_touch.c"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "122"
-                  endingLineNumber = "122">
-               </Location>
             </Locations>
          </BreakpointContent>
       </BreakpointProxy>

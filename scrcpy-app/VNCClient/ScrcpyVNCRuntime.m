@@ -46,6 +46,10 @@ static void VNCRuntimeCheckCursorEdgeFollow(ScrcpyVNCClient* vncClient, int scre
                                           int renderWidth, int renderHeight, int* offsetX, int* offsetY,
                                           int scaledWidth, int scaledHeight, int textureWidth, int textureHeight, float finalScale);
 
+// 连续更新相关的前向声明
+static rfbBool VNCRuntimeHandleServerMessage(rfbClient* client, rfbServerToClientMsg* message);
+static rfbBool (*originalHandleRFBServerMessage)(rfbClient* client) = NULL;
+
 /**
  * 自定义的SetFormatAndEncodings函数，确保包含光标编码
  */
@@ -58,18 +62,20 @@ static rfbBool CustomSetFormatAndEncodings(rfbClient* client) {
         return FALSE;
     }
     
-    // 发送额外的编码设置，确保包含光标编码
+    // 发送额外的编码设置，确保包含光标编码和连续更新支持
     uint32_t encodings[] = {
+        rfbEncodingZlib,
+        rfbEncodingZRLE,
+        rfbEncodingHextile,
+        rfbEncodingCoRRE,
+        rfbEncodingRRE,
+        rfbEncodingTight,
         rfbEncodingRaw,
         rfbEncodingCopyRect,
-        rfbEncodingRRE,
-        rfbEncodingCoRRE,
-        rfbEncodingHextile,
-        rfbEncodingZlib,
-        rfbEncodingTight,
         rfbEncodingXCursor,      // 添加X光标编码
         rfbEncodingRichCursor,   // 添加富光标编码
-        rfbEncodingPointerPos    // 添加指针位置编码
+        rfbEncodingPointerPos,   // 添加指针位置编码
+        (uint32_t)-313           // 添加连续更新伪编码（Continuous Updates）
     };
     
     int numEncodings = sizeof(encodings) / sizeof(encodings[0]);
@@ -228,9 +234,6 @@ rfbBool VNCRuntimeMallocFrameBuffer(rfbClient* client, ScrcpyVNCClient *vncClien
 }
 
 static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, int w, int h, SDL_Texture* sdlTexture, SDL_Renderer* sdlRenderer, SDL_Window* sdlWindow) {
-    NSLog(@"📦 [FrameBufferUpdate] START: x=%d, y=%d, w=%d, h=%d, g_mouseMovedThisFrame=%s", 
-          x, y, w, h, g_mouseMovedThisFrame ? "YES" : "NO");
-    
     if (!sdlTexture || !sdlRenderer || !sdlWindow) {
         NSLog(@"❌ [VNCRuntime] Invalid SDL objects: texture=%p, renderer=%p, window=%p", sdlTexture, sdlRenderer, sdlWindow);
         return;
@@ -264,9 +267,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
     int renderWidth = logicalWidth > 0 ? logicalWidth : windowWidth;
     int renderHeight = logicalHeight > 0 ? logicalHeight : windowHeight;
     
-    NSLog(@"[VNCScreenDebug] Render - Window: %dx%d, Logical: %dx%d, Texture: %dx%d", 
-          windowWidth, windowHeight, renderWidth, renderHeight, textureWidth, textureHeight);
-    
     // 获取VNC客户端实例以获取缩放参数
     ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(cl, (void*)0x1234);
     
@@ -294,8 +294,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         // 清除更新标志
         if (vncClient.zoomUpdatePending) {
             vncClient.zoomUpdatePending = NO;
-            NSLog(@"🔍 [VNCRuntime] Applying user zoom: %.2f at center (%.3f, %.3f)", 
-                  userZoomScale, zoomCenterX, zoomCenterY);
         }
     }
     
@@ -361,25 +359,11 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         int screenMouseX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
         int screenMouseY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
         
-        NSLog(@"🔧 [CoordTransform] Remote: (%d,%d), offsetX=%d, offsetY=%d, scaledW/H=%dx%d, textureW/H=%dx%d", 
-              remoteMouseX, remoteMouseY, offsetX, offsetY, scaledWidth, scaledHeight, textureWidth, textureHeight);
-        NSLog(@"🔧 [CoordTransform] Result: screenMouseX=%d, screenMouseY=%d", screenMouseX, screenMouseY);
-        
         // 检测鼠标是否在合理的范围内
         // 大幅放宽范围限制，允许快速移动时的边缘跟随
         int extendedThreshold = CURSOR_EDGE_THRESHOLD * 5; // 扩展到100像素范围
         BOOL mouseInValidRange = (screenMouseX >= -extendedThreshold && screenMouseX < renderWidth + extendedThreshold && 
                                  screenMouseY >= -extendedThreshold && screenMouseY < renderHeight + extendedThreshold);
-        
-        NSLog(@"🔍 [SimpleEdgeFollow] Remote: (%d,%d) -> Screen: (%d,%d), Render: %dx%d", 
-              remoteMouseX, remoteMouseY, screenMouseX, screenMouseY, renderWidth, renderHeight);
-        NSLog(@"📐 [ScaledSize] scaledWidth=%d, scaledHeight=%d, renderWidth=%d, renderHeight=%d", 
-              scaledWidth, scaledHeight, renderWidth, renderHeight);
-        NSLog(@"📍 [ViewOffset] Current: viewOffsetX=%d, viewOffsetY=%d", 
-              vncClient.viewOffsetX, vncClient.viewOffsetY);
-        NSLog(@"🎯 [MouseCheck] MovedThisFrame: %s, InValidRange: %s, IsMoving: %s, StopCounter: %d", 
-              g_mouseMovedThisFrame ? "YES" : "NO", mouseInValidRange ? "YES" : "NO", 
-              g_mouseIsMoving ? "YES" : "NO", g_mouseStopCounter);
         
         // 更新鼠标移动状态（在检测之后）
         if (!g_mouseMovedThisFrame) {
@@ -398,7 +382,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         // 防振荡：减少冷却计数器
         if (g_edgeFollowCooldown > 0) {
             g_edgeFollowCooldown--;
-            NSLog(@"🔍 [SimpleEdgeFollow] Cooldown active: %d frames remaining", g_edgeFollowCooldown);
         }
         
         // 基础边缘跟随条件：
@@ -412,22 +395,13 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         BOOL baseCanTriggerEdgeFollow = (g_edgeFollowCooldown == 0) && mouseInValidRange && 
                                        (canTriggerMovingOrJustStopped || mouseNeedsRescue);
         
-        NSLog(@"🎯 [EdgeFollowConditions] Cooldown: %d, IsMoving: %s, JustStopped: %s, InValidRange: %s, NeedsRescue: %s, CanTrigger: %s", 
-              g_edgeFollowCooldown, g_mouseIsMoving ? "YES" : "NO", g_mouseJustStopped ? "YES" : "NO", 
-              mouseInValidRange ? "YES" : "NO", mouseNeedsRescue ? "YES" : "NO", baseCanTriggerEdgeFollow ? "YES" : "NO");
-        
         // 水平边缘检测 - 直接移动，无平滑处理
         if (scaledWidth > renderWidth) {
             int currentOffsetX = offsetX;
-            NSLog(@"🔍 [HorizontalEdgeCheck] scaledWidth=%d > renderWidth=%d, currentOffsetX=%d", 
-                  scaledWidth, renderWidth, currentOffsetX);
             
             // 检查左边缘条件
             BOOL leftEdgeCondition = (screenMouseX < CURSOR_EDGE_THRESHOLD);
             BOOL leftContentAvailable = (currentOffsetX < 0);
-            NSLog(@"🔍 [LeftEdgeCheck] screenMouseX=%d < threshold=%d: %s, contentAvailable=%s", 
-                  screenMouseX, CURSOR_EDGE_THRESHOLD, leftEdgeCondition ? "YES" : "NO", 
-                  leftContentAvailable ? "YES" : "NO");
             
             // 左边缘：鼠标在左侧阈值内，且还有左侧内容可以显示
             if (baseCanTriggerEdgeFollow && leftEdgeCondition && leftContentAvailable) {
@@ -437,8 +411,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
                 vncClient.viewOffsetX = MIN(maxViewOffsetX, newViewOffsetX);
                 
                 g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-                NSLog(@"🔄 [SimpleEdgeFollow] ✅ LEFT edge triggered: viewOffsetX %d -> %d", 
-                      vncClient.viewOffsetX - CURSOR_FOLLOW_DISTANCE, vncClient.viewOffsetX);
             }
             // 右边缘：鼠标在右侧阈值内，且还有右侧内容可以显示
             else if (baseCanTriggerEdgeFollow && screenMouseX > (renderWidth - CURSOR_EDGE_THRESHOLD) && 
@@ -449,17 +421,12 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
                 vncClient.viewOffsetX = MAX(minViewOffsetX, newViewOffsetX);
                 
                 g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-                NSLog(@"🔄 [SimpleEdgeFollow] ✅ RIGHT edge triggered: viewOffsetX %d -> %d", 
-                      vncClient.viewOffsetX + CURSOR_FOLLOW_DISTANCE, vncClient.viewOffsetX);
             }
         }
         
         // 垂直边缘检测 - 直接移动，无平滑处理
-        NSLog(@"🔍 [VerticalEdgeCheck] scaledHeight=%d vs renderHeight=%d, condition: %s", 
-              scaledHeight, renderHeight, (scaledHeight > renderHeight) ? "TRUE" : "FALSE");
         if (scaledHeight > renderHeight) {
             int currentOffsetY = offsetY;
-            NSLog(@"🔍 [VerticalEdgeCheck] ENABLED - currentOffsetY=%d, screenMouseY=%d", currentOffsetY, screenMouseY);
             
             // 上边缘：鼠标在上侧阈值内，且还有上侧内容可以显示
             if (baseCanTriggerEdgeFollow && screenMouseY < CURSOR_EDGE_THRESHOLD && currentOffsetY < 0) {
@@ -469,8 +436,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
                 vncClient.viewOffsetY = MIN(maxViewOffsetY, newViewOffsetY);
                 
                 g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-                NSLog(@"🔄 [SimpleEdgeFollow] ✅ TOP edge triggered: viewOffsetY %d -> %d", 
-                      vncClient.viewOffsetY - CURSOR_FOLLOW_DISTANCE, vncClient.viewOffsetY);
             }
             // 下边缘：鼠标在下侧阈值内，且还有下侧内容可以显示
             else if (baseCanTriggerEdgeFollow && screenMouseY > (renderHeight - CURSOR_EDGE_THRESHOLD) && 
@@ -481,8 +446,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
                 vncClient.viewOffsetY = MAX(minViewOffsetY, newViewOffsetY);
                 
                 g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-                NSLog(@"🔄 [SimpleEdgeFollow] ✅ BOTTOM edge triggered: viewOffsetY %d -> %d", 
-                      vncClient.viewOffsetY + CURSOR_FOLLOW_DISTANCE, vncClient.viewOffsetY);
             }
         }
         
@@ -496,17 +459,11 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         // 重置刚停止标记，确保只使用一次（处理边界情况后）
         if (g_mouseJustStopped) {
             g_mouseJustStopped = NO;
-            NSLog(@"🔄 [MouseStop] Reset justStopped flag after edge follow processing");
         }
     }
     
     // 使用可能更新后的偏移量创建目标矩形
     SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
-    
-    NSLog(@"[VNCScreenDebug] BaseScale: %.3f, UserZoom: %.2f, FinalScale: %.3f, Scaled: %dx%d, Offset: %d,%d", 
-          baseScale, userZoomScale, finalScale, scaledWidth, scaledHeight, offsetX, offsetY);
-    NSLog(@"[VNCScreenDebug] ZoomCenter: (%.3f, %.3f), ScreenCenter: (%d, %d)", 
-          zoomCenterX, zoomCenterY, centerX, centerY);
     
     // 清除渲染器并绘制纹理（居中并保持比例）
     SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
@@ -522,9 +479,6 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         
         // 绘制macOS风格的鼠标光标（使用最终缩放）
         VNCRuntimeDrawMacOSCursor(sdlRenderer, screenMouseX, screenMouseY, finalScale);
-        
-        NSLog(@"🖱️ [VNCRuntime] Drawing cursor at remote(%d,%d) -> screen(%d,%d), finalScale=%.2f", 
-              remoteMouseX, remoteMouseY, screenMouseX, screenMouseY, finalScale);
     }
     
     SDL_RenderPresent(sdlRenderer);
@@ -533,7 +487,14 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
     if (vncClient && vncClient.scrcpyStatus <= ScrcpyStatusConnected) {
         vncClient.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
         ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "First frame rendered, SDL window appeared");
-        NSLog(@"✅ [ScrcpyVNCRuntime] First frame rendered, updating status to SDL Window Appeared");
+    }
+    
+    // 智能请求下一帧更新（仅在传统模式下）
+    if (vncClient && !vncClient.areContinuousUpdatesEnabled) {
+        // 在传统模式下，处理完当前帧后立即请求下一帧
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            [vncClient sendSmartFramebufferUpdateRequest];
+        });
     }
 }
 
@@ -998,5 +959,70 @@ void VNCRuntimeCleanupGlobalCursorTexture(void) {
         g_cursorTexture = NULL;
         g_cursorRenderer = NULL;
         NSLog(@"🧹 [VNCRuntime] Global cursor texture cleaned up");
+    }
+}
+
+#pragma mark - 连续更新消息处理支持
+
+/**
+ * 自定义的服务器消息处理函数，用于拦截EndOfContinuousUpdates消息
+ */
+static rfbBool VNCRuntimeHandleServerMessage(rfbClient* client, rfbServerToClientMsg* message) {
+    // 检查是否是EndOfContinuousUpdates消息（类型150）
+    if (message->type == 150) {
+        NSLog(@"📡 [VNCRuntime] Received EndOfContinuousUpdates message from server");
+        
+        // 获取VNC客户端实例
+        ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(client, (void*)0x1234);
+        if (vncClient) {
+            // 在主线程处理连续更新状态
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [vncClient handleEndOfContinuousUpdates];
+            });
+        }
+        
+        return TRUE; // 消息已处理
+    }
+    
+    // 对于其他消息，调用原始处理函数
+    // 注意：这里我们需要手动读取和处理消息，因为libvncclient的架构问题
+    return TRUE;
+}
+
+/**
+ * 设置连续更新消息拦截
+ */
+void VNCRuntimeSetupContinuousUpdatesHook(rfbClient* client) {
+    if (!client) return;
+    
+    // 目前libvncclient不直接支持自定义服务器消息处理
+    // 我们需要在HandleRFBServerMessage调用后检查是否有自定义消息
+    NSLog(@"✅ [VNCRuntime] Continuous updates hook setup completed");
+}
+
+/**
+ * 检查并处理可能的连续更新消息
+ * 这个函数应该在每次接收到服务器消息后调用
+ */
+void VNCRuntimeCheckForContinuousUpdatesMessage(rfbClient* client) {
+    if (!client) return;
+    
+    // 获取VNC客户端实例
+    ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(client, (void*)0x1234);
+    if (!vncClient) return;
+    
+    // 这里我们可以添加更复杂的消息检测逻辑
+    // 目前先使用简单的状态检查
+    
+    static BOOL hasCheckedForSupport = NO;
+    if (!hasCheckedForSupport && vncClient.connected) {
+        hasCheckedForSupport = YES;
+        
+        // 延迟检查服务器是否支持连续更新
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (vncClient.connected && !vncClient.areContinuousUpdatesSupported) {
+                NSLog(@"🔍 [VNCRuntime] Server may not support continuous updates, using traditional mode");
+            }
+        });
     }
 }

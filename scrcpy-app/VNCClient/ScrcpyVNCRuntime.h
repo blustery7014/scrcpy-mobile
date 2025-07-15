@@ -59,4 +59,14 @@ void VNCRuntimeSetMouseMoved(void);
  */
 void VNCRuntimeCleanupGlobalCursorTexture(void);
 
+/**
+ * 设置连续更新消息拦截
+ */
+void VNCRuntimeSetupContinuousUpdatesHook(rfbClient* client);
+
+/**
+ * 检查并处理可能的连续更新消息
+ */
+void VNCRuntimeCheckForContinuousUpdatesMessage(rfbClient* client);
+
 #endif /* ScrcpyVNCRuntime_h */

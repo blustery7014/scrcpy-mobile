@@ -65,6 +65,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) int remoteDesktopWidth;
 @property (nonatomic, assign) int remoteDesktopHeight;
 
+// 连续更新状态管理（基于RoyalVNC实现）
+@property (nonatomic, assign) BOOL areContinuousUpdatesSupported;  // 服务器是否支持连续更新
+@property (nonatomic, assign) BOOL areContinuousUpdatesEnabled;    // 连续更新是否当前启用
+@property (nonatomic, assign) BOOL incrementalUpdatesEnabled;      // 增量更新是否启用
+
 - (UIWindowScene *)currentScene;
 
 /// 启动VNC连接并显示
@@ -105,6 +110,20 @@ NS_ASSUME_NONNULL_BEGIN
 /// 发送文本输入到远程桌面
 /// @param text 要输入的文本
 - (void)sendTextInput:(NSString *)text;
+
+/// 发送启用连续更新消息到VNC服务器
+/// @param enable 是否启用连续更新
+/// @param x X坐标
+/// @param y Y坐标
+/// @param width 宽度
+/// @param height 高度
+- (void)sendEnableContinuousUpdates:(BOOL)enable x:(int)x y:(int)y width:(int)width height:(int)height;
+
+/// 智能发送帧缓冲更新请求（考虑连续更新状态）
+- (void)sendSmartFramebufferUpdateRequest;
+
+/// 处理连续更新结束消息
+- (void)handleEndOfContinuousUpdates;
 
 @end
 
