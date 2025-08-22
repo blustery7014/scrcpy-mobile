@@ -179,7 +179,6 @@
 				ScrcpyConstants.m,
 				ScrcpyInputMaskView.m,
 				ScrcpyMenuMaskView.m,
-				ScrcpyMenuView.m,
 			);
 			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
 		};

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ScrcpySession: Codable, Identifiable {
     var id: UUID {
-        sessionModel.id
+        sessionModel.deviceId
     }
     var title: String {
         if !sessionModel.sessionName.isEmpty {

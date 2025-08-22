@@ -41,7 +41,7 @@ typedef NS_ENUM(NSInteger, ScrcpyDeviceType) {
 
 @end
 
-@interface ScrcpyMenuView : UIView <UIGestureRecognizerDelegate>
+@interface ScrcpyMenuView : UIView <UIGestureRecognizerDelegate, UITableViewDataSource, UITableViewDelegate>
 
 @property (nonatomic, weak) id<ScrcpyMenuViewDelegate> delegate;
 

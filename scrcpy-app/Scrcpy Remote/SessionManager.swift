@@ -185,15 +185,33 @@ struct ADBSessionOptions: Codable, Identifiable {
 enum SessionDeviceType: String, Codable, CaseIterable {
     case vnc = "vnc"
     case adb = "adb"
+    
+    // Objective-C compatible integer representation
+    var intValue: Int {
+        switch self {
+        case .vnc: return 0
+        case .adb: return 1
+        }
+    }
+    
+    // Create from integer value (for Objective-C bridge)
+    init?(intValue: Int) {
+        switch intValue {
+        case 0: self = .vnc
+        case 1: self = .adb
+        default: return nil
+        }
+    }
 }
 
 // A ScrcpySession Model can be saved to AppStorage
-struct ScrcpySessionModel: Codable, Identifiable {
-    var id = UUID()
-    var host: String
-    var port: String
-    var sessionName: String = ""
-    var useTailscale: Bool = false
+@objc class ScrcpySessionModel: NSObject, Codable, Identifiable {
+    @objc var id = UUID()
+    @objc var deviceId = UUID()
+    @objc var host: String
+    @objc var port: String
+    @objc var sessionName: String = ""
+    @objc var useTailscale: Bool = false
     
     var hostReal: String {
         get {
@@ -232,11 +250,14 @@ struct ScrcpySessionModel: Codable, Identifiable {
     var vncOptions: VNCSessionOptions = VNCSessionOptions()
     var adbOptions: ADBSessionOptions = ADBSessionOptions()
     
-    init() {
+    override init() {
         host = ""
         port = ""
         sessionName = ""
         useTailscale = false
+        vncOptions = VNCSessionOptions()
+        adbOptions = ADBSessionOptions()
+        super.init()
     }
     
     init(host: String, port: String) {
@@ -244,6 +265,9 @@ struct ScrcpySessionModel: Codable, Identifiable {
         self.port = port
         self.sessionName = ""
         self.useTailscale = false
+        self.vncOptions = VNCSessionOptions()
+        self.adbOptions = ADBSessionOptions()
+        super.init()
     }
     
     init(host: String, port: String, sessionName: String = "") {
@@ -251,10 +275,13 @@ struct ScrcpySessionModel: Codable, Identifiable {
         self.port = port
         self.sessionName = sessionName
         self.useTailscale = false
+        self.vncOptions = VNCSessionOptions()
+        self.adbOptions = ADBSessionOptions()
+        super.init()
     }
     
     // Custom decoder for backward compatibility
-    init(from decoder: any Decoder) throws {
+    required init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
         // Decode required fields
@@ -263,6 +290,8 @@ struct ScrcpySessionModel: Codable, Identifiable {
         self.port = try container.decode(String.self, forKey: .port)
         
         // Decode optional fields with default values for backward compatibility
+        // For backward compatibility: if deviceId is not present, use the existing id as deviceId
+        self.deviceId = try container.decodeIfPresent(UUID.self, forKey: .deviceId) ?? self.id
         self.sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName) ?? ""
         self.useTailscale = try container.decodeIfPresent(Bool.self, forKey: .useTailscale) ?? false
         
@@ -278,6 +307,8 @@ struct ScrcpySessionModel: Codable, Identifiable {
         } catch {
             self.adbOptions = ADBSessionOptions()
         }
+        
+        super.init()
     }
     
     func toDict() -> [String: Any] {
@@ -288,6 +319,7 @@ struct ScrcpySessionModel: Codable, Identifiable {
             }
             dictionary["hostReal"] = hostReal
             dictionary["deviceType"] = deviceType.rawValue
+            dictionary["deviceId"] = deviceId.uuidString
             return dictionary
         } catch {
             print("Error encoding or serializing: \(error)")
@@ -582,14 +614,15 @@ class SessionManager {
 
 // MARK: - Action Manager
 
-class ActionManager: ObservableObject {
-    static let shared = ActionManager()
+@objc class ActionManager: NSObject, ObservableObject {
+    @objc static let shared = ActionManager()
     
     private let actionsKey = "ScrcpyActions"
     
     @Published var actions: [ScrcpyAction] = []
     
-    private init() {
+    private override init() {
+        super.init()
         loadActions()
     }
     
@@ -678,11 +711,11 @@ class ActionManager: ObservableObject {
         }
     }
     
-    func getAction(by id: UUID) -> ScrcpyAction? {
+    @objc func getActionBy(_ id: UUID) -> ScrcpyAction? {
         return actions.first { $0.id == id }
     }
     
-    func getActions(for deviceId: UUID) -> [ScrcpyAction] {
+    @objc func getActionsFor(_ deviceId: UUID) -> [ScrcpyAction] {
         return actions.filter { $0.deviceId == deviceId }
     }
 }

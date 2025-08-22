@@ -38,17 +38,36 @@ enum ExecutionTiming: String, Codable, CaseIterable {
         case .confirmation: return "hand.raised.fill"
         }
     }
+    
+    // Objective-C compatible integer representation
+    var intValue: Int {
+        switch self {
+        case .confirmation: return 0
+        case .immediate: return 1
+        case .delayed: return 2
+        }
+    }
+    
+    // Create from integer value (for Objective-C bridge)
+    init?(intValue: Int) {
+        switch intValue {
+        case 0: self = .confirmation
+        case 1: self = .immediate
+        case 2: self = .delayed
+        default: return nil
+        }
+    }
 }
 
-struct ScrcpyAction: Codable, Identifiable {
-    var id = UUID()
-    var name: String = ""
+@objc class ScrcpyAction: NSObject, Codable, Identifiable {
+    @objc var id = UUID()
+    @objc var name: String = ""
     var deviceId: UUID? = nil
     var deviceType: SessionDeviceType = .vnc
     var vncQuickActions: [VNCQuickAction] = []
     var adbCommands: String = ""
     var executionTiming: ExecutionTiming = .confirmation
-    var delaySeconds: Int = 3
+    @objc var delaySeconds: Int = 3
     var createdAt: Date = Date()
     
     // New ADB action properties
@@ -56,12 +75,63 @@ struct ScrcpyAction: Codable, Identifiable {
     var adbInputKeysConfig: ADBInputKeysConfig = ADBInputKeysConfig()
     var adbShellConfig: ADBShellConfig = ADBShellConfig()
     
-    init() {}
+    // Objective-C compatible accessors for enum properties
+    @objc var deviceTypeIntValue: Int {
+        return deviceType.intValue
+    }
+    
+    @objc var executionTimingIntValue: Int {
+        return executionTiming.intValue
+    }
+    
+    override init() {
+        id = UUID()
+        name = ""
+        deviceId = nil
+        deviceType = .vnc
+        vncQuickActions = []
+        adbCommands = ""
+        executionTiming = .confirmation
+        delaySeconds = 3
+        createdAt = Date()
+        adbActionType = .homeKey
+        adbInputKeysConfig = ADBInputKeysConfig()
+        adbShellConfig = ADBShellConfig()
+        super.init()
+    }
     
     init(name: String, deviceId: UUID, deviceType: SessionDeviceType) {
+        self.id = UUID()
         self.name = name
         self.deviceId = deviceId
         self.deviceType = deviceType
+        self.vncQuickActions = []
+        self.adbCommands = ""
+        self.executionTiming = .confirmation
+        self.delaySeconds = 3
+        self.createdAt = Date()
+        self.adbActionType = .homeKey
+        self.adbInputKeysConfig = ADBInputKeysConfig()
+        self.adbShellConfig = ADBShellConfig()
+        super.init()
+    }
+    
+    // Codable support
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        deviceId = try container.decodeIfPresent(UUID.self, forKey: .deviceId)
+        deviceType = try container.decode(SessionDeviceType.self, forKey: .deviceType)
+        vncQuickActions = try container.decode([VNCQuickAction].self, forKey: .vncQuickActions)
+        adbCommands = try container.decode(String.self, forKey: .adbCommands)
+        executionTiming = try container.decode(ExecutionTiming.self, forKey: .executionTiming)
+        delaySeconds = try container.decode(Int.self, forKey: .delaySeconds)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        adbActionType = try container.decode(ADBActionType.self, forKey: .adbActionType)
+        adbInputKeysConfig = try container.decode(ADBInputKeysConfig.self, forKey: .adbInputKeysConfig)
+        adbShellConfig = try container.decode(ADBShellConfig.self, forKey: .adbShellConfig)
+        super.init()
     }
 }
 
@@ -882,7 +952,7 @@ struct ActionsView: View {
         }
         
         let sessions = SessionManager.shared.loadSessions()
-        guard sessions.first(where: { $0.id == deviceId }) != nil else {
+        guard sessions.first(where: { $0.deviceId == deviceId }) != nil else {
             print("❌ [ActionsView] Cannot execute action: device not found")
             return
         }
@@ -899,7 +969,7 @@ struct ActionsView: View {
         }
         
         let sessions = SessionManager.shared.loadSessions()
-        guard let session = sessions.first(where: { $0.id == deviceId }) else {
+        guard let session = sessions.first(where: { $0.deviceId == deviceId }) else {
             print("❌ [ActionsView] Cannot execute action: device not found")
             return
         }
@@ -1094,7 +1164,7 @@ struct ActionRowView: View {
         }
         
         let sessions = SessionManager.shared.loadSessions()
-        if let session = sessions.first(where: { $0.id == deviceId }) {
+        if let session = sessions.first(where: { $0.deviceId == deviceId }) {
             deviceName = session.sessionName.isEmpty ? "\(session.hostReal):\(session.port)" : session.sessionName
         } else {
             deviceName = "Device Not Found"

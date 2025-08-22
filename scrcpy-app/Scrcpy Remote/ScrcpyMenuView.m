@@ -6,6 +6,9 @@
 #import <SDL2/SDL_mouse.h>
 #import "ScrcpyADBClient.h"
 #import "ScrcpyVNCClient.h"
+#import <objc/runtime.h>
+#import "ScrcpyActionsBridge.h"
+#import "ScrcpyActionsTableViewController.h"
 
 // Add logging macro
 #define LOG_POSITION(fmt, ...) NSLog(@"[ScrcpyMenuView] " fmt, ##__VA_ARGS__)
@@ -726,39 +729,6 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     }
 }
 
-#pragma mark - Button Touch Event Handlers
-
-- (void)buttonTouchDown:(UIButton *)sender {
-    // 消费事件，不向下传递
-}
-
-- (void)buttonTouchUpInside:(UIButton *)sender {
-    // 根据按钮标识调用相应的方法
-    NSString *identifier = sender.accessibilityIdentifier;
-    
-    if ([identifier isEqualToString:kIconBackButton]) {
-        [self backButtonTapped:sender];
-    } else if ([identifier isEqualToString:kIconHomeButton]) {
-        [self homeButtonTapped:sender];
-    } else if ([identifier isEqualToString:kIconSwitchButton]) {
-        [self switchButtonTapped:sender];
-    } else if ([identifier isEqualToString:kIconKeyboardButton]) {
-        [self keyboardButtonTapped:sender];
-    } else if ([identifier isEqualToString:kIconActionsButton]) {
-        [self actionsButtonTapped:sender];
-    } else if ([identifier isEqualToString:kIconDisconnectButton]) {
-        [self disconnectButtonTapped:sender];
-    }
-}
-
-- (void)buttonTouchUpOutside:(UIButton *)sender {
-    // 消费事件，不向下传递
-}
-
-- (void)buttonTouchCancel:(UIButton *)sender {
-    // 消费事件，不向下传递
-}
-
 #pragma mark - Button Actions
 
 - (void)backButtonTapped:(UIButton *)sender {
@@ -797,13 +767,12 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (void)actionsButtonTapped:(UIButton *)sender {
+    NSLog(@"[ScrcpyMenuView] Actions button tapped");
     // 停止键盘输入
     SDL_StopTextInput();
     
-    if ([self.delegate respondsToSelector:@selector(didTapActionsButton)]) {
-        [self.delegate didTapActionsButton];
-    }
-    [self toggleMenuExpansion];
+    // Show the actions menu
+    [self showActionsMenu];
 }
 
 - (void)disconnectButtonTapped:(UIButton *)sender {
@@ -2275,6 +2244,88 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     self.isDragging = NO;
     self.touchStartTime = 0;
     self.touchStartLocation = CGPointZero;
+}
+
+#pragma mark - Button Touch Event Handlers
+
+- (void)buttonTouchDown:(UIButton *)sender {
+    // Visual feedback for button press
+    [UIView animateWithDuration:0.1 animations:^{
+        sender.alpha = 0.5;
+        sender.transform = CGAffineTransformMakeScale(0.9, 0.9);
+    }];
+}
+
+- (void)buttonTouchUpInside:(UIButton *)sender {
+    // Reset visual state
+    [UIView animateWithDuration:0.1 animations:^{
+        sender.alpha = 1.0;
+        sender.transform = CGAffineTransformIdentity;
+    }];
+    
+    // Handle button action based on accessibility identifier
+    NSString *buttonType = sender.accessibilityIdentifier;
+    [self handleButtonAction:buttonType];
+}
+
+- (void)buttonTouchUpOutside:(UIButton *)sender {
+    // Reset visual state
+    [UIView animateWithDuration:0.1 animations:^{
+        sender.alpha = 1.0;
+        sender.transform = CGAffineTransformIdentity;
+    }];
+}
+
+- (void)buttonTouchCancel:(UIButton *)sender {
+    // Reset visual state
+    [UIView animateWithDuration:0.1 animations:^{
+        sender.alpha = 1.0;
+        sender.transform = CGAffineTransformIdentity;
+    }];
+}
+
+- (void)handleButtonAction:(NSString *)buttonType {
+    if ([buttonType isEqualToString:kIconActionsButton]) {
+        [self actionsButtonTapped:nil];
+    } else if ([buttonType isEqualToString:kIconBackButton]) {
+        [self backButtonTapped:nil];
+    } else if ([buttonType isEqualToString:kIconHomeButton]) {
+        [self homeButtonTapped:nil];
+    } else if ([buttonType isEqualToString:kIconSwitchButton]) {
+        [self switchButtonTapped:nil];
+    } else if ([buttonType isEqualToString:kIconKeyboardButton]) {
+        [self keyboardButtonTapped:nil];
+    } else if ([buttonType isEqualToString:kIconDisconnectButton]) {
+        [self disconnectButtonTapped:nil];
+    }
+}
+
+#pragma mark - Actions Menu Implementation
+
+- (void)showActionsMenu {
+    NSLog(@"🔥 [ScrcpyMenuView] Showing Actions menu");
+    
+    // Create the independent actions table view controller
+    ScrcpyActionsTableViewController *actionsTableVC = [[ScrcpyActionsTableViewController alloc] init];
+    NSLog(@"🔥 [ScrcpyMenuView] Created actions table view controller: %@", actionsTableVC);
+    
+    // Create navigation controller
+    UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:actionsTableVC];
+    navController.modalPresentationStyle = UIModalPresentationFormSheet;
+    NSLog(@"🔥 [ScrcpyMenuView] Created navigation controller: %@", navController);
+    
+    // Present the modal
+    UIViewController *rootViewController = [UIApplication sharedApplication].keyWindow.rootViewController;
+    NSLog(@"🔥 [ScrcpyMenuView] Root view controller: %@", rootViewController);
+    
+    if (rootViewController) {
+        NSLog(@"🔥 [ScrcpyMenuView] Presenting modal...");
+        [rootViewController presentViewController:navController animated:YES completion:^{
+            NSLog(@"🔥 [ScrcpyMenuView] Modal presentation completed");
+        }];
+    } else {
+        NSLog(@"❌ [ScrcpyMenuView] ERROR: Root view controller is nil!");
+    }
 }
 
 @end 

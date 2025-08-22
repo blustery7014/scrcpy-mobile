@@ -71,7 +71,7 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     // MARK: - Connection State
     
     /// 当前连接的会话信息
-    @Published var currentSession: ScrcpySessionModel?
+    @objc @Published var currentSession: ScrcpySessionModel?
     
     /// 正在连接中的会话信息（用于在等待当前连接断开时临时保存）
     @Published var connectingSession: ScrcpySessionModel?
@@ -359,7 +359,7 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     ///   - statusCallback: 连接状态回调
     ///   - errorCallback: 错误回调
     ///   - actionConfirmationCallback: Action 确认回调（可选）
-    func connectToSessionWithAction(
+    @objc func connectToSessionWithAction(
         _ session: ScrcpySessionModel,
         action: ScrcpyAction,
         statusCallback: @escaping ConnectionStatusCallback,
