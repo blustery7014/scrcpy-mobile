@@ -380,6 +380,64 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         connectToSession(session, statusCallback: statusCallback, errorCallback: errorCallback)
     }
     
+    /// 在当前会话上直接执行动作，不需要重新连接
+    /// - Parameters:
+    ///   - action: 要执行的动作
+    ///   - statusCallback: 连接状态回调
+    ///   - errorCallback: 错误回调
+    ///   - actionConfirmationCallback: Action 确认回调（可选）
+    @objc func executeActionOnCurrentSession(
+        _ action: ScrcpyAction,
+        statusCallback: @escaping ConnectionStatusCallback,
+        errorCallback: @escaping ConnectionErrorCallback,
+        actionConfirmationCallback: ActionConfirmationCallback? = nil
+    ) {
+        print("🎯 [SessionConnectionManager] Executing action on current session: \(action.name)")
+        
+        guard let currentSession = currentSession else {
+            print("❌ [SessionConnectionManager] Cannot execute action: no current session")
+            errorCallback("No Active Session", "No active session found. Please connect to a device first.")
+            return
+        }
+        
+        guard connectionStatus.isActive else {
+            print("❌ [SessionConnectionManager] Cannot execute action: session not active (status: \(connectionStatus))")
+            errorCallback("Session Not Active", "Current session is not active. Please ensure the connection is established.")
+            return
+        }
+        
+        print("✅ [SessionConnectionManager] Current session is connected, executing action immediately")
+        statusCallback(ScrcpyStatusConnected, "Executing action on current session", false)
+        
+        // 根据动作的执行时机决定如何执行
+        switch action.executionTiming {
+        case .immediate:
+            print("⚡ [SessionConnectionManager] Executing action immediately on current session")
+            executeAction(action)
+            statusCallback(ScrcpyStatusConnected, "Action executed successfully", false)
+        case .delayed:
+            print("⏰ [SessionConnectionManager] Executing action after \(action.delaySeconds) seconds delay on current session")
+            statusCallback(ScrcpyStatusConnected, "Action will execute in \(action.delaySeconds) seconds", false)
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimeInterval(action.delaySeconds)) {
+                self.executeAction(action)
+                statusCallback(ScrcpyStatusConnected, "Action executed successfully", false)
+            }
+        case .confirmation:
+            print("❓ [SessionConnectionManager] Action requires confirmation on current session")
+            if let confirmationCallback = actionConfirmationCallback {
+                confirmationCallback(action) { [weak self] in
+                    print("✅ [SessionConnectionManager] User confirmed action, executing on current session")
+                    self?.executeAction(action)
+                    statusCallback(ScrcpyStatusConnected, "Action executed successfully", false)
+                }
+            } else {
+                print("⚠️ [SessionConnectionManager] No confirmation callback, executing directly on current session")
+                executeAction(action)
+                statusCallback(ScrcpyStatusConnected, "Action executed successfully", false)
+            }
+        }
+    }
+    
     /// 执行实际的连接逻辑
     /// - Parameters:
     ///   - session: 要连接的会话模型

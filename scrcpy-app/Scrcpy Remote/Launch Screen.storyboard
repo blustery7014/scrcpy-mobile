@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23727" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
     <device id="retina6_12" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23506"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23721"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="System colors in document resources" minToolsVersion="11.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
@@ -18,18 +18,22 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumFontSize="9" translatesAutoresizingMaskIntoConstraints="NO" id="obG-Y5-kRd">
-                                <rect key="frame" x="0.0" y="832" width="393" height="0.0"/>
+                                <rect key="frame" x="230.66666666666666" y="798" width="0.0" height="0.0"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
                                 <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" misplaced="YES" image="AppLaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="LS8-TC-hXC">
-                                <rect key="frame" x="76" y="356" width="240" height="83"/>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="AppLaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="LS8-TC-hXC">
+                                <rect key="frame" x="131" y="356" width="131" height="83"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="83" id="cCY-zu-UW9"/>
+                                    <constraint firstAttribute="width" constant="131" id="sw3-UP-oqW"/>
+                                </constraints>
                             </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Screen copy, take your screen anywhere." textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="t11-hT-o2g">
-                                <rect key="frame" x="55" y="456" width="283" height="20"/>
+                                <rect key="frame" x="21" y="447" width="351" height="20"/>
                                 <constraints>
-                                    <constraint firstAttribute="height" constant="20" id="TcX-Gp-kzZ"/>
+                                    <constraint firstAttribute="height" constant="20" id="FaJ-El-hYY"/>
                                 </constraints>
                                 <fontDescription key="fontDescription" type="system" pointSize="11"/>
                                 <color key="textColor" systemColor="systemGrayColor"/>
@@ -39,16 +43,13 @@
                         <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                         <constraints>
-                            <constraint firstItem="obG-Y5-kRd" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="3W1-Ax-lBV"/>
-                            <constraint firstItem="t11-hT-o2g" firstAttribute="centerX" secondItem="obG-Y5-kRd" secondAttribute="centerX" id="DXF-5d-zl8"/>
-                            <constraint firstAttribute="trailing" secondItem="obG-Y5-kRd" secondAttribute="trailing" id="ftf-Rl-OHa"/>
-                            <constraint firstItem="Bcu-3y-fUS" firstAttribute="bottom" secondItem="t11-hT-o2g" secondAttribute="bottom" constant="342" id="kv6-uG-UfC"/>
-                            <constraint firstItem="t11-hT-o2g" firstAttribute="leading" secondItem="Bcu-3y-fUS" secondAttribute="leading" constant="55" id="mPs-91-ZMV"/>
-                            <constraint firstItem="LS8-TC-hXC" firstAttribute="leading" secondItem="Bcu-3y-fUS" secondAttribute="leading" constant="76" id="rWC-B8-xfI"/>
-                            <constraint firstItem="LS8-TC-hXC" firstAttribute="top" secondItem="Bcu-3y-fUS" secondAttribute="top" constant="297" id="s7R-mz-oMT"/>
-                            <constraint firstItem="t11-hT-o2g" firstAttribute="top" secondItem="LS8-TC-hXC" secondAttribute="bottom" constant="17" id="sYm-Ie-ygf"/>
-                            <constraint firstItem="t11-hT-o2g" firstAttribute="centerX" secondItem="LS8-TC-hXC" secondAttribute="centerX" id="tJJ-o7-2Iw"/>
-                            <constraint firstAttribute="bottomMargin" secondItem="obG-Y5-kRd" secondAttribute="bottom" constant="-14" id="tfe-SO-ohi"/>
+                            <constraint firstAttribute="bottomMargin" secondItem="obG-Y5-kRd" secondAttribute="bottom" constant="-14" id="1jm-kx-o1C"/>
+                            <constraint firstItem="LS8-TC-hXC" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="6N5-Gk-fcU"/>
+                            <constraint firstItem="LS8-TC-hXC" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" constant="-50" id="BMF-Zr-Z9q"/>
+                            <constraint firstItem="t11-hT-o2g" firstAttribute="centerX" secondItem="LS8-TC-hXC" secondAttribute="centerX" id="C7J-5H-c7u"/>
+                            <constraint firstAttribute="trailing" secondItem="obG-Y5-kRd" secondAttribute="trailing" constant="162.33333333333334" id="b2Z-4Q-3C2"/>
+                            <constraint firstItem="t11-hT-o2g" firstAttribute="top" secondItem="LS8-TC-hXC" secondAttribute="bottom" constant="10" symbolic="YES" id="g0b-cz-3rR"/>
+                            <constraint firstItem="t11-hT-o2g" firstAttribute="leading" secondItem="Bcu-3y-fUS" secondAttribute="leading" constant="21" id="xQY-gl-3bz"/>
                         </constraints>
                     </view>
                 </viewController>

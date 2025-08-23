@@ -462,29 +462,39 @@ struct EditActionView: View {
     private func saveAction() {
         guard !actionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         
-        var updatedAction = ScrcpyAction()
-        updatedAction.id = action.id
-        updatedAction.name = actionName
-        updatedAction.createdAt = action.createdAt
-        
-        if let device = selectedDevice {
-            updatedAction.deviceId = device.id
-            updatedAction.deviceType = device.sessionModel.deviceType
-            updatedAction.executionTiming = executionTiming
-            updatedAction.delaySeconds = delaySeconds
+        // Create a deep copy of the original action using JSON serialization to avoid reference issues
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(action)
             
-            if device.sessionModel.deviceType == .vnc {
-                updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
-            } else {
-                updatedAction.adbActionType = selectedADBActionType
-                updatedAction.adbInputKeysConfig = adbInputKeysConfig
-                updatedAction.adbShellConfig = adbShellConfig
-                updatedAction.adbCommands = adbCommands
+            let decoder = JSONDecoder()
+            let updatedAction = try decoder.decode(ScrcpyAction.self, from: data)
+            
+            // Update the properties with new values
+            updatedAction.name = actionName
+            
+            if let device = selectedDevice {
+                updatedAction.deviceId = device.id
+                updatedAction.deviceType = device.sessionModel.deviceType
+                updatedAction.executionTiming = executionTiming
+                updatedAction.delaySeconds = delaySeconds
+                
+                if device.sessionModel.deviceType == .vnc {
+                    updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
+                } else {
+                    updatedAction.adbActionType = selectedADBActionType
+                    updatedAction.adbInputKeysConfig = adbInputKeysConfig
+                    updatedAction.adbShellConfig = adbShellConfig
+                    updatedAction.adbCommands = adbCommands
+                }
             }
+            
+            print("📝 [EditActionView] Saving edited action: '\(updatedAction.name)' with ID: \(updatedAction.id)")
+            onSave(updatedAction)
+            dismiss()
+        } catch {
+            print("❌ [EditActionView] Failed to create deep copy for editing: \(error)")
         }
-        
-        onSave(updatedAction)
-        dismiss()
     }
     
     private func resetForm() {

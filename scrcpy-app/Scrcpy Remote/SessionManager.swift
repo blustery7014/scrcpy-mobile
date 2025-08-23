@@ -632,45 +632,152 @@ class SessionManager {
                 let decoder = JSONDecoder()
                 actions = try decoder.decode([ScrcpyAction].self, from: data)
                 print("📋 [ActionManager] Loaded \(actions.count) actions")
+                
+                // Debug: Print all loaded action names and IDs
+                for (index, action) in actions.enumerated() {
+                    print("📋 [ActionManager] Loaded Action[\(index)]: '\(action.name)' (ID: \(action.id))")
+                }
+                
+                // Fix duplicate IDs if any exist
+                fixDuplicateIds()
+                
             } catch {
                 print("❌ [ActionManager] Failed to decode actions: \(error)")
                 actions = []
             }
         } else {
+            print("📋 [ActionManager] No saved actions found, starting with empty array")
             actions = []
         }
     }
     
+    private func fixDuplicateIds() {
+        var seenIds = Set<UUID>()
+        var needsSave = false
+        
+        for action in actions {
+            if seenIds.contains(action.id) {
+                let oldId = action.id
+                action.id = UUID()
+                print("🔧 [ActionManager] Fixed duplicate ID for '\(action.name)': \(oldId) -> \(action.id)")
+                needsSave = true
+            } else {
+                seenIds.insert(action.id)
+            }
+        }
+        
+        if needsSave {
+            print("🔧 [ActionManager] Saving actions after fixing duplicate IDs")
+            saveActions()
+        }
+    }
+    
     func saveAction(_ action: ScrcpyAction) {
+        print("📝 [ActionManager] saveAction called with: '\(action.name)' (ID: \(action.id))")
+        
         // Update existing action or add new one
         if let index = actions.firstIndex(where: { $0.id == action.id }) {
+            print("📝 [ActionManager] Updating existing action at index \(index): '\(action.name)' (ID: \(action.id))")
             actions[index] = action
         } else {
+            print("📝 [ActionManager] Adding new action: '\(action.name)' (ID: \(action.id))")
             actions.append(action)
         }
         
+        // Save to persistent storage
         saveActions()
+        
+        // Verify the save immediately
+        if let savedAction = actions.first(where: { $0.id == action.id }) {
+            print("✅ [ActionManager] Action in memory: '\(savedAction.name)' (ID: \(savedAction.id))")
+        } else {
+            print("❌ [ActionManager] Failed to find saved action with ID: \(action.id)")
+        }
+        
+        // Force UI refresh by triggering @Published change on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            print("🔄 [ActionManager] About to force UI refresh...")
+            
+            // Debug: Print current actions before refresh
+            for (index, action) in self.actions.enumerated() {
+                print("🔄 [ActionManager] Before refresh Action[\(index)]: '\(action.name)' (ID: \(action.id))")
+            }
+            
+            // Force @Published to trigger by reassigning the array
+            let currentActions = self.actions
+            self.actions = []  // Clear first
+            self.actions = currentActions  // Then reassign to trigger @Published
+            
+            // Debug: Print actions after refresh
+            for (index, action) in self.actions.enumerated() {
+                print("🔄 [ActionManager] After refresh Action[\(index)]: '\(action.name)' (ID: \(action.id))")
+            }
+            
+            print("🔄 [ActionManager] Forced UI refresh by reassigning actions array")
+        }
     }
     
     func deleteAction(id: UUID) {
         actions.removeAll { $0.id == id }
         saveActions()
+        
+        // Force UI refresh by creating a new array reference
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let currentActions = self.actions
+            self.actions = []  // Clear first
+            self.actions = currentActions  // Then reassign to trigger @Published
+            print("🔄 [ActionManager] Forced UI refresh after deletion")
+        }
     }
 
     func duplicateAction(_ action: ScrcpyAction) {
-        var newAction = action
-        newAction.id = UUID() // Assign a new ID
-        newAction.name = findNextAvailableName(for: action.name)
-        newAction.createdAt = Date() // Update creation date
-        
-        actions.append(newAction)
-        saveActions()
+        // Create a deep copy using JSON encoding/decoding
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(action)
+            
+            let decoder = JSONDecoder()
+            let newAction = try decoder.decode(ScrcpyAction.self, from: data)
+            
+            // Assign new unique properties
+            let oldId = newAction.id
+            newAction.id = UUID() // Assign a new ID
+            let newId = newAction.id
+            print("🆔 [ActionManager] Changing ID from \(oldId) to \(newId)")
+            
+            newAction.name = findNextAvailableName(for: action.name, excluding: action.id)
+            newAction.createdAt = Date() // Update creation date
+            
+            print("📋 [ActionManager] Duplicating: '\(action.name)' -> '\(newAction.name)' (New ID: \(newAction.id))")
+            
+            actions.append(newAction)
+            saveActions()
+            
+            // Force UI refresh by creating a new array reference
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                let currentActions = self.actions
+                self.actions = []  // Clear first
+                self.actions = currentActions  // Then reassign to trigger @Published
+                print("🔄 [ActionManager] Forced UI refresh after duplication")
+            }
+            
+            print("📋 [ActionManager] Successfully duplicated action: '\(action.name)' -> '\(newAction.name)'")
+        } catch {
+            print("❌ [ActionManager] Failed to duplicate action: \(error)")
+        }
     }
 
-    private func findNextAvailableName(for baseName: String) -> String {
-        let existingNames = Set(actions.map { $0.name })
-        var newName = baseName
-        var counter = 1
+    private func findNextAvailableName(for baseName: String, excluding excludeId: UUID? = nil) -> String {
+        // Filter out the action being duplicated to avoid self-reference
+        let existingNames = Set(actions.compactMap { action -> String? in
+            if let excludeId = excludeId, action.id == excludeId {
+                return nil // Exclude the original action
+            }
+            return action.name
+        })
         
         // Regex to find a number suffix like " (1)"
         let regex = try! NSRegularExpression(pattern: "^(.*?)(?:\\s*\\(\\d+\\))?$")
@@ -686,11 +793,11 @@ class SessionManager {
         // Clean up trailing spaces from the core name
         coreName = coreName.trimmingCharacters(in: .whitespaces)
         
+        // For duplication, always start with (1) suffix
+        var counter = 1
+        var newName: String
+        
         while true {
-            if counter == 1 && !existingNames.contains(newName) {
-                return newName
-            }
-            
             newName = "\(coreName) (\(counter))"
             
             if !existingNames.contains(newName) {
@@ -706,6 +813,11 @@ class SessionManager {
             let data = try encoder.encode(actions)
             UserDefaults.standard.set(data, forKey: actionsKey)
             print("💾 [ActionManager] Saved \(actions.count) actions")
+            
+            // Debug: Print all action names and IDs
+            for (index, action) in actions.enumerated() {
+                print("💾 [ActionManager] Action[\(index)]: '\(action.name)' (ID: \(action.id))")
+            }
         } catch {
             print("❌ [ActionManager] Failed to encode actions: \(error)")
         }

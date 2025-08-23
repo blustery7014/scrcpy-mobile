@@ -47,6 +47,12 @@ typedef void (^ScrcpyActionConfirmationCallback)(ScrcpyActionData *action, void 
         errorCallback:(ScrcpyActionErrorCallback)errorCallback
 confirmationCallback:(ScrcpyActionConfirmationCallback _Nullable)confirmationCallback;
 
+// Execute action on current session without connecting
+- (void)executeActionOnCurrentSession:(ScrcpyActionData *)action
+                       statusCallback:(ScrcpyActionStatusCallback)statusCallback
+                        errorCallback:(ScrcpyActionErrorCallback)errorCallback
+               confirmationCallback:(ScrcpyActionConfirmationCallback _Nullable)confirmationCallback;
+
 @end
 
 NS_ASSUME_NONNULL_END

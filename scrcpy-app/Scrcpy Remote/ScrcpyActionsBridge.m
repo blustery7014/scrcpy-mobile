@@ -213,4 +213,86 @@ confirmationCallback:(ScrcpyActionConfirmationCallback _Nullable)confirmationCal
     NSLog(@"[ScrcpyActionsBridge] connectToSessionWithAction call completed");
 }
 
+- (void)executeActionOnCurrentSession:(ScrcpyActionData *)actionData
+                       statusCallback:(ScrcpyActionStatusCallback)statusCallback
+                        errorCallback:(ScrcpyActionErrorCallback)errorCallback
+               confirmationCallback:(ScrcpyActionConfirmationCallback _Nullable)confirmationCallback {
+    
+    NSLog(@"[ScrcpyActionsBridge] executeActionOnCurrentSession called with action: %@ (ID: %@)", actionData.name, actionData.actionId);
+    
+    // Get ActionManager and find the original ScrcpyAction
+    ActionManager *actionManager = [ActionManager shared];
+    NSLog(@"[ScrcpyActionsBridge] ActionManager retrieved: %@", actionManager);
+    
+    NSUUID *actionId = [[NSUUID alloc] initWithUUIDString:actionData.actionId];
+    
+    if (!actionId) {
+        errorCallback(@"Invalid Action", @"Action ID is invalid");
+        return;
+    }
+    
+    ScrcpyAction *action = [actionManager getActionBy:actionId];
+    NSLog(@"[ScrcpyActionsBridge] Action retrieved from ActionManager: %@", action);
+    if (!action) {
+        NSLog(@"[ScrcpyActionsBridge] ERROR: Action not found for ID: %@", actionId.UUIDString);
+        errorCallback(@"Action Not Found", @"The specified action could not be found");
+        return;
+    }
+    
+    // Get current session
+    SessionConnectionManager *connectionManager = [SessionConnectionManager shared];
+    ScrcpySessionModel *currentSession = connectionManager.currentSession;
+    NSLog(@"[ScrcpyActionsBridge] Current session: %@", currentSession);
+    
+    if (!currentSession) {
+        errorCallback(@"No Active Session", @"No active session found. Please connect to a device first.");
+        return;
+    }
+    
+    // Create Swift callback blocks
+    void (^swiftStatusCallback)(enum ScrcpyStatus, NSString *, BOOL) = ^(enum ScrcpyStatus status, NSString *message, BOOL isConnecting) {
+        statusCallback((NSInteger)status, message, isConnecting);
+    };
+    
+    void (^swiftErrorCallback)(NSString *, NSString *) = ^(NSString *title, NSString *message) {
+        errorCallback(title, message);
+    };
+    
+    void (^swiftConfirmationCallback)(ScrcpyAction *, void (^)(void)) = nil;
+    if (confirmationCallback) {
+        swiftConfirmationCallback = ^(ScrcpyAction *confirmAction, void (^confirmCallback)(void)) {
+            // Convert Swift action back to Objective-C action data
+            ScrcpyActionData *confirmActionData = [[ScrcpyActionData alloc] init];
+            confirmActionData.actionId = confirmAction.id.UUIDString;
+            confirmActionData.name = confirmAction.name;
+            confirmActionData.deviceType = (confirmAction.deviceTypeIntValue == 0) ? @"VNC" : @"ADB";
+            
+            switch (confirmAction.executionTimingIntValue) {
+                case 1: // immediate
+                    confirmActionData.executionTiming = @"immediate";
+                    break;
+                case 2: // delayed
+                    confirmActionData.executionTiming = @"delayed";
+                    break;
+                case 0: // confirmation
+                default:
+                    confirmActionData.executionTiming = @"confirmation";
+                    break;
+            }
+            
+            confirmActionData.delaySeconds = confirmAction.delaySeconds;
+            
+            confirmationCallback(confirmActionData, confirmCallback);
+        };
+    }
+    
+    // Execute the action on current session without reconnecting
+    NSLog(@"[ScrcpyActionsBridge] About to call executeActionOnCurrentSession with action: %@", action.name);
+    [connectionManager executeActionOnCurrentSession:action
+                                      statusCallback:swiftStatusCallback
+                                       errorCallback:swiftErrorCallback
+                          actionConfirmationCallback:swiftConfirmationCallback];
+    NSLog(@"[ScrcpyActionsBridge] executeActionOnCurrentSession call completed");
+}
+
 @end

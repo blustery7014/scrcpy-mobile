@@ -54,7 +54,7 @@ static const CGFloat kDefaultPositionRatioY = 0.8f; // 右下方
 static const CGFloat kDynamicIslandWidth = 100.0f;
 
 
-@interface ScrcpyMenuView () <ScrcpyMenuMaskViewDelegate, ScrcpyMenuViewDelegate>
+@interface ScrcpyMenuView () <ScrcpyMenuMaskViewDelegate, ScrcpyMenuViewDelegate, UITableViewDataSource, UITableViewDelegate>
 
 // UI Elements
 @property (nonatomic, strong) UIView *capsuleView;
@@ -98,6 +98,13 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 // VNC 触摸事件追踪相关
 @property (nonatomic, assign) NSTimeInterval touchStartTime;
+
+// Actions Popup 相关
+@property (nonatomic, strong) UIView *actionsPopupView;
+@property (nonatomic, strong) UITableView *actionsTableView;
+@property (nonatomic, strong) NSArray<ScrcpyActionData *> *actionsData;
+@property (nonatomic, strong) UITapGestureRecognizer *dismissGestureRecognizer;
+@property (nonatomic, strong) UIView *actionConfirmationView;
 @property (nonatomic, assign) CGPoint touchStartLocation;
 @property (nonatomic, assign) BOOL isDragging;
 
@@ -424,6 +431,20 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     // Actions button
     self.actionsButton = [self createButtonWithIcon:kIconActionsButton position:tempButtonFrame];
+    
+    // Remove default button event handlers for Actions button
+    [self.actionsButton removeTarget:self action:@selector(buttonTouchDown:) forControlEvents:UIControlEventTouchDown];
+    [self.actionsButton removeTarget:self action:@selector(buttonTouchUpInside:) forControlEvents:UIControlEventTouchUpInside];
+    [self.actionsButton removeTarget:self action:@selector(buttonTouchUpOutside:) forControlEvents:UIControlEventTouchUpOutside];
+    [self.actionsButton removeTarget:self action:@selector(buttonTouchCancel:) forControlEvents:UIControlEventTouchCancel];
+    
+    // Add TapGesture to Actions button
+    UITapGestureRecognizer *actionsTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(actionsButtonTappedViaGesture:)];
+    actionsTapGesture.numberOfTapsRequired = 1;
+    actionsTapGesture.cancelsTouchesInView = YES;
+    [self.actionsButton addGestureRecognizer:actionsTapGesture];
+    NSLog(@"🎯 [ScrcpyMenuView] Added TapGesture to Actions button");
+    
     [self.menuView addSubview:self.actionsButton];
     
     // Disconnect button
@@ -767,11 +788,34 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (void)actionsButtonTapped:(UIButton *)sender {
-    NSLog(@"[ScrcpyMenuView] Actions button tapped");
+    NSLog(@"🚀 [ScrcpyMenuView] Actions button tapped");
     // 停止键盘输入
     SDL_StopTextInput();
     
     // Show the actions menu
+    [self showActionsMenu];
+}
+
+- (void)actionsButtonTappedViaGesture:(UITapGestureRecognizer *)gesture {
+    NSLog(@"🎯🎯🎯 [ScrcpyMenuView] actionsButtonTappedViaGesture called - GESTURE WORKING!");
+    
+    // Add visual feedback
+    UIView *targetView = gesture.view;
+    [UIView animateWithDuration:0.1 animations:^{
+        targetView.alpha = 0.5;
+        targetView.transform = CGAffineTransformMakeScale(0.95, 0.95);
+    } completion:^(BOOL finished) {
+        [UIView animateWithDuration:0.1 animations:^{
+            targetView.alpha = 1.0;
+            targetView.transform = CGAffineTransformIdentity;
+        }];
+    }];
+    
+    // 停止键盘输入
+    SDL_StopTextInput();
+    
+    // Show the actions menu
+    NSLog(@"🎯🎯🎯 [ScrcpyMenuView] About to call showActionsMenu via gesture");
     [self showActionsMenu];
 }
 
@@ -2303,29 +2347,444 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 #pragma mark - Actions Menu Implementation
 
 - (void)showActionsMenu {
-    NSLog(@"🔥 [ScrcpyMenuView] Showing Actions menu");
+    NSLog(@"🔥 [ScrcpyMenuView] Showing Actions popup menu");
     
-    // Create the independent actions table view controller
-    ScrcpyActionsTableViewController *actionsTableVC = [[ScrcpyActionsTableViewController alloc] init];
-    NSLog(@"🔥 [ScrcpyMenuView] Created actions table view controller: %@", actionsTableVC);
-    
-    // Create navigation controller
-    UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:actionsTableVC];
-    navController.modalPresentationStyle = UIModalPresentationFormSheet;
-    NSLog(@"🔥 [ScrcpyMenuView] Created navigation controller: %@", navController);
-    
-    // Present the modal
-    UIViewController *rootViewController = [UIApplication sharedApplication].keyWindow.rootViewController;
-    NSLog(@"🔥 [ScrcpyMenuView] Root view controller: %@", rootViewController);
-    
-    if (rootViewController) {
-        NSLog(@"🔥 [ScrcpyMenuView] Presenting modal...");
-        [rootViewController presentViewController:navController animated:YES completion:^{
-            NSLog(@"🔥 [ScrcpyMenuView] Modal presentation completed");
-        }];
-    } else {
-        NSLog(@"❌ [ScrcpyMenuView] ERROR: Root view controller is nil!");
+    // 如果已经显示了 popup，先隐藏它
+    if (self.actionsPopupView) {
+        [self hideActionsMenu];
+        return;
     }
+    
+    // 获取当前设备的 actions
+    ScrcpyActionsBridge *actionsBridge = [ScrcpyActionsBridge shared];
+    self.actionsData = [actionsBridge getActionsForCurrentDevice];
+    
+    NSLog(@"🔥 [ScrcpyMenuView] Found %lu actions for current device", (unsigned long)self.actionsData.count);
+    
+    if (self.actionsData.count == 0) {
+        NSLog(@"⚠️ [ScrcpyMenuView] No actions found for current device");
+        [self showNoActionsMessage];
+        return;
+    }
+    
+    // 创建 popup 视图
+    [self createActionsPopup];
+    
+    // 显示 popup
+    [self showActionsPopup];
+}
+
+- (void)hideActionsMenu {
+    NSLog(@"🔥 [ScrcpyMenuView] Hiding Actions popup menu");
+    
+    if (!self.actionsPopupView) {
+        return;
+    }
+    
+    // 移除手势识别器
+    UIWindow *window = [self activeWindow];
+    if (window && self.dismissGestureRecognizer) {
+        [window removeGestureRecognizer:self.dismissGestureRecognizer];
+        self.dismissGestureRecognizer = nil;
+        NSLog(@"🔧 [ScrcpyMenuView] Removed dismiss gesture recognizer");
+    }
+    
+    // 动画隐藏 popup
+    [UIView animateWithDuration:0.2 animations:^{
+        self.actionsPopupView.alpha = 0.0;
+        self.actionsPopupView.transform = CGAffineTransformMakeScale(0.9, 0.9);
+    } completion:^(BOOL finished) {
+        [self.actionsPopupView removeFromSuperview];
+        self.actionsPopupView = nil;
+        self.actionsTableView = nil;
+        self.actionsData = nil;
+    }];
+}
+
+- (void)showNoActionsMessage {
+    NSLog(@"⚠️ [ScrcpyMenuView] Showing no actions message");
+    
+    UIWindow *window = [self activeWindow];
+    if (!window) return;
+    
+    // 创建临时提示视图
+    UIView *messageView = [[UIView alloc] init];
+    messageView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.8];
+    messageView.layer.cornerRadius = 10.0;
+    
+    UILabel *messageLabel = [[UILabel alloc] init];
+    messageLabel.text = @"No Actions Available";
+    messageLabel.textColor = [UIColor whiteColor];
+    messageLabel.font = [UIFont systemFontOfSize:16.0];
+    messageLabel.textAlignment = NSTextAlignmentCenter;
+    
+    [messageView addSubview:messageLabel];
+    
+    // Layout
+    messageView.frame = CGRectMake(0, 0, 180, 60);
+    messageLabel.frame = messageView.bounds;
+    
+    // 计算位置（在 Actions 按钮上方）
+    CGRect actionsButtonFrame = [self convertRect:self.actionsButton.frame toView:window];
+    CGFloat popupX = actionsButtonFrame.origin.x - (messageView.frame.size.width - actionsButtonFrame.size.width) / 2;
+    CGFloat popupY = actionsButtonFrame.origin.y - messageView.frame.size.height - 10;
+    
+    // 确保 popup 在屏幕范围内
+    popupX = MAX(10, MIN(popupX, window.bounds.size.width - messageView.frame.size.width - 10));
+    popupY = MAX(10, popupY);
+    
+    messageView.frame = CGRectMake(popupX, popupY, messageView.frame.size.width, messageView.frame.size.height);
+    messageView.alpha = 0.0;
+    messageView.transform = CGAffineTransformMakeScale(0.8, 0.8);
+    
+    [window addSubview:messageView];
+    
+    // 显示动画
+    [UIView animateWithDuration:0.2 animations:^{
+        messageView.alpha = 1.0;
+        messageView.transform = CGAffineTransformIdentity;
+    } completion:^(BOOL finished) {
+        // 2秒后自动隐藏
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:0.2 animations:^{
+                messageView.alpha = 0.0;
+            } completion:^(BOOL finished) {
+                [messageView removeFromSuperview];
+            }];
+        });
+    }];
+}
+
+- (void)createActionsPopup {
+    NSLog(@"🔥 [ScrcpyMenuView] Creating Actions popup");
+    
+    UIWindow *window = [self activeWindow];
+    if (!window) return;
+    
+    // 计算 popup 大小
+    CGFloat popupWidth = 280.0;
+    CGFloat cellHeight = 50.0;
+    CGFloat maxHeight = MIN(self.actionsData.count * cellHeight + 20, window.bounds.size.height * 0.6);
+    CGFloat popupHeight = maxHeight;
+    
+    // 创建 popup 容器
+    self.actionsPopupView = [[UIView alloc] init];
+    self.actionsPopupView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.9];
+    self.actionsPopupView.layer.cornerRadius = 12.0;
+    self.actionsPopupView.layer.shadowColor = [UIColor blackColor].CGColor;
+    self.actionsPopupView.layer.shadowOffset = CGSizeMake(0, 4);
+    self.actionsPopupView.layer.shadowOpacity = 0.3;
+    self.actionsPopupView.layer.shadowRadius = 8.0;
+    self.actionsPopupView.userInteractionEnabled = YES;
+    NSLog(@"🔧 [ScrcpyMenuView] Popup container created with userInteractionEnabled=YES");
+    
+    // 创建 TableView
+    self.actionsTableView = [[UITableView alloc] init];
+    self.actionsTableView.backgroundColor = [UIColor clearColor];
+    self.actionsTableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.actionsTableView.dataSource = self;
+    self.actionsTableView.delegate = self;
+    self.actionsTableView.rowHeight = cellHeight;
+    self.actionsTableView.layer.cornerRadius = 8.0;
+    self.actionsTableView.showsVerticalScrollIndicator = NO;
+    self.actionsTableView.userInteractionEnabled = YES;
+    self.actionsTableView.allowsSelection = YES;
+    NSLog(@"🔧 [ScrcpyMenuView] TableView created with userInteractionEnabled=YES, allowsSelection=YES");
+    
+    // 注册 cell
+    [self.actionsTableView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"ActionCell"];
+    
+    [self.actionsPopupView addSubview:self.actionsTableView];
+    
+    // Layout TableView (留出一些边距)
+    self.actionsTableView.frame = CGRectMake(10, 10, popupWidth - 20, popupHeight - 20);
+    
+    // 计算 popup 位置（在 Actions 按钮上方）
+    CGRect actionsButtonFrame = [self convertRect:self.actionsButton.frame toView:window];
+    CGFloat popupX = actionsButtonFrame.origin.x - (popupWidth - actionsButtonFrame.size.width) / 2;
+    CGFloat popupY = actionsButtonFrame.origin.y - popupHeight - 10;
+    
+    // 确保 popup 在屏幕范围内
+    popupX = MAX(10, MIN(popupX, window.bounds.size.width - popupWidth - 10));
+    if (popupY < 50) {
+        // 如果上方空间不够，显示在按钮下方
+        popupY = actionsButtonFrame.origin.y + actionsButtonFrame.size.height + 10;
+    }
+    
+    self.actionsPopupView.frame = CGRectMake(popupX, popupY, popupWidth, popupHeight);
+    
+    NSLog(@"🔥 [ScrcpyMenuView] Popup frame: %@", NSStringFromCGRect(self.actionsPopupView.frame));
+}
+
+- (void)showActionsPopup {
+    NSLog(@"🔥 [ScrcpyMenuView] Showing Actions popup");
+    
+    UIWindow *window = [self activeWindow];
+    if (!window) return;
+    
+    // 初始状态
+    self.actionsPopupView.alpha = 0.0;
+    self.actionsPopupView.transform = CGAffineTransformMakeScale(0.8, 0.8);
+    
+    // 添加到窗口
+    [window addSubview:self.actionsPopupView];
+    
+    // 添加点击外部关闭的手势
+    self.dismissGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissActionsPopup:)];
+    self.dismissGestureRecognizer.cancelsTouchesInView = NO;  // 关键：不要取消其他视图的触摸事件
+    [window addGestureRecognizer:self.dismissGestureRecognizer];
+    NSLog(@"🔧 [ScrcpyMenuView] Added dismiss gesture with cancelsTouchesInView=NO");
+    
+    // 显示动画
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+        self.actionsPopupView.alpha = 1.0;
+        self.actionsPopupView.transform = CGAffineTransformIdentity;
+    } completion:nil];
+}
+
+- (void)dismissActionsPopup:(UITapGestureRecognizer *)gesture {
+    UIWindow *window = [self activeWindow];
+    if (!window || !self.actionsPopupView) {
+        return;
+    }
+    
+    // 获取在 window 中的点击位置
+    CGPoint locationInWindow = [gesture locationInView:window];
+    
+    // 获取 popup 在 window 中的 frame
+    CGRect popupFrameInWindow = self.actionsPopupView.frame;
+    
+    NSLog(@"🔍 [ScrcpyMenuView] Tap location in window: %@", NSStringFromCGPoint(locationInWindow));
+    NSLog(@"🔍 [ScrcpyMenuView] Popup frame in window: %@", NSStringFromCGRect(popupFrameInWindow));
+    
+    // 如果点击在 popup 内部，不关闭
+    if (CGRectContainsPoint(popupFrameInWindow, locationInWindow)) {
+        NSLog(@"🔍 [ScrcpyMenuView] Tap inside popup - NOT closing");
+        return;
+    }
+    
+    NSLog(@"🔍 [ScrcpyMenuView] Tap outside popup - closing");
+    
+    // 移除手势识别器
+    if (self.dismissGestureRecognizer) {
+        [window removeGestureRecognizer:self.dismissGestureRecognizer];
+        self.dismissGestureRecognizer = nil;
+    }
+    
+    // 关闭 popup
+    [self hideActionsMenu];
+}
+
+#pragma mark - TableView DataSource & Delegate
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    NSLog(@"🔧 [ScrcpyMenuView] numberOfRowsInSection returning: %lu", (unsigned long)self.actionsData.count);
+    return self.actionsData.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSLog(@"🔧 [ScrcpyMenuView] cellForRowAtIndexPath called for row: %ld", (long)indexPath.row);
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ActionCell" forIndexPath:indexPath];
+    
+    ScrcpyActionData *actionData = self.actionsData[indexPath.row];
+    
+    // 配置 cell 外观
+    cell.backgroundColor = [UIColor clearColor];
+    cell.selectedBackgroundView = [[UIView alloc] init];
+    cell.selectedBackgroundView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.2];
+    
+    // 配置文本
+    cell.textLabel.text = actionData.name;
+    cell.textLabel.textColor = [UIColor whiteColor];
+    cell.textLabel.font = [UIFont systemFontOfSize:16.0];
+    
+    // 配置细节文本
+    NSString *deviceTypeIcon = [actionData.deviceType isEqualToString:@"VNC"] ? @"💻" : @"📱";
+    NSString *timingText = @"";
+    
+    if ([actionData.executionTiming isEqualToString:@"immediate"]) {
+        timingText = @"⚡ Immediate";
+    } else if ([actionData.executionTiming isEqualToString:@"delayed"]) {
+        timingText = [NSString stringWithFormat:@"⏱ %lds", (long)actionData.delaySeconds];
+    } else {
+        timingText = @"✋ Confirm";
+    }
+    
+    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ %@", deviceTypeIcon, timingText];
+    cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
+    cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
+    
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSLog(@"🔥 [ScrcpyMenuView] didSelectRowAtIndexPath called for row: %ld", (long)indexPath.row);
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    
+    ScrcpyActionData *selectedAction = self.actionsData[indexPath.row];
+    NSLog(@"🎯 [ScrcpyMenuView] Action selected: %@", selectedAction.name);
+    
+    // 检查是否需要确认，如果需要确认则不立即隐藏菜单
+    BOOL requiresConfirmation = [selectedAction.executionTiming isEqualToString:@"confirmation"];
+    
+    // 执行选中的 action
+    [self executeActionData:selectedAction];
+    
+    // 只有当不需要确认时才立即隐藏 popup
+    if (!requiresConfirmation) {
+        [self hideActionsMenu];
+    }
+    // 如果需要确认，菜单会在确认框关闭后自动隐藏
+}
+
+- (void)executeActionData:(ScrcpyActionData *)actionData {
+    NSLog(@"🚀 [ScrcpyMenuView] Executing action on current session: %@", actionData.name);
+    
+    ScrcpyActionsBridge *actionsBridge = [ScrcpyActionsBridge shared];
+    
+    [actionsBridge executeActionOnCurrentSession:actionData
+                                  statusCallback:^(NSInteger status, NSString * _Nullable message, BOOL isConnecting) {
+                                      NSLog(@"📊 [ScrcpyMenuView] Action status: %ld, message: %@, connecting: %@", 
+                                            (long)status, message, isConnecting ? @"YES" : @"NO");
+                                  }
+                                   errorCallback:^(NSString *title, NSString *message) {
+                                       NSLog(@"❌ [ScrcpyMenuView] Action error: %@ - %@", title, message);
+                                   }
+                            confirmationCallback:^(ScrcpyActionData *action, void (^confirmCallback)(void)) {
+                                NSLog(@"✋ [ScrcpyMenuView] Action requires confirmation: %@", action.name);
+                                [self showActionConfirmation:action confirmCallback:confirmCallback];
+                            }];
+}
+
+- (void)showActionConfirmation:(ScrcpyActionData *)actionData confirmCallback:(void (^)(void))confirmCallback {
+    NSLog(@"✋ [ScrcpyMenuView] Showing action confirmation for: %@", actionData.name);
+    
+    // 先隐藏 Actions 菜单
+    [self hideActionsMenu];
+    
+    UIWindow *window = [self activeWindow];
+    if (!window) {
+        // Fallback: just confirm
+        confirmCallback();
+        return;
+    }
+    
+    // 创建确认对话框
+    UIView *confirmationView = [[UIView alloc] init];
+    confirmationView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.9];
+    confirmationView.layer.cornerRadius = 12.0;
+    confirmationView.layer.shadowColor = [UIColor blackColor].CGColor;
+    confirmationView.layer.shadowOffset = CGSizeMake(0, 4);
+    confirmationView.layer.shadowOpacity = 0.3;
+    confirmationView.layer.shadowRadius = 8.0;
+    
+    // 标题
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = @"Confirm Action";
+    titleLabel.textColor = [UIColor whiteColor];
+    titleLabel.font = [UIFont boldSystemFontOfSize:18.0];
+    titleLabel.textAlignment = NSTextAlignmentCenter;
+    
+    // 消息
+    UILabel *messageLabel = [[UILabel alloc] init];
+    messageLabel.text = [NSString stringWithFormat:@"Execute '%@'?", actionData.name];
+    messageLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.8];
+    messageLabel.font = [UIFont systemFontOfSize:16.0];
+    messageLabel.textAlignment = NSTextAlignmentCenter;
+    messageLabel.numberOfLines = 0;
+    
+    // 按钮容器
+    UIView *buttonContainer = [[UIView alloc] init];
+    
+    // 取消按钮
+    UIButton *cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [cancelButton setTitle:@"Cancel" forState:UIControlStateNormal];
+    cancelButton.titleLabel.font = [UIFont systemFontOfSize:16.0];
+    [cancelButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    cancelButton.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.3];
+    cancelButton.layer.cornerRadius = 8.0;
+    [cancelButton addTarget:self action:@selector(cancelActionConfirmation:) forControlEvents:UIControlEventTouchUpInside];
+    
+    // 确认按钮
+    UIButton *confirmButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [confirmButton setTitle:@"Execute" forState:UIControlStateNormal];
+    confirmButton.titleLabel.font = [UIFont boldSystemFontOfSize:16.0];
+    [confirmButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    confirmButton.backgroundColor = [UIColor systemBlueColor];
+    confirmButton.layer.cornerRadius = 8.0;
+    
+    // 使用 objc_setAssociatedObject 来传递 callback
+    objc_setAssociatedObject(confirmButton, "confirmCallback", confirmCallback, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    [confirmButton addTarget:self action:@selector(executeActionConfirmation:) forControlEvents:UIControlEventTouchUpInside];
+    
+    // 添加子视图
+    [confirmationView addSubview:titleLabel];
+    [confirmationView addSubview:messageLabel];
+    [confirmationView addSubview:buttonContainer];
+    [buttonContainer addSubview:cancelButton];
+    [buttonContainer addSubview:confirmButton];
+    
+    // 布局
+    CGFloat dialogWidth = 280.0;
+    CGFloat dialogHeight = 160.0;
+    
+    confirmationView.frame = CGRectMake(0, 0, dialogWidth, dialogHeight);
+    titleLabel.frame = CGRectMake(20, 20, dialogWidth - 40, 25);
+    messageLabel.frame = CGRectMake(20, 50, dialogWidth - 40, 40);
+    buttonContainer.frame = CGRectMake(20, 100, dialogWidth - 40, 40);
+    
+    CGFloat buttonWidth = (dialogWidth - 40 - 10) / 2;
+    cancelButton.frame = CGRectMake(0, 0, buttonWidth, 40);
+    confirmButton.frame = CGRectMake(buttonWidth + 10, 0, buttonWidth, 40);
+    
+    // 居中显示
+    CGPoint center = CGPointMake(window.bounds.size.width / 2, window.bounds.size.height / 2);
+    confirmationView.center = center;
+    
+    // 初始动画状态
+    confirmationView.alpha = 0.0;
+    confirmationView.transform = CGAffineTransformMakeScale(0.8, 0.8);
+    
+    // 保存确认框引用以便后续关闭
+    self.actionConfirmationView = confirmationView;
+    
+    [window addSubview:confirmationView];
+    
+    // 显示动画
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+        confirmationView.alpha = 1.0;
+        confirmationView.transform = CGAffineTransformIdentity;
+    } completion:nil];
+}
+
+- (void)cancelActionConfirmation:(UIButton *)sender {
+    NSLog(@"❌ [ScrcpyMenuView] Action confirmation cancelled");
+    [self hideActionConfirmation];
+}
+
+- (void)executeActionConfirmation:(UIButton *)sender {
+    NSLog(@"✅ [ScrcpyMenuView] Action confirmation accepted");
+    
+    void (^confirmCallback)(void) = objc_getAssociatedObject(sender, "confirmCallback");
+    if (confirmCallback) {
+        confirmCallback();
+    }
+    
+    [self hideActionConfirmation];
+}
+
+- (void)hideActionConfirmation {
+    if (!self.actionConfirmationView) {
+        return;
+    }
+    
+    [UIView animateWithDuration:0.2 animations:^{
+        self.actionConfirmationView.alpha = 0.0;
+        self.actionConfirmationView.transform = CGAffineTransformMakeScale(0.9, 0.9);
+    } completion:^(BOOL finished) {
+        [self.actionConfirmationView removeFromSuperview];
+        self.actionConfirmationView = nil;
+    }];
 }
 
 @end 
