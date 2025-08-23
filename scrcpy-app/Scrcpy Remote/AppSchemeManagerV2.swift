@@ -17,6 +17,9 @@ import UIKit
  2. 使用会话 UUID：
     scrcpy2://550e8400-e29b-41d4-a716-446655440000?max-size=1920&bit-rate=8M
  
+ 3. 执行 Action（动作）：
+    scrcpy2://550e8400-e29b-41d4-a716-446655440000?type=action
+ 
  支持的参数覆盖：
  - host: 覆盖主机地址
  - port: 覆盖端口号
@@ -151,6 +154,23 @@ class AppSchemeManagerV2: ObservableObject {
             return
         }
         
+        // 检查URL查询参数是否包含type=action
+        let urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: true)
+        let queryItems = urlComponents?.queryItems ?? []
+        let isActionType = queryItems.contains { $0.name == "type" && $0.value == "action" }
+        
+        if isActionType {
+            // 处理 Action URL Scheme
+            if let actionId = UUID(uuidString: hostOrSessionId) {
+                print("🎬 [AppSchemeManagerV2] Processing action ID: \(actionId)")
+                handleActionExecution(actionId: actionId)
+            } else {
+                print("❌ [AppSchemeManagerV2] Invalid action ID format: \(hostOrSessionId)")
+                showConnectionError("Invalid action ID format. Action ID must be a valid UUID.\\n\\nReceived: \\(hostOrSessionId)\\n\\nExample: 550e8400-e29b-41d4-a716-446655440000")
+            }
+            return
+        }
+        
         // 尝试解析为 UUID (session ID)
         if let sessionId = UUID(uuidString: hostOrSessionId) {
             print("🔗 [AppSchemeManagerV2] Processing session ID: \(sessionId)")
@@ -217,6 +237,45 @@ class AppSchemeManagerV2: ObservableObject {
         
         // 启动连接
         startConnection(with: customizedSession)
+    }
+    
+    /// 处理 Action 执行
+    private func handleActionExecution(actionId: UUID) {
+        print("🎬 [AppSchemeManagerV2] Looking for action with ID: \(actionId)")
+        
+        // 从 ActionManager 获取 action
+        guard let action = ActionManager.shared.getActionBy(actionId) else {
+            print("❌ [AppSchemeManagerV2] Action not found for ID: \(actionId)")
+            showActionNotFoundError(actionId: actionId)
+            return
+        }
+        
+        print("✅ [AppSchemeManagerV2] Found action: \(action.name)")
+        
+        // 检查 action 是否有关联的设备
+        guard let deviceId = action.deviceId else {
+            print("❌ [AppSchemeManagerV2] Action has no associated device: \(action.name)")
+            showConnectionError("Action '\(action.name)' has no associated device.")
+            return
+        }
+        
+        // 获取关联的会话
+        guard let session = SessionManager.shared.getSession(id: deviceId) else {
+            print("❌ [AppSchemeManagerV2] Session not found for device ID: \(deviceId)")
+            showConnectionError("Session not found for action '\(action.name)'. The associated device may have been deleted.")
+            return
+        }
+        
+        print("🚀 [AppSchemeManagerV2] Executing action '\(action.name)' on session '\(session.sessionName)'")
+        
+        // 发送通知来执行 action
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: Notification.Name("ExecuteActionFromScheme"),
+                object: nil,
+                userInfo: ["action": action, "session": session]
+            )
+        }
     }
     
     /// 将 URL 参数应用到已有会话配置中
@@ -522,6 +581,32 @@ class AppSchemeManagerV2: ObservableObject {
         }
     }
     
+    /// 显示 Action 未找到错误
+    private func showActionNotFoundError(actionId: UUID) {
+        // 获取所有可用的 Actions 信息，用于更好的错误提示
+        let availableActions = ActionManager.shared.actions
+        
+        var errorMessage = "Action not found for ID: \(actionId.uuidString)"
+        
+        if availableActions.isEmpty {
+            errorMessage += "\n\nNo actions are currently saved. Please create an action first in the app."
+        } else {
+            errorMessage += "\n\nAvailable actions (\(availableActions.count)):"
+            for action in availableActions.prefix(3) {
+                errorMessage += "\n• \(action.name) (ID: \(action.id.uuidString))"
+            }
+            if availableActions.count > 3 {
+                errorMessage += "\n• ... and \(availableActions.count - 3) more"
+            }
+            errorMessage += "\n\nTip: You can copy the correct URL scheme from the action's context menu in the app."
+        }
+        
+        DispatchQueue.main.async {
+            self.connectionMessage = errorMessage
+            self.shouldShowConnectionAlert = true
+        }
+    }
+    
     /// 检查是否看起来像 UUID 但格式不正确
     private func isLikelyInvalidUUID(_ string: String) -> Bool {
         // 如果字符串长度接近 UUID 长度 (36字符) 或包含典型的 UUID 字符但格式不对
@@ -565,4 +650,5 @@ class AppSchemeManagerV2: ObservableObject {
 
 extension Notification.Name {
     static let startSchemeConnection = Notification.Name("StartSchemeConnection")
+    static let executeActionFromScheme = Notification.Name("ExecuteActionFromScheme")
 } 

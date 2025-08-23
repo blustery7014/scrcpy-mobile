@@ -838,6 +838,8 @@ struct ActionsView: View {
     @State private var showingExecutionAlert = false
     @State private var actionToExecute: ScrcpyAction? = nil
     @State private var confirmationCallback: (() -> Void)? = nil
+    @State private var showingCopyAlert = false
+    @State private var copiedURLScheme: String = ""
     
     var body: some View {
         Group {
@@ -877,6 +879,11 @@ struct ActionsView: View {
                                 actionManager.duplicateAction(action)
                             }) {
                                 Label("Duplicate Action", systemImage: "plus.square.on.square")
+                            }
+                            Button(action: {
+                                copyURLScheme(for: action)
+                            }) {
+                                Label("Copy URL Scheme", systemImage: "link")
                             }
                             Button(role: .destructive, action: {
                                 actionToDelete = action
@@ -932,6 +939,13 @@ struct ActionsView: View {
                 Text(getActionExecutionSummary(action))
             }
         }
+        .alert("URL Scheme Copied", isPresented: $showingCopyAlert) {
+            Button("OK", role: .cancel) {
+                copiedURLScheme = ""
+            }
+        } message: {
+            Text("URL Scheme has been copied to clipboard:\n\n\(copiedURLScheme)")
+        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowActionConfirmation"))) { notification in
             if let action = notification.object as? ScrcpyAction {
                 print("📢 [ActionsView] Received action confirmation notification for: \(action.name)")
@@ -939,6 +953,12 @@ struct ActionsView: View {
                 WindowUtil.showGlobalActionConfirmation(action: action) {
                     SessionConnectionManager.shared.executeConfirmedAction()
                 }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExecuteActionFromScheme"))) { notification in
+            if let action = notification.userInfo?["action"] as? ScrcpyAction {
+                print("🔗 [ActionsView] Received action execution request from URL scheme: \(action.name)")
+                executeAction(action)
             }
         }
     }
@@ -1083,6 +1103,24 @@ struct ActionsView: View {
         }
         
         return summary
+    }
+    
+    // MARK: - URL Scheme Methods
+    
+    private func copyURLScheme(for action: ScrcpyAction) {
+        let urlScheme = generateURLScheme(for: action)
+        UIPasteboard.general.string = urlScheme
+        
+        // Update state to show the alert
+        copiedURLScheme = urlScheme
+        showingCopyAlert = true
+        
+        print("📋 [ActionsView] Copied URL Scheme to clipboard: \(urlScheme)")
+    }
+    
+    private func generateURLScheme(for action: ScrcpyAction) -> String {
+        let actionIdString = action.id.uuidString.lowercased()
+        return "scrcpy2://\(actionIdString)?type=action"
     }
 }
 
