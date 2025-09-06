@@ -46,7 +46,8 @@ struct DeviceCardView: View {
                     .lineLimit(1)
             }
         }
-        .frame(width: 150, height: 120)
+        // Fill the grid cell width to maintain equal outer margins
+        .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 120)
         .padding(5)
         .background(
             RoundedRectangle(cornerRadius: 12)
@@ -92,7 +93,8 @@ struct QuickActionCardView: View {
                 .lineLimit(2)
         }
         .padding()
-        .frame(maxWidth: .infinity)
+        // Keep all quick-action cards the same height for visual consistency
+        .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 110)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(isSelected ? Color.blue : Color.gray.opacity(0.05))
@@ -1214,14 +1216,12 @@ struct VNCKeySelectorView: View {
     }
     
     var filteredKeys: [PCKeyCode] {
-        let categoryKeys = PCKeyCode.allCases.filter { $0.category == selectedCategory }
-        
-        if searchText.isEmpty {
-            return categoryKeys
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return PCKeyCode.allCases.filter { $0.category == selectedCategory }
         } else {
-            return categoryKeys.filter {
-                $0.displayName.localizedCaseInsensitiveContains(searchText)
-            }
+            // Search across all keys regardless of selected category
+            return PCKeyCode.allCases.filter { $0.displayName.localizedCaseInsensitiveContains(trimmed) }
         }
     }
     
@@ -1270,8 +1270,8 @@ struct VNCKeySelectorView: View {
                                     HStack(spacing: 6) {
                                         Image(systemName: modifier.icon)
                                             .font(.caption)
-                                        Text(modifier.rawValue)
-                                            .font(.caption)
+                                    Text(LocalizedStringKey(modifier.rawValue))
+                                        .font(.caption)
                                     }
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
@@ -1299,7 +1299,7 @@ struct VNCKeySelectorView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: category.icon)
                                         .font(.caption)
-                                    Text(category.rawValue)
+                                    Text(LocalizedStringKey(category.rawValue))
                                         .font(.caption)
                                 }
                                 .padding(.horizontal, 12)
@@ -1385,14 +1385,12 @@ struct KeySelectorView: View {
     }
     
     var filteredKeys: [AndroidKeyCode] {
-        let categoryKeys = AndroidKeyCode.allCases.filter { $0.category == selectedCategory }
-        
-        if searchText.isEmpty {
-            return categoryKeys
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return AndroidKeyCode.allCases.filter { $0.category == selectedCategory }
         } else {
-            return categoryKeys.filter {
-                $0.displayName.localizedCaseInsensitiveContains(searchText)
-            }
+            // Search across all keys regardless of selected category
+            return AndroidKeyCode.allCases.filter { $0.displayName.localizedCaseInsensitiveContains(trimmed) }
         }
     }
     
@@ -1432,7 +1430,7 @@ struct KeySelectorView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: category.icon)
                                         .font(.caption)
-                                    Text(category.rawValue)
+                                    Text(LocalizedStringKey(category.rawValue))
                                         .font(.caption)
                                 }
                                 .padding(.horizontal, 12)

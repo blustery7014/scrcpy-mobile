@@ -28,6 +28,9 @@
 "Actions" = "自动化";
 "New Action" = "新建 Action";
 "Edit Action" = "编辑 Action";
+"Delete Action" = "删除 Action";
+"Duplicate Action" = "复制 Action";
+"Copy URL Scheme" = "复制 URL Scheme";
 "Delete Session" = "删除会话";
 "Save Session" = "保存会话";
 "Save Action" = "保存 Action";
@@ -128,6 +131,7 @@
 "Send Key Event" = "发送按键事件";
 "Select PC Key" = "选择电脑按键";
 "Select Key" = "选择按键";
+"Search keys..." = "搜索按键…";
 "Selected Keys:" = "已选按键：";
 "Drag to reorder" = "拖动以重新排序";
 "Modifiers (Optional)" = "修饰键（可选）";
@@ -177,6 +181,20 @@
 "General" = "通用";
 "Appearance" = "外观";
 "System" = "跟随系统";
+"Letters" = "字母";
+"Numbers" = "123";
+"Navigation" = "导航";
+"Hardware" = "硬件";
+"Media" = "媒体";
+"Control" = "控制";
+"Modifiers" = "修饰键";
+"Others" = "其他";
+"Function" = "功能";
+"Symbols" = "符号";
+"Ctrl" = "Ctrl";
+"Alt" = "Alt";
+"Shift" = "Shift";
+"Cmd" = "Command";
 "Dark" = "深色";
 "Light" = "浅色";
 "Background Active" = "后台保持活跃";
@@ -226,6 +244,8 @@
 "Force Connect ADB Forward" = "强制使用 ADB 转发连接";
 "Create Session" = "创建会话";
 "Edit Session" = "编辑会话";
+"Connect Session" = "连接会话";
+"Duplicate Session" = "复制会话";
 "Select Video Encoder" = "选择视频编码器";
 "Select Audio Encoder" = "选择音频编码器";
 "Enter custom encoder name" = "输入自定义编码器名称";

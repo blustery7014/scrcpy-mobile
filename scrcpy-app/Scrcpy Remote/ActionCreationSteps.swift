@@ -120,7 +120,9 @@ struct DeviceSelectionView: View {
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(12)
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(160), spacing: 12), count: 2), spacing: 12) {
+                    // Use flexible columns so cards expand to fill width,
+                    // keeping equal outer margins with the ScrollView padding
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
                         ForEach(savedSessions) { session in
                             DeviceCardView(
                                 session: session,
@@ -221,16 +223,16 @@ struct Step2View: View {
                                 action: action,
                                 isSelected: selectedVNCQuickActions.contains(action),
                                 onTap: {
+                                    // Allow only one VNC quick action at a time
                                     if selectedVNCQuickActions.contains(action) {
-                                        selectedVNCQuickActions.remove(action)
+                                        selectedVNCQuickActions.removeAll()
                                     } else {
-                                        selectedVNCQuickActions.insert(action)
+                                        selectedVNCQuickActions = [action]
                                     }
                                 },
                                 onDoubleTap: {
-                                    if !selectedVNCQuickActions.contains(action) {
-                                        selectedVNCQuickActions.insert(action)
-                                    }
+                                    // Double-tap selects this action exclusively
+                                    selectedVNCQuickActions = [action]
                                     onVNCActionDoubleTap?()
                                 }
                             )
@@ -342,9 +344,9 @@ struct Step2View: View {
                             .foregroundColor(.red)
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.red.opacity(0.1))
                     .cornerRadius(8)
-                    .frame(maxWidth: .infinity)
                 } else if selectedVNCQuickActions.contains(.inputKeys) && vncInputKeysConfig.keys.isEmpty {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -354,9 +356,9 @@ struct Step2View: View {
                             .foregroundColor(.red)
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.red.opacity(0.1))
                     .cornerRadius(8)
-                    .frame(maxWidth: .infinity)
                 } else {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
@@ -369,9 +371,9 @@ struct Step2View: View {
                             .foregroundColor(.green)
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(8)
-                    .frame(maxWidth: .infinity)
                 }
             } else {
                 // ADB validation - only show general validation for non-shell actions
@@ -386,9 +388,9 @@ struct Step2View: View {
                         Spacer()
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(8)
-                    .frame(maxWidth: .infinity)
                 case .inputKeys:
                     // Input keys validation is handled within ADBInputKeysConfigView
                     EmptyView()
@@ -411,6 +413,7 @@ struct Step2View: View {
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 }
@@ -461,9 +464,9 @@ struct Step3View: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.red.opacity(0.1))
                     .cornerRadius(6)
-                    .frame(maxWidth: .infinity)
                 } else {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
@@ -475,9 +478,9 @@ struct Step3View: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(6)
-                    .frame(maxWidth: .infinity)
                 }
             }
             
@@ -498,6 +501,7 @@ struct Step3View: View {
                     .foregroundColor(.secondary)
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.gray.opacity(0.1))
             .cornerRadius(8)
             
