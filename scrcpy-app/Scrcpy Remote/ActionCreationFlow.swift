@@ -20,6 +20,11 @@ struct NewActionView: View {
     @State private var delaySeconds: Int = 3
     @State private var showingDeviceSelector = false
     
+    // VNC action states
+    @State private var vncInputKeysConfig = VNCInputKeysConfig()
+    @State private var showingVNCKeySelector = false
+    @State private var lastSelectedPCKeyCategory: PCKeyCategory = .letters
+    
     // New ADB action states
     @State private var selectedADBActionType: ADBActionType = .homeKey
     @State private var adbInputKeysConfig = ADBInputKeysConfig()
@@ -52,6 +57,7 @@ struct NewActionView: View {
                             Step2View(
                                 deviceType: selectedDevice?.deviceType ?? "vnc",
                                 selectedVNCQuickActions: $selectedVNCQuickActions,
+                                vncInputKeysConfig: $vncInputKeysConfig,
                                 adbCommands: $adbCommands,
                                 selectedADBActionType: $selectedADBActionType,
                                 adbInputKeysConfig: $adbInputKeysConfig,
@@ -65,6 +71,9 @@ struct NewActionView: View {
                                 },
                                 onShowKeySelector: {
                                     showingKeySelector = true
+                                },
+                                onShowVNCKeySelector: {
+                                    showingVNCKeySelector = true
                                 }
                             )
                         } else {
@@ -111,6 +120,13 @@ struct NewActionView: View {
                 let keyAction = ADBKeyAction(keyCode: keyCode.rawValue, keyName: keyCode.displayName)
                 adbInputKeysConfig.keys.append(keyAction)
                 lastSelectedKeyCategory = keyCode.category
+            }
+        }
+        .sheet(isPresented: $showingVNCKeySelector) {
+            VNCKeySelectorView(defaultCategory: lastSelectedPCKeyCategory) { keyCode, modifiers in
+                let keyAction = VNCKeyAction(keyCode: keyCode.rawValue, keyName: keyCode.displayName, modifiers: modifiers)
+                vncInputKeysConfig.keys.append(keyAction)
+                lastSelectedPCKeyCategory = keyCode.category
             }
         }
     }
@@ -180,6 +196,7 @@ struct NewActionView: View {
             
             if device.sessionModel.deviceType == .vnc {
                 action.vncQuickActions = Array(selectedVNCQuickActions)
+                action.vncInputKeysConfig = vncInputKeysConfig
             } else {
                 action.adbActionType = selectedADBActionType
                 action.adbInputKeysConfig = adbInputKeysConfig
@@ -212,7 +229,16 @@ struct NewActionView: View {
         case 2:
             guard let device = selectedDevice else { return false }
             if device.sessionModel.deviceType == .vnc {
-                return !selectedVNCQuickActions.isEmpty
+                if !selectedVNCQuickActions.isEmpty {
+                    // Check specific VNC action requirements
+                    if selectedVNCQuickActions.contains(.inputKeys) {
+                        return !vncInputKeysConfig.keys.isEmpty
+                    } else {
+                        return true // Sync Clipboard doesn't need additional config
+                    }
+                } else {
+                    return false
+                }
             } else {
                 // Check based on selected ADB action type
                 switch selectedADBActionType {
@@ -236,6 +262,7 @@ struct NewActionView: View {
         selectedDevice = nil
         currentStep = 1
         selectedVNCQuickActions.removeAll()
+        vncInputKeysConfig = VNCInputKeysConfig()
         adbCommands = ""
         executionTiming = .confirmation
         delaySeconds = 3
@@ -254,9 +281,15 @@ struct EditActionView: View {
     @State private var executionTiming: ExecutionTiming = .confirmation
     @State private var delaySeconds: Int = 3
     @State private var savedSessions: [ScrcpySession] = []
+    
+    // VNC action states
+    @State private var vncInputKeysConfig: VNCInputKeysConfig
+    @State private var showingVNCKeySelector = false
+    @State private var lastSelectedPCKeyCategory: PCKeyCategory = .letters
+    
+    // ADB action states  
     @State private var showingKeySelector = false
     @State private var lastSelectedKeyCategory: KeyCategory = .letters
-    
     @State private var selectedADBActionType: ADBActionType
     @State private var adbInputKeysConfig: ADBInputKeysConfig
     @State private var adbShellConfig: ADBShellConfig
@@ -273,6 +306,7 @@ struct EditActionView: View {
         self._adbCommands = State(initialValue: action.adbCommands)
         self._executionTiming = State(initialValue: action.executionTiming)
         self._delaySeconds = State(initialValue: action.delaySeconds)
+        self._vncInputKeysConfig = State(initialValue: action.vncInputKeysConfig)
         self._selectedADBActionType = State(initialValue: action.adbActionType)
         self._adbInputKeysConfig = State(initialValue: action.adbInputKeysConfig)
         self._adbShellConfig = State(initialValue: action.adbShellConfig)
@@ -301,6 +335,7 @@ struct EditActionView: View {
                             Step2View(
                                 deviceType: selectedDevice?.deviceType ?? action.deviceType.rawValue,
                                 selectedVNCQuickActions: $selectedVNCQuickActions,
+                                vncInputKeysConfig: $vncInputKeysConfig,
                                 adbCommands: $adbCommands,
                                 selectedADBActionType: $selectedADBActionType,
                                 adbInputKeysConfig: $adbInputKeysConfig,
@@ -314,6 +349,9 @@ struct EditActionView: View {
                                 },
                                 onShowKeySelector: {
                                     showingKeySelector = true
+                                },
+                                onShowVNCKeySelector: {
+                                    showingVNCKeySelector = true
                                 }
                             )
                         } else {
@@ -362,6 +400,13 @@ struct EditActionView: View {
                 lastSelectedKeyCategory = keyCode.category
             }
         }
+        .sheet(isPresented: $showingVNCKeySelector) {
+            VNCKeySelectorView(defaultCategory: lastSelectedPCKeyCategory) { keyCode, modifiers in
+                let keyAction = VNCKeyAction(keyCode: keyCode.rawValue, keyName: keyCode.displayName, modifiers: modifiers)
+                vncInputKeysConfig.keys.append(keyAction)
+                lastSelectedPCKeyCategory = keyCode.category
+            }
+        }
         .onAppear {
             loadSavedSessions()
             // Find and select the associated device
@@ -390,7 +435,16 @@ struct EditActionView: View {
         case 2:
             guard let device = selectedDevice else { return false }
             if device.sessionModel.deviceType == .vnc {
-                return !selectedVNCQuickActions.isEmpty
+                if !selectedVNCQuickActions.isEmpty {
+                    // Check specific VNC action requirements
+                    if selectedVNCQuickActions.contains(.inputKeys) {
+                        return !vncInputKeysConfig.keys.isEmpty
+                    } else {
+                        return true // Sync Clipboard doesn't need additional config
+                    }
+                } else {
+                    return false
+                }
             } else {
                 // Check based on selected ADB action type
                 switch selectedADBActionType {
@@ -481,6 +535,7 @@ struct EditActionView: View {
                 
                 if device.sessionModel.deviceType == .vnc {
                     updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
+                    updatedAction.vncInputKeysConfig = vncInputKeysConfig
                 } else {
                     updatedAction.adbActionType = selectedADBActionType
                     updatedAction.adbInputKeysConfig = adbInputKeysConfig
@@ -500,6 +555,7 @@ struct EditActionView: View {
     private func resetForm() {
         actionName = action.name
         selectedVNCQuickActions = Set(action.vncQuickActions)
+        vncInputKeysConfig = action.vncInputKeysConfig
         adbCommands = action.adbCommands
         executionTiming = action.executionTiming
         delaySeconds = action.delaySeconds

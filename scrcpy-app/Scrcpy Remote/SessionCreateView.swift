@@ -10,6 +10,9 @@ import UIKit
 
 struct SessionCreateView: View {
     @State var sessionModel = ScrcpySessionModel()
+    // Local input state so device type reacts instantly
+    @State private var hostInput: String = ""
+    @State private var portInput: String = ""
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appSettings: AppSettings
     @State private var showingTailscaleAuth = false
@@ -19,33 +22,32 @@ struct SessionCreateView: View {
     @State private var forceVNCMode = false
     private let isEditMode: Bool
     
-    // Check if ADB is auto-selected based on port (not forced by user)
+    // Check if ADB is auto-selected based on input (not forced by user)
     private var isADBAutoSelected: Bool {
         // Only show force VNC option if:
         // 1. No explicit scheme in host
         // 2. Port would normally trigger ADB detection
         // 3. Not already in force VNC mode
-        if sessionModel.host.starts(with: "vnc://") || sessionModel.host.starts(with: "adb://") {
+        if hostInput.starts(with: "vnc://") || hostInput.starts(with: "adb://") {
             return false
         }
-        
-        if let portNumber = Int(sessionModel.port) {
-            let wouldBeVNC = portNumber < 5555 || 
+        if let portNumber = Int(portInput) {
+            let wouldBeVNC = portNumber < 5555 ||
                            (portNumber >= 5900 && portNumber <= 5909) ||
                            (portNumber >= 15900 && portNumber <= 15909) ||
                            (portNumber >= 25900 && portNumber <= 25909)
             return !wouldBeVNC && !forceVNCMode
         }
-        
         return false
     }
     
-    // Get effective device type considering force VNC mode
+    // Get effective device type based on current input
     private var effectiveDeviceType: SessionDeviceType {
-        if forceVNCMode {
-            return .vnc
-        }
-        return sessionModel.deviceType
+        let detected = detectDeviceType(host: hostInput, port: portInput)
+        // Only allow force override when no explicit scheme and ADB would be selected
+        let hasScheme = hostInput.starts(with: "vnc://") || hostInput.starts(with: "adb://")
+        if !hasScheme && forceVNCMode && detected == .adb { return .vnc }
+        return detected
     }
     
     init() {
@@ -54,6 +56,8 @@ struct SessionCreateView: View {
     
     init(sessionModel: ScrcpySessionModel) {
         _sessionModel = State(initialValue: sessionModel)
+        _hostInput = State(initialValue: sessionModel.host)
+        _portInput = State(initialValue: sessionModel.port)
         isEditMode = true
     }
     
@@ -63,11 +67,11 @@ struct SessionCreateView: View {
                 Section(header: Text("Remote Device")) {
                     TextField("Session Name (Optional)", text: $sessionModel.sessionName)
                         .autocorrectionDisabled()
-                    TextField("Host or vnc://host", text: $sessionModel.host)
+                    TextField("Host or vnc://host to force protocol", text: $hostInput)
                         .textContentType(.URL)
                         .autocorrectionDisabled()
                         .autocapitalization(.none)
-                    TextField("Port", text: $sessionModel.port)
+                    TextField("Port", text: $portInput)
                         .keyboardType(.numberPad)
                 }
                 
@@ -165,7 +169,7 @@ struct SessionCreateView: View {
                             }
                         }
                         // navigation with link to baidu.com
-                        if sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if hostInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || portInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             HStack {
                                 Text("Video Encoder")
                                 Spacer()
@@ -176,8 +180,8 @@ struct SessionCreateView: View {
                         } else {
                             NavigationLink(destination: VideoEncoderSelectionView(
                                 selectedEncoder: $sessionModel.adbOptions.videoEncoder,
-                                host: sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines),
-                                port: Int(sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 5555
+                                host: hostInput.trimmingCharacters(in: .whitespacesAndNewlines),
+                                port: Int(portInput.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 5555
                             )) {
                                 HStack {
                                     Text("Video Encoder")
@@ -196,7 +200,7 @@ struct SessionCreateView: View {
                                     Text(codec.rawValue)
                                 }
                             }
-                            if sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            if hostInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || portInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 HStack {
                                     Text("Audio Encoder")
                                     Spacer()
@@ -207,8 +211,8 @@ struct SessionCreateView: View {
                             } else {
                                 NavigationLink(destination: AudioEncoderSelectionView(
                                     selectedEncoder: $sessionModel.adbOptions.audioEncoder,
-                                    host: sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    port: Int(sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 5555
+                                    host: hostInput.trimmingCharacters(in: .whitespacesAndNewlines),
+                                    port: Int(portInput.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 5555
                                 )) {
                                     HStack {
                                         Text("Audio Encoder")
@@ -263,14 +267,14 @@ struct SessionCreateView: View {
                 
                 Section {
                     Button(action: {
-                        // Validate session before saving
+                        // Validate session before saving (using current input values)
                         if validateSession() {
+                            // Sync inputs to model for saving
+                            syncInputsToSessionModel()
                             // Apply force VNC mode to session if needed
                             applyForceVNCMode()
-                            
                             // Save session
                             SessionManager.shared.saveSession(sessionModel)
-                            
                             // Pop back
                             dismiss()
                         } else {
@@ -284,6 +288,18 @@ struct SessionCreateView: View {
                 }
             }
             .navigationBarTitle(isEditMode ? "Edit Session" : "Create Session", displayMode: .inline)
+            .onAppear {
+                // Initialize local inputs from session model when view appears
+                if hostInput.isEmpty { hostInput = sessionModel.host }
+                if portInput.isEmpty { portInput = sessionModel.port }
+            }
+            .onChange(of: hostInput) { newValue in
+                // If user types explicit scheme, ignore any previous force toggle
+                let lower = newValue.lowercased()
+                if lower.hasPrefix("adb://") || lower.hasPrefix("vnc://") {
+                    forceVNCMode = false
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -389,18 +405,18 @@ struct SessionCreateView: View {
     
     private func validateSession() -> Bool {
         // Check host
-        if sessionModel.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if hostInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             validationErrorMessage = "Please enter a valid host address."
             return false
         }
         
         // Check port
-        if sessionModel.port.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if portInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             validationErrorMessage = "Please enter a port number."
             return false
         }
         
-        if !isValidPort(sessionModel.port) {
+        if !isValidPort(portInput) {
             validationErrorMessage = "Please enter a valid port number (1-65535)."
             return false
         }
@@ -472,6 +488,28 @@ struct SessionCreateView: View {
             return false
         }
         return intValue > 0
+    }
+    
+    private func detectDeviceType(host: String, port: String) -> SessionDeviceType {
+        // Respect explicit scheme first
+        if host.starts(with: "vnc://") { return .vnc }
+        if host.starts(with: "adb://") { return .adb }
+        // Fallback to port-based detection
+        if let portNumber = Int(port) {
+            if portNumber < 5555 ||
+               (portNumber >= 5900 && portNumber <= 5909) ||
+               (portNumber >= 15900 && portNumber <= 15909) ||
+               (portNumber >= 25900 && portNumber <= 25909) {
+                return .vnc
+            }
+            return .adb
+        }
+        return .vnc
+    }
+    
+    private func syncInputsToSessionModel() {
+        sessionModel.host = hostInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        sessionModel.port = portInput.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     private func applyForceVNCMode() {

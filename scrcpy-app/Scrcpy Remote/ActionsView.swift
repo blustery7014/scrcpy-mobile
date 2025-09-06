@@ -70,6 +70,9 @@ enum ExecutionTiming: String, Codable, CaseIterable {
     @objc var delaySeconds: Int = 3
     var createdAt: Date = Date()
     
+    // VNC action properties
+    var vncInputKeysConfig: VNCInputKeysConfig = VNCInputKeysConfig()
+    
     // New ADB action properties
     var adbActionType: ADBActionType = .homeKey
     var adbInputKeysConfig: ADBInputKeysConfig = ADBInputKeysConfig()
@@ -94,6 +97,7 @@ enum ExecutionTiming: String, Codable, CaseIterable {
         executionTiming = .confirmation
         delaySeconds = 3
         createdAt = Date()
+        vncInputKeysConfig = VNCInputKeysConfig()
         adbActionType = .homeKey
         adbInputKeysConfig = ADBInputKeysConfig()
         adbShellConfig = ADBShellConfig()
@@ -110,6 +114,7 @@ enum ExecutionTiming: String, Codable, CaseIterable {
         self.executionTiming = .confirmation
         self.delaySeconds = 3
         self.createdAt = Date()
+        self.vncInputKeysConfig = VNCInputKeysConfig()
         self.adbActionType = .homeKey
         self.adbInputKeysConfig = ADBInputKeysConfig()
         self.adbShellConfig = ADBShellConfig()
@@ -128,40 +133,315 @@ enum ExecutionTiming: String, Codable, CaseIterable {
         executionTiming = try container.decode(ExecutionTiming.self, forKey: .executionTiming)
         delaySeconds = try container.decode(Int.self, forKey: .delaySeconds)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
+        vncInputKeysConfig = try container.decodeIfPresent(VNCInputKeysConfig.self, forKey: .vncInputKeysConfig) ?? VNCInputKeysConfig()
         adbActionType = try container.decode(ADBActionType.self, forKey: .adbActionType)
         adbInputKeysConfig = try container.decode(ADBInputKeysConfig.self, forKey: .adbInputKeysConfig)
         adbShellConfig = try container.decode(ADBShellConfig.self, forKey: .adbShellConfig)
         super.init()
     }
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case deviceId
+        case deviceType
+        case vncQuickActions
+        case adbCommands
+        case executionTiming
+        case delaySeconds
+        case createdAt
+        case vncInputKeysConfig
+        case adbActionType
+        case adbInputKeysConfig
+        case adbShellConfig
+    }
 }
 
 enum VNCQuickAction: String, Codable, CaseIterable {
-    case missionControl = "Mission Control"
-    case desktop = "Desktop"
-    case launchpad = "Launchpad"
-    case inputText = "Input Text"
-    case screenshot = "Screenshot"
-    case clipboard = "Clipboard"
+    case inputKeys = "Input Keys"
+    case syncClipboard = "Sync Clipboard"
     
     var icon: String {
         switch self {
-        case .missionControl: return "rectangle.3.group"
-        case .desktop: return "desktopcomputer"
-        case .launchpad: return "grid"
-        case .inputText: return "keyboard"
-        case .screenshot: return "camera"
-        case .clipboard: return "doc.on.clipboard"
+        case .inputKeys: return "keyboard"
+        case .syncClipboard: return "doc.on.clipboard"
         }
     }
     
     var description: String {
         switch self {
-        case .missionControl: return "Show Mission Control"
-        case .desktop: return "Show Desktop"
-        case .launchpad: return "Open Launchpad"
-        case .inputText: return "Input text to remote device"
-        case .screenshot: return "Take screenshot"
-        case .clipboard: return "Sync clipboard"
+        case .inputKeys: return "Send key combinations to VNC device"
+        case .syncClipboard: return "Sync clipboard with VNC device"
+        }
+    }
+}
+
+struct VNCKeyAction: Codable, Identifiable {
+    var id = UUID()
+    var keyCode: Int
+    var keyName: String
+    var modifiers: [VNCKeyModifier] = []
+    
+    init(keyCode: Int, keyName: String, modifiers: [VNCKeyModifier] = []) {
+        self.keyCode = keyCode
+        self.keyName = keyName
+        self.modifiers = modifiers
+    }
+    
+    var displayName: String {
+        if modifiers.isEmpty {
+            return keyName
+        } else {
+            let modifierNames = modifiers.map { $0.displayName }
+            return modifierNames.joined(separator: " + ") + " + " + keyName
+        }
+    }
+}
+
+enum VNCKeyModifier: String, Codable, CaseIterable {
+    case ctrl = "Ctrl"
+    case alt = "Alt" 
+    case shift = "Shift"
+    case cmd = "Cmd"
+    
+    var displayName: String {
+        return self.rawValue
+    }
+    
+    var icon: String {
+        switch self {
+        case .ctrl: return "control"
+        case .alt: return "alt"
+        case .shift: return "shift"
+        case .cmd: return "command"
+        }
+    }
+}
+
+struct VNCInputKeysConfig: Codable {
+    var keys: [VNCKeyAction] = []
+    var intervalMs: Int = 100
+}
+
+enum PCKeyCode: Int, CaseIterable {
+    // Letters A-Z
+    case a = 97, b = 98, c = 99, d = 100, e = 101, f = 102, g = 103, h = 104, i = 105, j = 106
+    case k = 107, l = 108, m = 109, n = 110, o = 111, p = 112, q = 113, r = 114, s = 115, t = 116
+    case u = 117, v = 118, w = 119, x = 120, y = 121, z = 122
+    
+    // Numbers 0-9
+    case num0 = 48, num1 = 49, num2 = 50, num3 = 51, num4 = 52, num5 = 53, num6 = 54, num7 = 55, num8 = 56, num9 = 57
+    
+    // Special Keys
+    case space = 32
+    case enter = 13
+    case tab = 9
+    case escape = 27
+    case backspace = 8
+    case delete = 127
+    
+    // Function Keys
+    case f1 = 65470, f2 = 65471, f3 = 65472, f4 = 65473, f5 = 65474, f6 = 65475
+    case f7 = 65476, f8 = 65477, f9 = 65478, f10 = 65479, f11 = 65480, f12 = 65481
+    
+    // Arrow Keys
+    case arrowUp = 65362
+    case arrowDown = 65364
+    case arrowLeft = 65361
+    case arrowRight = 65363
+    
+    // Navigation
+    case home = 65360
+    case end = 65367
+    case pageUp = 65365
+    case pageDown = 65366
+    case insert = 65379
+    
+    // Punctuation
+    case semicolon = 59      // ;
+    case apostrophe = 39     // '
+    case comma = 44          // ,
+    case period = 46         // .
+    case slash = 47          // /
+    case backslash = 92      // \
+    case leftBracket = 91    // [
+    case rightBracket = 93   // ]
+    case minus = 45          // -
+    case equals = 61         // =
+    case grave = 96          // `
+    
+    // Shifted symbols
+    case exclamation = 33    // !
+    case at = 64             // @
+    case hash = 35           // #
+    case dollar = 36         // $
+    case percent = 37        // %
+    case caret = 94          // ^
+    case ampersand = 38      // &
+    case asterisk = 42       // *
+    case leftParen = 40      // (
+    case rightParen = 41     // )
+    case underscore = 95     // _
+    case plus = 43           // +
+    case leftBrace = 123     // {
+    case rightBrace = 125    // }
+    case pipe = 124          // |
+    case colon = 58          // :
+    case quote = 34          // "
+    case less = 60           // <
+    case greater = 62        // >
+    case question = 63       // ?
+    case tilde = 126         // ~
+    
+    var displayName: String {
+        switch self {
+        // Letters
+        case .a: return "A"
+        case .b: return "B"
+        case .c: return "C"
+        case .d: return "D"
+        case .e: return "E"
+        case .f: return "F"
+        case .g: return "G"
+        case .h: return "H"
+        case .i: return "I"
+        case .j: return "J"
+        case .k: return "K"
+        case .l: return "L"
+        case .m: return "M"
+        case .n: return "N"
+        case .o: return "O"
+        case .p: return "P"
+        case .q: return "Q"
+        case .r: return "R"
+        case .s: return "S"
+        case .t: return "T"
+        case .u: return "U"
+        case .v: return "V"
+        case .w: return "W"
+        case .x: return "X"
+        case .y: return "Y"
+        case .z: return "Z"
+        
+        // Numbers
+        case .num0: return "0"
+        case .num1: return "1"
+        case .num2: return "2"
+        case .num3: return "3"
+        case .num4: return "4"
+        case .num5: return "5"
+        case .num6: return "6"
+        case .num7: return "7"
+        case .num8: return "8"
+        case .num9: return "9"
+        
+        // Special Keys
+        case .space: return "Space"
+        case .enter: return "Enter"
+        case .tab: return "Tab"
+        case .escape: return "Escape"
+        case .backspace: return "Backspace"
+        case .delete: return "Delete"
+        
+        // Function Keys
+        case .f1: return "F1"
+        case .f2: return "F2"
+        case .f3: return "F3"
+        case .f4: return "F4"
+        case .f5: return "F5"
+        case .f6: return "F6"
+        case .f7: return "F7"
+        case .f8: return "F8"
+        case .f9: return "F9"
+        case .f10: return "F10"
+        case .f11: return "F11"
+        case .f12: return "F12"
+        
+        // Arrow Keys
+        case .arrowUp: return "↑"
+        case .arrowDown: return "↓"
+        case .arrowLeft: return "←"
+        case .arrowRight: return "→"
+        
+        // Navigation
+        case .home: return "Home"
+        case .end: return "End"
+        case .pageUp: return "Page Up"
+        case .pageDown: return "Page Down"
+        case .insert: return "Insert"
+        
+        // Punctuation
+        case .semicolon: return ";"
+        case .apostrophe: return "'"
+        case .comma: return ","
+        case .period: return "."
+        case .slash: return "/"
+        case .backslash: return "\\"
+        case .leftBracket: return "["
+        case .rightBracket: return "]"
+        case .minus: return "-"
+        case .equals: return "="
+        case .grave: return "`"
+        
+        // Shifted symbols
+        case .exclamation: return "!"
+        case .at: return "@"
+        case .hash: return "#"
+        case .dollar: return "$"
+        case .percent: return "%"
+        case .caret: return "^"
+        case .ampersand: return "&"
+        case .asterisk: return "*"
+        case .leftParen: return "("
+        case .rightParen: return ")"
+        case .underscore: return "_"
+        case .plus: return "+"
+        case .leftBrace: return "{"
+        case .rightBrace: return "}"
+        case .pipe: return "|"
+        case .colon: return ":"
+        case .quote: return "\""
+        case .less: return "<"
+        case .greater: return ">"
+        case .question: return "?"
+        case .tilde: return "~"
+        }
+    }
+    
+    var category: PCKeyCategory {
+        switch self {
+        case .a, .b, .c, .d, .e, .f, .g, .h, .i, .j, .k, .l, .m, .n, .o, .p, .q, .r, .s, .t, .u, .v, .w, .x, .y, .z:
+            return .letters
+        case .num0, .num1, .num2, .num3, .num4, .num5, .num6, .num7, .num8, .num9:
+            return .numbers
+        case .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .home, .end, .pageUp, .pageDown:
+            return .navigation
+        case .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12:
+            return .function
+        case .space, .enter, .tab, .escape, .backspace, .delete, .insert:
+            return .control
+        default:
+            return .symbols
+        }
+    }
+}
+
+enum PCKeyCategory: String, CaseIterable {
+    case letters = "Letters"
+    case numbers = "Numbers" 
+    case navigation = "Navigation"
+    case function = "Function"
+    case control = "Control"
+    case symbols = "Symbols"
+    
+    var icon: String {
+        switch self {
+        case .letters: return "textformat.abc"
+        case .numbers: return "textformat.123"
+        case .navigation: return "arrow.up.arrow.down.arrow.left.arrow.right"
+        case .function: return "function"
+        case .control: return "command"
+        case .symbols: return "textformat.alt"
         }
     }
 }

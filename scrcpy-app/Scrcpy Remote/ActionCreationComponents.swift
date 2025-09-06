@@ -883,6 +883,492 @@ struct ExampleCommandView: View {
     }
 }
 
+// MARK: - VNC Input Keys Config View
+
+struct VNCInputKeysConfigView: View {
+    @Binding var config: VNCInputKeysConfig
+    let onShowKeySelector: (() -> Void)?
+    @State private var lastSelectedCategory: PCKeyCategory = .control
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("VNC Input Keys Configuration")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Text("Configure a sequence of keys to send to the VNC device")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            // Keys list with drag and drop support
+            VStack(alignment: .leading, spacing: 8) {
+                if !config.keys.isEmpty {
+                    HStack {
+                        Text("Selected Keys:")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Text("Drag to reorder")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // Draggable keys grid for VNC
+                DraggableVNCKeysGrid(
+                    keys: $config.keys,
+                    onShowKeySelector: onShowKeySelector
+                )
+            }
+            
+            // Interval setting
+            HStack {
+                Text("Key interval:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                HStack {
+                    Button("-") {
+                        if config.intervalMs > 50 {
+                            config.intervalMs -= 50
+                        }
+                    }
+                    .disabled(config.intervalMs <= 50)
+                    
+                    Text("\(config.intervalMs)ms")
+                        .font(.caption)
+                        .frame(width: 60)
+                    
+                    Button("+") {
+                        if config.intervalMs < 5000 {
+                            config.intervalMs += 50
+                        }
+                    }
+                    .disabled(config.intervalMs >= 5000)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
+                
+                Spacer()
+            }
+
+            // Validation feedback
+            if config.keys.isEmpty {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text("Please configure at least one key")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(6)
+                .frame(maxWidth: .infinity)
+            } else {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("\(config.keys.count) key(s) configured")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(6)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding()
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Draggable VNC Keys Grid
+
+struct DraggableVNCKeysGrid: View {
+    @Binding var keys: [VNCKeyAction]
+    let onShowKeySelector: (() -> Void)?
+    
+    @State private var draggedKey: VNCKeyAction?
+    @State private var dragOffset = CGSize.zero
+    @State private var draggedIndex: Int?
+    
+    private let columns = 3
+    private let spacing: CGFloat = 8
+    
+    var body: some View {
+        let totalItems = keys.count + 1 // +1 for add button
+        let rows = (totalItems + columns - 1) / columns
+        
+        VStack(spacing: spacing) {
+            ForEach(0..<rows, id: \.self) { row in
+                HStack(spacing: spacing) {
+                    ForEach(0..<columns, id: \.self) { column in
+                        let index = row * columns + column
+                        
+                        if index < keys.count {
+                            DraggableVNCKeyItemView(
+                                keyAction: keys[index],
+                                index: index,
+                                isDragged: draggedIndex == index,
+                                onDragStarted: { key in
+                                    draggedKey = key
+                                    draggedIndex = index
+                                },
+                                onDragChanged: { offset in
+                                    dragOffset = offset
+                                },
+                                onDragEnded: { translation in
+                                    handleDragEnd(from: index, translation: translation)
+                                },
+                                onDelete: {
+                                    withAnimation(.spring()) {
+                                        keys.removeAll { $0.id == keys[index].id }
+                                    }
+                                }
+                            )
+                        } else if index == keys.count {
+                            // Add button
+                            Button {
+                                onShowKeySelector?()
+                            } label: {
+                                AddKeyButtonView()
+                            }
+                        } else {
+                            // Empty space
+                            Spacer()
+                                .frame(height: 56)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func handleDragEnd(from sourceIndex: Int, translation: CGSize) {
+        let targetIndex = calculateTargetIndex(from: sourceIndex, translation: translation)
+        
+        if targetIndex != sourceIndex && targetIndex >= 0 && targetIndex < keys.count {
+            withAnimation(.spring()) {
+                let movedKey = keys.remove(at: sourceIndex)
+                keys.insert(movedKey, at: targetIndex)
+            }
+        }
+        
+        // Reset drag state
+        draggedKey = nil
+        draggedIndex = nil
+        dragOffset = .zero
+    }
+    
+    private func calculateTargetIndex(from sourceIndex: Int, translation: CGSize) -> Int {
+        // Estimate grid cell size (this is approximate)
+        let cellWidth: CGFloat = 100 // Approximate width
+        let cellHeight: CGFloat = 64 // Approximate height including spacing
+        
+        // Calculate how many cells to move horizontally and vertically
+        let horizontalMove = Int(translation.width / cellWidth)
+        let verticalMove = Int(translation.height / cellHeight)
+        
+        // Calculate source position in grid
+        let sourceRow = sourceIndex / columns
+        let sourceColumn = sourceIndex % columns
+        
+        // Calculate target position
+        let targetRow = max(0, sourceRow + verticalMove)
+        let targetColumn = max(0, min(columns - 1, sourceColumn + horizontalMove))
+        
+        // Convert back to index
+        let targetIndex = targetRow * columns + targetColumn
+        
+        // Clamp to valid range
+        return max(0, min(keys.count - 1, targetIndex))
+    }
+}
+
+// MARK: - Draggable VNC Key Item View
+
+struct DraggableVNCKeyItemView: View {
+    let keyAction: VNCKeyAction
+    let index: Int
+    let isDragged: Bool
+    let onDragStarted: (VNCKeyAction) -> Void
+    let onDragChanged: (CGSize) -> Void
+    let onDragEnded: (CGSize) -> Void
+    let onDelete: () -> Void
+    
+    @State private var dragOffset = CGSize.zero
+    @State private var showingControls = false
+    
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 4) {
+                // Key name and code with modifiers
+                VStack(spacing: 2) {
+                    Text(keyAction.displayName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("\(keyAction.keyCode)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Position indicator when showing controls
+                if showingControls {
+                    HStack(spacing: 4) {
+                        Image(systemName: "hand.point.up.left")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        
+                        Text("Position \(index + 1)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(isDragged ? Color.blue.opacity(0.2) : (showingControls ? Color.blue.opacity(0.1) : Color.gray.opacity(0.05)))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isDragged ? Color.blue : (showingControls ? Color.blue : Color.gray.opacity(0.3)), 
+                           lineWidth: isDragged ? 3 : (showingControls ? 2 : 1))
+            )
+            .scaleEffect(isDragged ? 1.1 : 1.0)
+            .shadow(color: isDragged ? Color.black.opacity(0.3) : Color.clear, radius: isDragged ? 12 : 0)
+            .offset(dragOffset)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showingControls)
+            .animation(.spring(response: 0.2, dampingFraction: 0.9), value: isDragged)
+            .onTapGesture {
+                showingControls.toggle()
+            }
+            .gesture(
+                DragGesture(coordinateSpace: .global)
+                    .onChanged { value in
+                        if dragOffset == .zero {
+                            onDragStarted(keyAction)
+                            showingControls = false
+                        }
+                        dragOffset = value.translation
+                        onDragChanged(value.translation)
+                    }
+                    .onEnded { value in
+                        onDragEnded(value.translation)
+                        withAnimation(.spring()) {
+                            dragOffset = .zero
+                        }
+                    }
+            )
+            
+            // Delete button
+            Button {
+                onDelete()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundColor(.red)
+                    .background(Color(.systemBackground))
+                    .clipShape(Circle())
+            }
+            .offset(x: 8, y: -8)
+            .opacity(isDragged ? 0.3 : 1.0)
+        }
+    }
+}
+
+// MARK: - VNC Key Selector View
+
+struct VNCKeySelectorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onKeySelected: (PCKeyCode, [VNCKeyModifier]) -> Void
+    let defaultCategory: PCKeyCategory?
+    
+    @State private var selectedCategory: PCKeyCategory = .letters
+    @State private var selectedModifiers: Set<VNCKeyModifier> = []
+    @State private var searchText = ""
+    
+    init(defaultCategory: PCKeyCategory? = nil, onKeySelected: @escaping (PCKeyCode, [VNCKeyModifier]) -> Void) {
+        self.defaultCategory = defaultCategory
+        self.onKeySelected = onKeySelected
+    }
+    
+    var filteredKeys: [PCKeyCode] {
+        let categoryKeys = PCKeyCode.allCases.filter { $0.category == selectedCategory }
+        
+        if searchText.isEmpty {
+            return categoryKeys
+        } else {
+            return categoryKeys.filter {
+                $0.displayName.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Search bar
+                VStack {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.gray)
+                        TextField("Search keys...", text: $searchText)
+                        
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                .padding()
+                
+                // Modifier selector
+                VStack(alignment: .leading) {
+                    Text("Modifiers (Optional)")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(VNCKeyModifier.allCases, id: \.self) { modifier in
+                                Button {
+                                    if selectedModifiers.contains(modifier) {
+                                        selectedModifiers.remove(modifier)
+                                    } else {
+                                        selectedModifiers.insert(modifier)
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: modifier.icon)
+                                            .font(.caption)
+                                        Text(modifier.rawValue)
+                                            .font(.caption)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        selectedModifiers.contains(modifier) ? Color.blue : Color.gray.opacity(0.1)
+                                    )
+                                    .foregroundColor(
+                                        selectedModifiers.contains(modifier) ? .white : .primary
+                                    )
+                                    .cornerRadius(16)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                
+                // Category selector
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(PCKeyCategory.allCases, id: \.self) { category in
+                            Button {
+                                selectedCategory = category
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: category.icon)
+                                        .font(.caption)
+                                    Text(category.rawValue)
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    selectedCategory == category ? Color.green : Color.gray.opacity(0.1)
+                                )
+                                .foregroundColor(
+                                    selectedCategory == category ? .white : .primary
+                                )
+                                .cornerRadius(16)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.bottom)
+                
+                // Keys grid
+                ScrollView {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                        ForEach(filteredKeys, id: \.self) { keyCode in
+                            Button {
+                                onKeySelected(keyCode, Array(selectedModifiers))
+                                dismiss()
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Text(keyCode.displayName)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.primary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
+                                    
+                                    Text("\(keyCode.rawValue)")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.gray.opacity(0.05))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("Select PC Key")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                trailing: Button("Cancel") {
+                    dismiss()
+                }
+            )
+            .onAppear {
+                if let defaultCategory = defaultCategory {
+                    selectedCategory = defaultCategory
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Key Selector View
 
 struct KeySelectorView: View {

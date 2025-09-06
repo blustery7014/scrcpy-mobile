@@ -174,6 +174,7 @@ struct DeviceSelectionView: View {
 struct Step2View: View {
     let deviceType: String
     @Binding var selectedVNCQuickActions: Set<VNCQuickAction>
+    @Binding var vncInputKeysConfig: VNCInputKeysConfig
     @Binding var adbCommands: String
     @Binding var selectedADBActionType: ADBActionType
     @Binding var adbInputKeysConfig: ADBInputKeysConfig
@@ -183,6 +184,7 @@ struct Step2View: View {
     
     var onVNCActionDoubleTap: (() -> Void)? = nil
     var onShowKeySelector: (() -> Void)? = nil
+    var onShowVNCKeySelector: (() -> Void)? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -233,6 +235,14 @@ struct Step2View: View {
                                 }
                             )
                         }
+                    }
+                    
+                    // VNC Input Keys Configuration
+                    if selectedVNCQuickActions.contains(.inputKeys) {
+                        VNCInputKeysConfigView(
+                            config: $vncInputKeysConfig,
+                            onShowKeySelector: onShowVNCKeySelector
+                        )
                     }
                 }
             } else {
@@ -328,6 +338,18 @@ struct Step2View: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.red)
                         Text("Please select at least one VNC action")
+                            .font(.subheadline)
+                            .foregroundColor(.red)
+                    }
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                    .frame(maxWidth: .infinity)
+                } else if selectedVNCQuickActions.contains(.inputKeys) && vncInputKeysConfig.keys.isEmpty {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                        Text("Please configure keys for Input Keys action")
                             .font(.subheadline)
                             .foregroundColor(.red)
                     }

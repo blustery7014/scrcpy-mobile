@@ -146,7 +146,7 @@ struct MainContentView: View {
         if #available(iOS 16.0, *) {
             NavigationStack {
                 TabView(selection: $selectedTab) {
-                    SessionsView(savedSessions: savedSessions, onDeleteSession: { id in
+                    SessionsView(savedSessions: $savedSessions, onDeleteSession: { id in
                         print("Deleting session:", id)
                         SessionManager.shared.deleteSession(id: id)
                         reloadSessions()
@@ -346,7 +346,7 @@ struct MainContentView: View {
         } else {
             NavigationView {
                 TabView(selection: $selectedTab) {
-                    SessionsView(savedSessions: savedSessions, onDeleteSession: { id in
+                    SessionsView(savedSessions: $savedSessions, onDeleteSession: { id in
                         print("Deleting session:", id)
                         SessionManager.shared.deleteSession(id: id)
                         reloadSessions()

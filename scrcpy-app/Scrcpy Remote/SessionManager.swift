@@ -232,10 +232,11 @@ enum SessionDeviceType: String, Codable, CaseIterable {
             
             // Auto-detect based on port number
             if let portNumber = Int(port) {
-                // VNC ports: < 5555, 590x (5900-5909), or 1590x (15900-15909)
+                // VNC ports: < 5555, 590x (5900-5909), 1590x (15900-15909), or 2590x (25900-25909)
                 if portNumber < 5555 || 
                    (portNumber >= 5900 && portNumber <= 5909) ||
-                   (portNumber >= 15900 && portNumber <= 15909) {
+                   (portNumber >= 15900 && portNumber <= 15909) ||
+                   (portNumber >= 25900 && portNumber <= 25909) {
                     return .vnc
                 }
                 // All other ports default to ADB

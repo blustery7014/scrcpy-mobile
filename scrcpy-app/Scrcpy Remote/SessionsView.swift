@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ScrcpySession: Codable, Identifiable {
     var id: UUID {
-        sessionModel.deviceId
+        sessionModel.id
     }
     var title: String {
         if !sessionModel.sessionName.isEmpty {
@@ -73,7 +73,7 @@ struct ScrcpySession: Codable, Identifiable {
 }
 
 struct SessionsView: View {
-    var savedSessions: [ScrcpySession] = []
+    @Binding var savedSessions: [ScrcpySession]
     var onDeleteSession: ((UUID) -> Void)?
     var onConnectSession: ((ScrcpySession) -> Void)?
     var onEditSession: ((ScrcpySession) -> Void)?
@@ -243,6 +243,10 @@ struct SessionsView: View {
                 message: Text("Are you sure you want to delete '\(sessionToDelete?.title ?? "")'?\n\nThis action cannot be undone."),
                 primaryButton: .destructive(Text("Delete")) {
                     if let session = sessionToDelete {
+                        // Remove from UI immediately for responsive feedback
+                        savedSessions.removeAll { $0.id == session.id }
+                        
+                        // Then perform the backend deletion
                         onDeleteSession?(session.id)
                         sessionToDelete = nil
                     }
@@ -710,13 +714,15 @@ struct DotLoadingView: View {
 }
 
 struct SessionsView_Previews: PreviewProvider {
+    @State static private var previewSessions = [
+        ScrcpySession(sessionModel: ScrcpySessionModel(host: "test.example.com", port: "5091", sessionName: "My Test Device")),
+        ScrcpySession(sessionModel: ScrcpySessionModel(host: "scrcpy.link", port: "5555")),
+        ScrcpySession(sessionModel: ScrcpySessionModel(host: "adb://myphone.link", port: "15680", sessionName: "My Phone"))
+    ]
+    
     static var previews: some View {
         SessionsView(
-            savedSessions: [
-                ScrcpySession(sessionModel: ScrcpySessionModel(host: "test.example.com", port: "5091", sessionName: "My Test Device")),
-                ScrcpySession(sessionModel: ScrcpySessionModel(host: "scrcpy.link", port: "5555")),
-                ScrcpySession(sessionModel: ScrcpySessionModel(host: "adb://myphone.link", port: "15680", sessionName: "My Phone"))
-            ],
+            savedSessions: $previewSessions,
             onDuplicateSession: { _ in }
         )
     }

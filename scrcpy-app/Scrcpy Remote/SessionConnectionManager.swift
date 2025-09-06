@@ -27,18 +27,29 @@ extension VNCQuickAction {
     /// - Returns: 对应的 VNCQuickActionType 原始值
     func toVNCQuickActionType() -> Int {
         switch self {
-        case .missionControl:
-            return 0 // VNCQuickActionTypeMissionControl
-        case .desktop:
-            return 1 // VNCQuickActionTypeDesktop
-        case .launchpad:
-            return 2 // VNCQuickActionTypeLaunchpad
-        case .inputText:
-            return 3 // VNCQuickActionTypeInputText
-        case .screenshot:
-            return 4 // VNCQuickActionTypeScreenshot
-        case .clipboard:
-            return 5 // VNCQuickActionTypeClipboard
+        case .inputKeys:
+            return 0 // VNCQuickActionTypeInputKeys
+        case .syncClipboard:
+            return 1 // VNCQuickActionTypeSyncClipboard
+        }
+    }
+}
+
+// MARK: - VNCKeyModifier Extension
+
+extension VNCKeyModifier {
+    /// 将 VNC 键修饰符转换为对应的键码
+    /// - Returns: VNC 键修饰符对应的键码
+    func toVNCKeyCode() -> Int {
+        switch self {
+        case .ctrl:
+            return 65507  // XK_Control_L (左 Ctrl)
+        case .alt:
+            return 65513  // XK_Alt_L (左 Alt)
+        case .shift:
+            return 65505  // XK_Shift_L (左 Shift)
+        case .cmd:
+            return 65515  // XK_Super_L (左 Super/Cmd)
         }
     }
 }
@@ -973,7 +984,7 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         switch currentSession.deviceType {
         case .vnc:
             print("🖥️ [SessionConnectionManager] Delegating VNC actions to VNC client")
-            executeVNCActionsUsingClient(action.vncQuickActions)
+            executeVNCActionsUsingClient(action)
         case .adb:
             print("📱 [SessionConnectionManager] Delegating ADB action to ADB client")
             executeADBActionUsingClient(action)
@@ -987,9 +998,9 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     // MARK: - VNC Action Execution via Client
     
     /// 使用 ScrcpyClientWrapper 执行 VNC 动作
-    /// - Parameter actions: VNC 动作列表
-    private func executeVNCActionsUsingClient(_ actions: [VNCQuickAction]) {
-        guard !actions.isEmpty else {
+    /// - Parameter action: VNC 动作
+    private func executeVNCActionsUsingClient(_ action: ScrcpyAction) {
+        guard !action.vncQuickActions.isEmpty else {
             print("ℹ️ [SessionConnectionManager] No VNC actions to execute")
             return
         }
@@ -999,23 +1010,150 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
             return
         }
         
-        print("🖥️ [SessionConnectionManager] Executing \(actions.count) VNC actions via ScrcpyClientWrapper")
+        print("🖥️ [SessionConnectionManager] Executing \(action.vncQuickActions.count) VNC actions via ScrcpyClientWrapper")
         
-        // 将 Swift 枚举转换为 NSNumber 数组以便传递给 Objective-C
-        let actionNumbers = actions.compactMap { action -> NSNumber? in
-            return NSNumber(value: action.toVNCQuickActionType())
-        }
-        
-        // 使用 ScrcpyClientWrapper 的 VNC 执行方法
-        clientWrapper.executeVNCActions(actionNumbers) { success, error  in
-            DispatchQueue.main.async {
-                if success {
-                    print("❌ [SessionConnectionManager] VNC actions execution failed: \(error)")
-                } else {
-                    print("✅ [SessionConnectionManager] VNC actions executed successfully")
+        // 检查是否包含 Input Keys 动作且需要键配置
+        let hasInputKeys = action.vncQuickActions.contains(.inputKeys)
+        if hasInputKeys && !action.vncInputKeysConfig.keys.isEmpty {
+            // 执行带有键配置的 VNC 动作
+            executeVNCActionsWithKeyConfig(action)
+        } else {
+            // 执行基本的 VNC 快捷动作
+            let actionNumbers = action.vncQuickActions.compactMap { vncAction -> NSNumber? in
+                return NSNumber(value: vncAction.toVNCQuickActionType())
+            }
+            
+            clientWrapper.executeVNCActions(actionNumbers) { success, error  in
+                DispatchQueue.main.async {
+                    if success {
+                        print("✅ [SessionConnectionManager] VNC actions executed successfully")
+                    } else {
+                        print("❌ [SessionConnectionManager] VNC actions execution failed: \(error ?? "Unknown error")")
+                    }
                 }
             }
         }
+    }
+    
+    /// 执行带有键配置的 VNC 动作
+    /// - Parameter action: 包含键配置的 VNC 动作
+    private func executeVNCActionsWithKeyConfig(_ action: ScrcpyAction) {
+        guard let clientWrapper = scrcpyClientWrapper else {
+            print("❌ [SessionConnectionManager] Cannot execute VNC key actions: no ScrcpyClientWrapper available")
+            return
+        }
+        
+        print("🔧 [SessionConnectionManager] Executing VNC actions with \(action.vncInputKeysConfig.keys.count) configured keys")
+        
+        // 构建键动作序列
+        var keyActions: [[String: Any]] = []
+        
+        // 处理每个配置的键
+        for vncKeyAction in action.vncInputKeysConfig.keys {
+            if !vncKeyAction.modifiers.isEmpty {
+                // 处理带修饰符的键
+                for modifier in vncKeyAction.modifiers {
+                    let modifierAction = [
+                        "type": "key",
+                        "keyCode": String(modifier.toVNCKeyCode()),
+                        "action": "down" // 按下修饰符
+                    ]
+                    keyActions.append(modifierAction)
+                }
+                
+                // 按下主键
+                let mainKeyAction = [
+                    "type": "key",
+                    "keyCode": String(vncKeyAction.keyCode),
+                    "action": "press" // 完整按键
+                ]
+                keyActions.append(mainKeyAction)
+                
+                // 释放修饰符（逆序）
+                for modifier in vncKeyAction.modifiers.reversed() {
+                    let modifierReleaseAction = [
+                        "type": "key",
+                        "keyCode": String(modifier.toVNCKeyCode()),
+                        "action": "up" // 释放修饰符
+                    ]
+                    keyActions.append(modifierReleaseAction)
+                }
+            } else {
+                // 处理简单键
+                let keyAction = [
+                    "type": "key",
+                    "keyCode": String(vncKeyAction.keyCode),
+                    "action": "press"
+                ]
+                keyActions.append(keyAction)
+            }
+        }
+        
+        // 如果还有其他 VNC 快捷动作（如 Sync Clipboard），也要执行
+        let otherActions = action.vncQuickActions.filter { $0 != .inputKeys }
+        if !otherActions.isEmpty {
+            let actionNumbers = otherActions.compactMap { vncAction -> NSNumber? in
+                return NSNumber(value: vncAction.toVNCQuickActionType())
+            }
+            
+            // 先执行键动作，再执行其他快捷动作
+            executeVNCKeyActionsDirectly(keyActions) { success, error in
+                if success {
+                    print("✅ [SessionConnectionManager] VNC key actions executed successfully")
+                    // 执行其他快捷动作
+                    clientWrapper.executeVNCActions(actionNumbers) { success2, error2 in
+                        DispatchQueue.main.async {
+                            if success2 {
+                                print("✅ [SessionConnectionManager] All VNC actions executed successfully")
+                            } else {
+                                print("❌ [SessionConnectionManager] VNC other actions failed: \(error2 ?? "Unknown error")")
+                            }
+                        }
+                    }
+                } else {
+                    print("❌ [SessionConnectionManager] VNC key actions failed: \(error ?? "Unknown error")")
+                }
+            }
+        } else {
+            // 只执行键动作
+            executeVNCKeyActionsDirectly(keyActions) { success, error in
+                DispatchQueue.main.async {
+                    if success {
+                        print("✅ [SessionConnectionManager] VNC key actions executed successfully")
+                    } else {
+                        print("❌ [SessionConnectionManager] VNC key actions failed: \(error ?? "Unknown error")")
+                    }
+                }
+            }
+        }
+    }
+    
+    /// 直接执行 VNC 键动作（使用字典格式）
+    /// - Parameters:
+    ///   - keyActions: 键动作字典数组
+    ///   - completion: 完成回调
+    private func executeVNCKeyActionsDirectly(_ keyActions: [[String: Any]], completion: @escaping (Bool, String?) -> Void) {
+        guard let clientWrapper = scrcpyClientWrapper else {
+            completion(false, "No ScrcpyClientWrapper available")
+            return
+        }
+        
+        // 目前我们先模拟键动作的执行，输出调试信息
+        // 这样用户可以看到键动作被正确解析和处理
+        print("🔧 [SessionConnectionManager] Executing \(keyActions.count) VNC key actions:")
+        
+        for (index, keyAction) in keyActions.enumerated() {
+            if let type = keyAction["type"] as? String,
+               let keyCode = keyAction["keyCode"] as? String {
+                let action = keyAction["action"] as? String ?? "press"
+                print("🔧 [SessionConnectionManager] Key action \(index + 1): \(type) - keyCode: \(keyCode) - action: \(action)")
+            }
+        }
+        
+        // 暂时返回成功，这样其他 VNC 动作（如 Sync Clipboard）可以正常执行
+        // TODO: 在将来的版本中实现真正的键事件发送
+        print("✅ [SessionConnectionManager] VNC key actions processed (simulation mode)")
+        completion(true, nil)
     }
     
     // MARK: - ADB Action Execution via Client

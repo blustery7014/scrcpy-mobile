@@ -204,23 +204,6 @@
 			);
 			target = AA7EA5252D01F33E00FF7760 /* Scrcpy Remote */;
 		};
-		AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient_legacy" folder in "VNCClient" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				CursorPosManager.h,
-				CursorPosManager.m,
-				RenderRegionCalculator.h,
-				RenderRegionCalculator.m,
-				ScrcpyVNCClient.h,
-				ScrcpyVNCClient.m,
-				"ScrcpyVNCClient+MouseControl.h",
-				"ScrcpyVNCClient+MouseControl.m",
-				"ScrcpyVNCClient+Private.h",
-				TestCursorPos,
-				TestCursorPos.m,
-			);
-			target = AAA4EF9D2D0FBEB000D361CA /* VNCClient */;
-		};
 		AAA4EFC62D0FF5DF00D361CA /* Exceptions for "Scrcpy SDL" folder in "VNCClient" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -277,14 +260,6 @@
 				AAA4EFC62D0FF5DF00D361CA /* Exceptions for "Scrcpy SDL" folder in "VNCClient" target */,
 			);
 			path = "Scrcpy SDL";
-			sourceTree = "<group>";
-		};
-		AAA4EF9F2D0FBEB000D361CA /* VNCClient_legacy */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				AAA4EFA92D0FBEB000D361CA /* Exceptions for "VNCClient_legacy" folder in "VNCClient" target */,
-			);
-			path = VNCClient_legacy;
 			sourceTree = "<group>";
 		};
 		AAA4EFC72D1072DE00D361CA /* ADBClient */ = {
@@ -361,7 +336,6 @@
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
 				AAA4EF4F2D0DA3B100D361CA /* Scrcpy Remote Tests */,
 				AA4B6E0C2DEB409D00813661 /* LatencyTest */,
-				AAA4EF9F2D0FBEB000D361CA /* VNCClient_legacy */,
 				AA18D7F82E0FC0CD00CD7D92 /* VNCClient */,
 				AA7AF6502DF57467002EC51D /* ScrcpyLiveActivityWidget */,
 				AAA4EF322D0D277400D361CA /* Frameworks */,
@@ -528,9 +502,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				AAA4EF9F2D0FBEB000D361CA /* VNCClient_legacy */,
 			);
 			name = VNCClient;
 			packageProductDependencies = (
