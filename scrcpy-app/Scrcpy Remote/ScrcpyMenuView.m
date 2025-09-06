@@ -1,4 +1,5 @@
 #import "ScrcpyMenuView.h"
+#import "Scrcpy_Remote-Swift.h"
 #import "ScrcpyMenuMaskView.h"
 #import "ScrcpyConstants.h"
 #import <SDL2/SDL_system.h>
@@ -2656,105 +2657,15 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
                             }];
 }
 
+// Use the same global confirmation alert as ActionsView for consistency
 - (void)showActionConfirmation:(ScrcpyActionData *)actionData confirmCallback:(void (^)(void))confirmCallback {
-    NSLog(@"✋ [ScrcpyMenuView] Showing action confirmation for: %@", actionData.name);
-    
-    // 先隐藏 Actions 菜单
+    NSLog(@"✋ [ScrcpyMenuView] Showing action confirmation (unified) for: %@", actionData.name);
+
+    // Hide Actions popup first
     [self hideActionsMenu];
-    
-    UIWindow *window = [self activeWindow];
-    if (!window) {
-        // Fallback: just confirm
-        confirmCallback();
-        return;
-    }
-    
-    // 创建确认对话框
-    UIView *confirmationView = [[UIView alloc] init];
-    confirmationView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.9];
-    confirmationView.layer.cornerRadius = 12.0;
-    confirmationView.layer.shadowColor = [UIColor blackColor].CGColor;
-    confirmationView.layer.shadowOffset = CGSizeMake(0, 4);
-    confirmationView.layer.shadowOpacity = 0.3;
-    confirmationView.layer.shadowRadius = 8.0;
-    
-    // 标题
-    UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"Confirm Action";
-    titleLabel.textColor = [UIColor whiteColor];
-    titleLabel.font = [UIFont boldSystemFontOfSize:18.0];
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    
-    // 消息
-    UILabel *messageLabel = [[UILabel alloc] init];
-    messageLabel.text = [NSString stringWithFormat:@"Execute '%@'?", actionData.name];
-    messageLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.8];
-    messageLabel.font = [UIFont systemFontOfSize:16.0];
-    messageLabel.textAlignment = NSTextAlignmentCenter;
-    messageLabel.numberOfLines = 0;
-    
-    // 按钮容器
-    UIView *buttonContainer = [[UIView alloc] init];
-    
-    // 取消按钮
-    UIButton *cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [cancelButton setTitle:@"Cancel" forState:UIControlStateNormal];
-    cancelButton.titleLabel.font = [UIFont systemFontOfSize:16.0];
-    [cancelButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    cancelButton.backgroundColor = [[UIColor grayColor] colorWithAlphaComponent:0.3];
-    cancelButton.layer.cornerRadius = 8.0;
-    [cancelButton addTarget:self action:@selector(cancelActionConfirmation:) forControlEvents:UIControlEventTouchUpInside];
-    
-    // 确认按钮
-    UIButton *confirmButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [confirmButton setTitle:@"Execute" forState:UIControlStateNormal];
-    confirmButton.titleLabel.font = [UIFont boldSystemFontOfSize:16.0];
-    [confirmButton setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
-    confirmButton.backgroundColor = [UIColor systemBlueColor];
-    confirmButton.layer.cornerRadius = 8.0;
-    
-    // 使用 objc_setAssociatedObject 来传递 callback
-    objc_setAssociatedObject(confirmButton, "confirmCallback", confirmCallback, OBJC_ASSOCIATION_COPY_NONATOMIC);
-    [confirmButton addTarget:self action:@selector(executeActionConfirmation:) forControlEvents:UIControlEventTouchUpInside];
-    
-    // 添加子视图
-    [confirmationView addSubview:titleLabel];
-    [confirmationView addSubview:messageLabel];
-    [confirmationView addSubview:buttonContainer];
-    [buttonContainer addSubview:cancelButton];
-    [buttonContainer addSubview:confirmButton];
-    
-    // 布局
-    CGFloat dialogWidth = 280.0;
-    CGFloat dialogHeight = 160.0;
-    
-    confirmationView.frame = CGRectMake(0, 0, dialogWidth, dialogHeight);
-    titleLabel.frame = CGRectMake(20, 20, dialogWidth - 40, 25);
-    messageLabel.frame = CGRectMake(20, 50, dialogWidth - 40, 40);
-    buttonContainer.frame = CGRectMake(20, 100, dialogWidth - 40, 40);
-    
-    CGFloat buttonWidth = (dialogWidth - 40 - 10) / 2;
-    cancelButton.frame = CGRectMake(0, 0, buttonWidth, 40);
-    confirmButton.frame = CGRectMake(buttonWidth + 10, 0, buttonWidth, 40);
-    
-    // 居中显示
-    CGPoint center = CGPointMake(window.bounds.size.width / 2, window.bounds.size.height / 2);
-    confirmationView.center = center;
-    
-    // 初始动画状态
-    confirmationView.alpha = 0.0;
-    confirmationView.transform = CGAffineTransformMakeScale(0.8, 0.8);
-    
-    // 保存确认框引用以便后续关闭
-    self.actionConfirmationView = confirmationView;
-    
-    [window addSubview:confirmationView];
-    
-    // 显示动画
-    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-        confirmationView.alpha = 1.0;
-        confirmationView.transform = CGAffineTransformIdentity;
-    } completion:nil];
+
+    // Present unified global confirmation using Swift presenter
+    [ActionConfirmationPresenter showForActionId:actionData.actionId confirmCallback:confirmCallback];
 }
 
 - (void)cancelActionConfirmation:(UIButton *)sender {

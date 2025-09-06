@@ -750,9 +750,9 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "170"
-            endingLineNumber = "170"
-            landmarkName = "ScrcpyHandleFrame(frame)"
+            startingLineNumber = "138"
+            endingLineNumber = "138"
+            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1609,9 +1609,9 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "133"
-            endingLineNumber = "133"
-            landmarkName = "ScrcpyHandleFrame(frame)"
+            startingLineNumber = "101"
+            endingLineNumber = "101"
+            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1696,9 +1696,9 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "126"
-            endingLineNumber = "126"
-            landmarkName = "ScrcpyHandleFrame(frame)"
+            startingLineNumber = "94"
+            endingLineNumber = "94"
+            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1712,9 +1712,9 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "136"
-            endingLineNumber = "136"
-            landmarkName = "ScrcpyHandleFrame(frame)"
+            startingLineNumber = "104"
+            endingLineNumber = "104"
+            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2964,24 +2964,8 @@
             filePath = "ADBClient/ScrcpyRuntime.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "157"
-            endingLineNumber = "157"
-            landmarkName = "ScrcpyHandleFrame(frame)"
-            landmarkType = "9">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "E46D4CB7-8B3C-4649-BFF6-F2C3E0DB37C4"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "ADBClient/ScrcpyRuntime.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "102"
-            endingLineNumber = "102"
+            startingLineNumber = "125"
+            endingLineNumber = "125"
             landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
             landmarkType = "9">
          </BreakpointContent>
