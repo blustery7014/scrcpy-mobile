@@ -1,0 +1,326 @@
+/* Common buttons */
+"OK" = "确定";
+"Cancel" = "取消";
+"Done" = "完成";
+"Back" = "返回";
+"Next" = "下一步";
+"Skip" = "跳过";
+"Retry" = "重试";
+"Refresh" = "刷新";
+"Delete" = "删除";
+"Save" = "保存";
+
+/* Alerts and messages */
+"Scrcpy Connection Error" = "Scrcpy 连接错误";
+"Detailed Error Information" = "详细错误信息";
+"View Details" = "查看详情";
+"The connection was terminated due to an error:\n\n%@" = "连接因错误已中断：\n\n%@";
+"Status Update" = "状态更新";
+
+/* Global action confirmation */
+"Execute Action" = "执行自动化";
+"Execute" = "执行";
+"Confirm Action" = "确认自动化";
+"Are you sure you want to execute '%@'?\n\nAction ID: %@\nDevice Type: %@\nTiming: %@" = "确定要执行‘%@’吗？\n\nAction ID：%@\n设备类型：%@\n执行时机：%@";
+
+/* General navigation */
+"Sessions" = "会话";
+"Actions" = "自动化";
+"New Action" = "新建 Action";
+"Edit Action" = "编辑 Action";
+"Delete Session" = "删除会话";
+"Save Session" = "保存会话";
+"Save Action" = "保存 Action";
+"Device*" = "设备*";
+"Actions*" = "自动化*";
+"Name*" = "名称*";
+
+/* Session create & options */
+"Connection Options" = "连接选项";
+"VNC Session Options" = "VNC 会话选项";
+"ADB Session Options" = "ADB 会话选项";
+"Encoder Options" = "编码器选项";
+"Video Encoder" = "视频编码器";
+"Audio Encoder" = "音频编码器";
+"Default Encoder" = "默认编码器";
+"Detected Encoders" = "检测到的编码器";
+"Detected Audio Encoders" = "检测到的音频编码器";
+"Detecting Video Encoders..." = "正在检测视频编码器…";
+"Detecting Audio Encoders..." = "正在检测音频编码器…";
+"Enter host and port first" = "请先输入主机和端口";
+"Volume Scale" = "音量缩放";
+"Size:" = "大小：";
+"Sync iPhone Size" = "同步 iPhone 尺寸";
+"Remote Device" = "远程设备";
+"Host Address" = "主机地址";
+"Port" = "端口";
+"Use Socks Proxy" = "使用 Socks 代理";
+"This session will connect through Tailscale network" = "此会话将通过 Tailscale 网络连接";
+
+/* Logs */
+"Application Logs" = "应用日志";
+"Log Files" = "日志文件";
+"Logs Management" = "日志管理";
+"Log Files Statistics" = "日志文件统计";
+"Current log size:" = "当前日志大小：";
+"Total logs size:" = "日志总大小：";
+"Total files:" = "文件总数：";
+"Total size:" = "总大小：";
+"File:" = "文件：";
+"Last Modified:" = "最后修改：";
+"Empty Log File" = "空日志文件";
+"Loading log content..." = "正在加载日志内容…";
+"Long press to copy" = "长按复制";
+"Start using the app to generate logs." = "开始使用应用以生成日志。";
+"Enable logging in settings to start recording logs" = "在设置中启用日志以开始记录";
+"Clear" = "清除";
+"Clear All" = "全部清除";
+"Clear All Logs" = "清除全部日志";
+"Clear Old Logs" = "清除旧日志";
+"Keep Current Only" = "仅保留当前";
+"Delete Log File" = "删除日志文件";
+"This will permanently delete all log files. This action cannot be undone!" = "这将永久删除所有日志文件。此操作不可撤销！";
+"This will delete all log files except the current one. Are you sure?" = "这将删除除当前日志外的所有日志。确定继续吗？";
+
+/* Tailscale */
+"Tailscale" = "Tailscale";
+"Tailscale Configuration" = "Tailscale 配置";
+"Tailscale Auth Setting" = "Tailscale 授权设置";
+"Tailscale Authentication Configured" = "已配置 Tailscale 认证";
+"MagicDNS:" = "MagicDNS：";
+"Tailscale IPv4:" = "Tailscale IPv4：";
+"Tailscale IPv6:" = "Tailscale IPv6：";
+"Please ensure you have a Tailscale account and the target device is connected to your Tailscale network." = "请确保你拥有 Tailscale 账户，并且目标设备已经连接到你的 Tailscale 网络。";
+
+/* Status */
+"Connected Successfully" = "连接成功";
+"Connection Failed" = "连接失败";
+"Connection Status" = "连接状态";
+"Connection failed. Please check your network settings and try again." = "连接失败。请检查网络设置后重试。";
+"Connection Setup Failed" = "连接配置失败";
+"Validation Error" = "校验错误";
+"Status" = "状态";
+"Status Message" = "状态消息";
+
+/* URL scheme */
+"URL Scheme Connection" = "URL Scheme 连接";
+"URL Scheme Copied" = "URL Scheme 已复制";
+"URL Scheme has been copied to clipboard:\n\n%@" = "URL Scheme 已复制到剪贴板：\n\n%@";
+
+/* Session & action naming */
+"Session Name" = "会话名称";
+"Select Device" = "选择设备";
+"Action Name" = "自动化名称";
+"Name Your Action" = "为自动化命名";
+"Action name is required" = "需要填写自动化名称";
+"Action name looks good" = "自动化名称可用";
+"Action configured" = "自动化已配置";
+
+/* Action configuration */
+"Execution Timing" = "执行时机";
+"Wait" = "等待";
+"Delay Time" = "延迟时间";
+"seconds" = "秒";
+"VNC Quick Actions" = "VNC 快捷自动化";
+"Quick Actions" = "快捷自动化";
+"ADB Actions" = "ADB 自动化";
+"Configure Actions" = "配置自动化";
+"Send Key Event" = "发送按键事件";
+"Select PC Key" = "选择电脑按键";
+"Select Key" = "选择按键";
+"Selected Keys:" = "已选按键：";
+"Drag to reorder" = "拖动以重新排序";
+"Modifiers (Optional)" = "修饰键（可选）";
+"Configure a sequence of keys to send to the device" = "配置要发送到设备的按键序列";
+"Configure a sequence of keys to send to the VNC device" = "配置要发送到 VNC 设备的按键序列";
+"Key interval:" = "按键间隔：";
+"Command interval:" = "命令间隔：";
+"Commands:" = "命令：";
+"Input Keys Configuration" = "输入按键配置";
+"VNC Input Keys Configuration" = "VNC 输入按键配置";
+"Shell Commands Configuration" = "Shell 命令配置";
+"Enter shell commands to execute on the Android device" = "输入要在 Android 设备上执行的 Shell 命令";
+"Common ADB Shell Examples" = "常用 ADB Shell 示例";
+"One command per line" = "每行一条命令";
+"Examples" = "示例";
+"Please enter at least one shell command" = "请至少输入一条 Shell 命令";
+"Please configure keys for Input Keys action" = "请为“输入按键”自动化配置按键";
+"Please configure at least one key" = "请至少配置一个按键";
+"Select actions to perform on the VNC device" = "选择要在 VNC 设备上执行的自动化";
+"Select at least one action to perform when executing this action" = "执行该自动化时请至少选择一个动作";
+"Choose a device to associate with this action" = "选择要关联到该自动化的设备";
+"Choose when to execute the actions after connection" = "选择连接后何时执行自动化";
+
+/* ADB keys management */
+"Manage ADB Keys" = "管理 ADB 密钥";
+"Generate New Keys" = "生成新密钥";
+"Generate New Key Pair" = "生成新的密钥对";
+"Export Keys" = "导出密钥";
+"ADB Keys Directory" = "ADB 密钥目录";
+"ADB Keys Managements" = "ADB 密钥管理";
+"Private Key (adbkey)" = "私钥（adbkey）";
+"Public Key (adbkey.pub)" = "公钥（adbkey.pub）";
+"Clear Pairing History" = "清除配对历史";
+"Clear Persistent State" = "清除持久化状态";
+"This will permanently delete all pairing history. This action cannot be undone." = "这将永久删除所有配对历史。此操作不可撤销。";
+
+/* Pairing */
+"Pair ADB with Pairing Code" = "使用配对码进行 ADB 配对";
+"Pairing Information" = "配对信息";
+"Recent Pairing History" = "最近配对记录";
+"Tap Next in the top-right corner when ready" = "准备好后点击右上角“下一步”";
+"Please create a session first in the Sessions tab" = "请先在“会话”标签中创建会话";
+
+/* About */
+"About Scrcpy Remote" = "关于 Scrcpy Remote";
+"Settings" = "设置";
+"General" = "通用";
+"Appearance" = "外观";
+"System" = "跟随系统";
+"Dark" = "深色";
+"Light" = "浅色";
+"Background Active" = "后台保持活跃";
+"1 minute" = "1 分钟";
+"5 minutes" = "5 分钟";
+"10 minutes" = "10 分钟";
+"30 minutes" = "30 分钟";
+"1 hour" = "1 小时";
+"Always" = "始终";
+"Live Activity in Dynamic Island" = "在灵动岛显示实况";
+"Debug Live Activity" = "调试实况活动";
+"Enable Log Recording" = "启用日志记录";
+"(%d files)" = "(%d 个文件)";
+
+/* Session Create */
+"Remote Device" = "远程设备";
+"Session Name (Optional)" = "会话名称（可选）";
+"Host or vnc://host to force protocol" = "主机（或使用 vnc://host 强制协议）";
+"Port" = "端口";
+"Force Switch to VNC mode" = "强制切换为 VNC 模式";
+"Connection Options" = "连接选项";
+"Connect over Tailscale" = "通过 Tailscale 连接";
+"VNC Session Options" = "VNC 会话选项";
+"VNC User (Optional)" = "VNC 用户名（可选）";
+"VNC Password" = "VNC 密码";
+"ADB Session Options" = "ADB 会话选项";
+"Video Codec" = "视频编码格式";
+"Audio Codec" = "音频编码格式";
+"Video Encoder" = "视频编码器";
+"Audio Encoder" = "音频编码器";
+"Default" = "默认";
+"Max FPS, Default: 60" = "最大帧率，默认：60";
+"Enable Audio (Android 11+)" = "启用音频（Android 11+）";
+"Enable Clipboard Sync" = "启用剪贴板同步";
+"Turn Remote Screen Off After Connected" = "连接后关闭远程屏幕";
+"Turn Remote Screen Off After Disconnected" = "断开后关闭远程屏幕";
+"Keep Remote Device Awake During Use" = "使用期间保持设备唤醒";
+"Start New Display" = "启动新的显示";
+"Size:" = "大小：";
+"Width" = "宽度";
+"Height" = "高度";
+"Display DPI" = "显示 DPI";
+"Max Screen Size" = "最大屏幕尺寸";
+"Bit Rate, Default: 4M or 4000K" = "码率，默认：4M 或 4000K";
+"Compress Level" = "压缩级别";
+"Quality Level" = "质量级别";
+"Force Connect ADB Forward" = "强制使用 ADB 转发连接";
+"Create Session" = "创建会话";
+"Edit Session" = "编辑会话";
+"Select Video Encoder" = "选择视频编码器";
+"Select Audio Encoder" = "选择音频编码器";
+"Enter custom encoder name" = "输入自定义编码器名称";
+"Connecting to %@:%d" = "正在连接 %@:%d";
+"Detection Failed" = "检测失败";
+"Failed to detect encoders" = "检测编码器失败";
+"Failed to detect encoders. Please check your connection and try again." = "检测编码器失败。请检查连接后重试。";
+"Diagnostic info:" = "诊断信息：";
+"Tailscale Auth" = "Tailscale 认证";
+"Refresh Encoders" = "刷新编码器";
+
+/* Validation messages */
+"Please enter a valid host address." = "请输入有效的主机地址。";
+"Please enter a port number." = "请输入端口号。";
+"Please enter a valid port number (1-65535)." = "请输入有效的端口号（1-65535）。";
+"Please enter a VNC password." = "请输入 VNC 密码。";
+"Please enter a valid display width." = "请输入有效的显示宽度。";
+"Please enter a valid display height." = "请输入有效的显示高度。";
+"Please enter a valid display DPI." = "请输入有效的显示 DPI。";
+"Please enter a valid max FPS value." = "请输入有效的最大帧率。";
+"Please enter a valid max screen size." = "请输入有效的最大屏幕尺寸。";
+"Tailscale authentication is required but not configured." = "需要 Tailscale 认证，但尚未配置。";
+"VNC Client Implementation:" = "VNC 客户端实现：";
+"Additionally, this app has built-in Tailscale tsnet module, which allows you to establish a virtual network between the app and your target service through Tailscale, then connect to it." = "另外，本应用内置 Tailscale tsnet 模块，可通过 Tailscale 在应用与目标服务间建立虚拟网络，然后进行连接。";
+"For detailed usage help, please check:" = "详细使用帮助请参阅：";
+"→ Tailscale Usage Guide" = "→ Tailscale 使用指南";
+"→ LibVNCClient Documentation" = "→ LibVNCClient 文档";
+"→ Join Our Telegram Channel" = "→ 加入我们的 Telegram 频道";
+"Tips:" = "小贴士：";
+"To pair your Android device for wireless ADB debugging:" = "使用无线 ADB 调试为 Android 设备配对：";
+"1. Open Android Settings" = "1. 打开 Android 设置";
+"2. Go to Developer Options" = "2. 进入 开发者选项";
+"3. Enable Wireless Debugging" = "3. 启用 无线调试";
+"4. Tap 'Pair device with pairing code'" = "4. 点击“使用配对码配对设备”";
+"5. Enter the Host:Port and Pairing Code below" = "5. 在下方输入 主机:端口 和 配对码";
+"How to Get Auth Key" = "如何获取授权密钥";
+"To get your Tailscale Auth Key:" = "获取 Tailscale 授权密钥：";
+"1. Visit https://login.tailscale.com/admin/settings/keys" = "1. 访问 https://login.tailscale.com/admin/settings/keys";
+"2. Create a new Auth Key" = "2. 创建新的授权密钥";
+"3. Copy the key and paste it above" = "3. 复制密钥并粘贴到上方";
+"Android" = "Android";
+"iOS" = "iOS";
+"Unknown" = "未知";
+
+/* Other */
+"Networking" = "网络";
+"Network Addresses" = "网络地址";
+"Request & Support" = "反馈与支持";
+"Submit an Issue" = "提交问题";
+"Start Activity" = "启动活动";
+"Stop Activity" = "停止活动";
+"Stop All Activities" = "停止所有活动";
+"Update Activity" = "更新活动";
+"Start a new scrcpy session by tapping the + button.\nSessions will be saved here for quick access." = "点击右上角 + 按钮开始新的 scrcpy 会话。会话会保存在此处以便快速访问。";
+"Start a new scrcpy action by tapping the + button.\nActions are used to start scrcpy sessions and execute custom actions automatically." = "点击右上角 + 按钮创建新的 Scrcpy Action。Action 用于启动 Scrcpy 会话并自动执行自定义动作。";
+"Actions are required to create a meaningful automation" = "需要添加 Actions 才能创建有意义的自动化";
+"No Scrcpy Sessions" = "没有 Scrcpy 会话";
+"No Scrcpy Actions" = "没有 Scrcpy Actions";
+"No log files found" = "未找到日志文件";
+"No saved devices" = "没有已保存的设备";
+"A default name has been generated based on your selections. You can modify it if needed." = "已根据你的选择生成默认名称，你可以根据需要修改。";
+"This log file contains no content yet." = "该日志文件尚无内容。";
+"This app uses LibVNCClient, a cross-platform C library that provides VNC client functionality. LibVNCClient is part of the LibVNCServer/LibVNCClient project, which is free software licensed under the GPL." = "本应用使用跨平台的 C 库 LibVNCClient 提供 VNC 客户端功能。LibVNCClient 属于 LibVNCServer/LibVNCClient 项目，遵循 GPL 许可。";
+"Request & Support" = "反馈与支持";
+"This feature is under development, please wait." = "该功能正在开发中，请稍候";
+
+/* Misc */
+"Select the type of action to perform on the Android device" = "选择要在 Android 设备上执行的自动化 Action 类型";
+"Select actions to perform on the VNC device" = "选择要在 VNC 设备上执行的自动化 Actions";
+"Please select a device to continue" = "请选择一个设备以继续";
+"Please select at least one VNC action" = "请至少选择一个 VNC 自动化";
+"Choose a device to associate with this action" = "选择要关联到该 Action 的设备";
+"No additional configuration needed" = "无需额外配置";
+"No saved devices" = "没有已保存的设备";
+"Enter action name" = "输入 Action 名称";
+"%d action(s) selected" = "已选择 %d 个自动化 Actions";
+"Execute Immediately" = "立即执行";
+"Execute After Delay" = "延迟后执行";
+"Wait for Confirmation" = "等待确认";
+"Actions will execute right after connection" = "连接后立即执行 Actions";
+"Actions will execute after specified delay" = "将在指定延迟后执行 Actions";
+"Actions will wait for manual confirmation" = "将等待手动确认后执行";
+"Input Keys" = "输入按键";
+"Sync Clipboard" = "同步剪贴板";
+"Send key combinations to VNC device" = "向 VNC 设备发送按键组合";
+"Sync clipboard with VNC device" = "与 VNC 设备同步剪贴板";
+"Home Key" = "主页键";
+"Switch Key" = "多任务键";
+"Shell Commands" = "Shell 命令";
+"Execute ADB Home key (keyevent 3)" = "执行 ADB 主页键（keyevent 3）";
+"Execute ADB App Switch key (keyevent 187)" = "执行 ADB 应用切换键（keyevent 187）";
+"Execute ADB custom key sequence" = "执行 ADB 自定义按键序列";
+"Execute ADB shell commands" = "执行 ADB Shell 命令";
+"Your action will be saved and ready to use" = "你的 Action 将被保存并可立即使用";
+"• Use descriptive names like 'Connect to Dev Server'" = "• 使用有描述性的名称，例如“连接到开发服务器”";
+"• Include device name for easy identification" = "• 包含设备名称以便识别";
+"• Names are automatically numbered if duplicates exist" = "• 如有重名会自动编号";
+"Select PC Key" = "选择电脑按键";
