@@ -125,6 +125,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// 处理连续更新结束消息
 - (void)handleEndOfContinuousUpdates;
 
+/// 执行VNC动作序列
+/// @param vncActions 动作数组
+/// @param completion 执行完成回调
+- (void)executeVNCActions:(NSArray<NSNumber *> *)vncActions completion:(void(^)(BOOL success, NSString *error))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END
