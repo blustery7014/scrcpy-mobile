@@ -2273,7 +2273,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1163"
             endingLineNumber = "1163"
-            landmarkName = "-sendMouseScrollWithOffset:viewSize:zoomScale:"
+            landmarkName = "-handleVNCDragOffset:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2289,7 +2289,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1172"
             endingLineNumber = "1172"
-            landmarkName = "-sendMouseScrollWithOffset:viewSize:zoomScale:"
+            landmarkName = "-handleVNCDragOffset:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2320,7 +2320,9 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1614"
-            endingLineNumber = "1614">
+            endingLineNumber = "1614"
+            landmarkName = "-sendSmartFramebufferUpdateRequest"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -2607,7 +2609,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "132"
             endingLineNumber = "132"
-            landmarkName = "-dealloc"
+            landmarkName = "-init"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2655,7 +2657,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "143"
             endingLineNumber = "143"
-            landmarkName = "-currentScene"
+            landmarkName = "-init"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2687,7 +2689,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "875"
             endingLineNumber = "875"
-            landmarkName = "-disconnect"
+            landmarkName = "-convertSDLKeyToVNCKey:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2703,7 +2705,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "254"
             endingLineNumber = "254"
-            landmarkName = "-SDLEventLoop"
+            landmarkName = "-vncMessageLoop"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2719,7 +2721,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "190"
             endingLineNumber = "190"
-            landmarkName = "-vncMessageLoop"
+            landmarkName = "-dealloc"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

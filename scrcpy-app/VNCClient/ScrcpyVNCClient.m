@@ -6,10 +6,31 @@
 //
 
 #import "ScrcpyVNCClient.h"
+#import "ScrcpyConstants.h"
 #import "ScrcpyBlockWrapper.h"
 #import "ScrcpyCommon.h"
 #import "ScrcpyConstants.h"
 #import "ScrcpyVNCRuntime.h"
+#import <UIKit/UIKit.h>
+
+// Local definition for modifier mask used to augment keys
+typedef NS_OPTIONS(NSUInteger, ScrcpyModifierMask) {
+    ScrcpyModifierMaskNone  = 0,
+    ScrcpyModifierMaskMeta  = 1 << 0,
+    ScrcpyModifierMaskCtrl  = 1 << 1,
+    ScrcpyModifierMaskAlt   = 1 << 2,
+    ScrcpyModifierMaskShift = 1 << 3,
+};
+
+// Uppercase mapping for letters when Shift is active
+static inline int ScrcpyVNCShiftedKeysym(int keysym, BOOL shiftActive) {
+    if (!shiftActive) return keysym;
+    // Letters: a-z -> A-Z
+    if (keysym >= XK_a && keysym <= XK_z) {
+        return keysym - (XK_a - XK_A);
+    }
+    return keysym;
+}
 
 
 @interface ScrcpyVNCClient () <ScrcpyClientProtocol>
@@ -24,7 +45,23 @@
 
 @end
 
+@interface ScrcpyVNCClient ()
+@property (nonatomic, assign) ScrcpyModifierMask lastAugmentedMask;
+@property (nonatomic, assign) BOOL lockMeta, lockCtrl, lockAlt, lockShift;
+@property (nonatomic, assign) BOOL candMeta, candCtrl, candAlt, candShift;
+@property (nonatomic, assign) BOOL nextKeyAlreadyCombined;
+// Track physical (real) modifier key down states from SDL events
+@property (nonatomic, assign) BOOL physMetaDown, physCtrlDown, physAltDown, physShiftDown;
+@end
+
 @implementation ScrcpyVNCClient
+
+// Throttling for high-frequency logs
+static CFAbsoluteTime kVNCLogThrottleInterval = 2.0; // seconds
+static CFAbsoluteTime sLastTraditionalTimeoutLogTime = 0;
+static NSUInteger sSuppressedTraditionalTimeoutLogs = 0;
+static CFAbsoluteTime sLastIncrementalUpdateLogTime = 0;
+static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
 
 - (instancetype)init {
     self = [super init];
@@ -112,6 +149,22 @@
                                                  selector:@selector(handleVNCKeyboardEvent:)
                                                      name:kNotificationVNCKeyboardEvent
                                                    object:nil];
+
+        // Observe toolbar modifier state updates and next-key flag
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onModifierStateUpdated:)
+                                                     name:kNotificationVNCModifierStateUpdated
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(onNextKeyAlreadyCombined:)
+                                                     name:kNotificationVNCNextKeyAlreadyCombined
+                                                   object:nil];
+
+        // 监听 VNC 同步剪贴板请求（由菜单触发）
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleVNCSyncClipboardRequest:)
+                                                     name:kNotificationVNCSyncClipboardRequest
+                                                   object:nil];
     }
     return self;
 }
@@ -186,7 +239,18 @@
         
         // 在传统模式下，如果没有消息则主动请求更新
         if (i == 0 && !self.areContinuousUpdatesEnabled) {
-            NSLog(@"🔄 [ScrcpyVNCClient] Timeout in traditional mode, sending update request");
+            CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+            if ((now - sLastTraditionalTimeoutLogTime) >= kVNCLogThrottleInterval) {
+                if (sSuppressedTraditionalTimeoutLogs > 0) {
+                    NSLog(@"🔄 [ScrcpyVNCClient] Timeout in traditional mode, sending update request (suppressed %lu repeats)", (unsigned long)sSuppressedTraditionalTimeoutLogs);
+                    sSuppressedTraditionalTimeoutLogs = 0;
+                } else {
+                    NSLog(@"🔄 [ScrcpyVNCClient] Timeout in traditional mode, sending update request");
+                }
+                sLastTraditionalTimeoutLogTime = now;
+            } else {
+                sSuppressedTraditionalTimeoutLogs++;
+            }
             [self sendSmartFramebufferUpdateRequest];
         }
     }
@@ -304,6 +368,25 @@
     SDL_iPhoneSetEventPump(SDL_FALSE);
 
     NSLog(@"✅ [ScrcpyVNCClient] SDL main loop ended");
+}
+
+#pragma mark - VNC Clipboard
+
+- (void)handleVNCSyncClipboardRequest:(NSNotification *)notification {
+    if (!self.connected || !self.rfbClient) {
+        NSLog(@"📋 [ScrcpyVNCClient] Ignoring clipboard sync request: not connected");
+        // 提示用户（无内容或未连接时提示）
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCClipboardSynced
+                                                            object:nil
+                                                          userInfo:@{ kKeyIsEmpty: @YES }];
+        return;
+    }
+    // 复用现有的动作实现：1 = SyncClipboard
+    [self executeVNCActions:@[@1] completion:^(BOOL success, NSString * _Nonnull error) {
+        if (!success) {
+            NSLog(@"❌ [ScrcpyVNCClient] Clipboard sync action failed: %@", error ?: @"unknown error");
+        }
+    }];
 }
 
 #pragma mark - VNC客户端主要方法
@@ -650,16 +733,113 @@
     }
     
     BOOL isPressed = (event->type == SDL_KEYDOWN);
+    SDL_Keycode sdlKey = event->key.keysym.sym;
+
+    BOOL isModifier = (sdlKey == SDLK_LCTRL || sdlKey == SDLK_RCTRL ||
+                       sdlKey == SDLK_LALT  || sdlKey == SDLK_RALT  ||
+                       sdlKey == SDLK_LSHIFT|| sdlKey == SDLK_RSHIFT||
+                       sdlKey == SDLK_LGUI  || sdlKey == SDLK_RGUI);
+
+    // Maintain physical modifier states
+    if (isModifier) {
+        if (sdlKey == SDLK_LCTRL || sdlKey == SDLK_RCTRL)   { self.physCtrlDown  = isPressed; }
+        else if (sdlKey == SDLK_LALT || sdlKey == SDLK_RALT){ self.physAltDown   = isPressed; }
+        else if (sdlKey == SDLK_LSHIFT || sdlKey == SDLK_RSHIFT){ self.physShiftDown = isPressed; }
+        else if (sdlKey == SDLK_LGUI || sdlKey == SDLK_RGUI){ self.physMetaDown  = isPressed; }
+    }
+
+    // 当接收到非修饰键的按下事件时，通知清除一次性（候选）修饰键状态
+    if (isPressed) {
+        if (!isModifier) {
+            // If toolbar already combined modifiers for this key, skip augmentation
+            BOOL alreadyCombined = self.nextKeyAlreadyCombined;
+            self.nextKeyAlreadyCombined = NO;
+            if (!alreadyCombined) {
+                // Augment with active modifiers (locked + candidates)
+                ScrcpyModifierMask candMask = (self.candMeta?ScrcpyModifierMaskMeta:0) |
+                                              (self.candCtrl?ScrcpyModifierMaskCtrl:0) |
+                                              (self.candAlt?ScrcpyModifierMaskAlt:0) |
+                                              (self.candShift?ScrcpyModifierMaskShift:0);
+                ScrcpyModifierMask lockMask = (self.lockMeta?ScrcpyModifierMaskMeta:0) |
+                                              (self.lockCtrl?ScrcpyModifierMaskCtrl:0) |
+                                              (self.lockAlt?ScrcpyModifierMaskAlt:0) |
+                                              (self.lockShift?ScrcpyModifierMaskShift:0);
+                ScrcpyModifierMask mask = lockMask | candMask;
+                self.lastAugmentedMask = mask;
+
+                // Press modifiers
+                if (mask & ScrcpyModifierMaskMeta)  { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LGUI]  isPressed:YES]; }
+                if (mask & ScrcpyModifierMaskCtrl)  { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LCTRL] isPressed:YES]; }
+                if (mask & ScrcpyModifierMaskAlt)   { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LALT]  isPressed:YES]; }
+                if (mask & ScrcpyModifierMaskShift) { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LSHIFT] isPressed:YES]; }
+
+                // Post UI update for candidate clearing
+                if (candMask != ScrcpyModifierMaskNone) {
+                    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCClearCandidateModifiers object:nil];
+                    // Clear local candidate states as well
+                    self.candMeta = self.candCtrl = self.candAlt = self.candShift = NO;
+                }
+            } else {
+                // Already combined by toolbar, do not augment; also ensure we don't release anything for it
+                self.lastAugmentedMask = ScrcpyModifierMaskNone;
+            }
+        }
+    }
     
-    // 发送键盘事件到VNC服务器
-    [self sendKeyEvent:vncKeyCode isPressed:isPressed];
+    // 发送键盘事件到VNC服务器（考虑Shift影响的keysym）
+    BOOL shiftActiveNow = self.physShiftDown || (self.lastAugmentedMask & ScrcpyModifierMaskShift);
+    int finalKeyCode = ScrcpyVNCShiftedKeysym(vncKeyCode, shiftActiveNow);
+    [self sendKeyEvent:finalKeyCode isPressed:isPressed];
+
+    // On key up of a non-modifier, release augmented modifiers
+    if (!isPressed) {
+        BOOL isModifier = (sdlKey == SDLK_LCTRL || sdlKey == SDLK_RCTRL ||
+                           sdlKey == SDLK_LALT  || sdlKey == SDLK_RALT  ||
+                           sdlKey == SDLK_LSHIFT|| sdlKey == SDLK_RSHIFT||
+                           sdlKey == SDLK_LGUI  || sdlKey == SDLK_RGUI);
+        if (!isModifier) {
+            // Release any modifiers we pressed for this key (locked or candidate), then clear
+            ScrcpyModifierMask mask = self.lastAugmentedMask;
+            if (mask & ScrcpyModifierMaskShift) { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LSHIFT] isPressed:NO]; }
+            if (mask & ScrcpyModifierMaskAlt)   { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LALT]  isPressed:NO]; }
+            if (mask & ScrcpyModifierMaskCtrl)  { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LCTRL] isPressed:NO]; }
+            if (mask & ScrcpyModifierMaskMeta)  { [self sendKeyEvent:[self convertSDLKeyToVNCKey:SDLK_LGUI]  isPressed:NO]; }
+            self.lastAugmentedMask = ScrcpyModifierMaskNone;
+        }
+    }
+}
+
+#pragma mark - Modifier State Notifications
+
+- (void)onModifierStateUpdated:(NSNotification *)note {
+    NSDictionary *u = note.userInfo ?: @{};
+    self.lockMeta = [u[@"lockMeta"] boolValue];
+    self.lockCtrl = [u[@"lockCtrl"] boolValue];
+    self.lockAlt  = [u[@"lockAlt"] boolValue];
+    self.lockShift= [u[@"lockShift"] boolValue];
+    self.candMeta = [u[@"candMeta"] boolValue];
+    self.candCtrl = [u[@"candCtrl"] boolValue];
+    self.candAlt  = [u[@"candAlt"] boolValue];
+    self.candShift= [u[@"candShift"] boolValue];
+}
+
+- (void)onNextKeyAlreadyCombined:(NSNotification *)note {
+    self.nextKeyAlreadyCombined = YES;
 }
 
 - (void)handleSDLTextInputEvent:(SDL_Event *)event {
     if (!self.connected || !self.rfbClient) {
         return;
     }
-    
+    // If any modifiers are active (physical or toolbar), ignore text input to avoid sending bare characters
+    BOOL anyModActive = self.physCtrlDown || self.physAltDown || self.physShiftDown || self.physMetaDown ||
+                        self.lockMeta || self.lockCtrl || self.lockAlt || self.lockShift ||
+                        self.candMeta || self.candCtrl || self.candAlt || self.candShift ||
+                        (self.lastAugmentedMask != ScrcpyModifierMaskNone) || self.nextKeyAlreadyCombined;
+    if (anyModActive) {
+        return;
+    }
+
     // 获取输入的文本
     NSString *text = [NSString stringWithUTF8String:event->text.text];
     if (text && text.length > 0) {
@@ -1284,15 +1464,61 @@
         NSLog(@"❌ [ScrcpyVNCClient] Cannot send empty text input");
         return;
     }
-    
-    // 将文本转换为UTF-8字符串并发送到VNC服务器
-    const char *utf8Text = [text UTF8String];
-    if (!SendClientCutText(self.rfbClient, (char *)utf8Text, (int)strlen(utf8Text))) {
-        NSLog(@"❌ [ScrcpyVNCClient] Failed to send text input: %@", text);
-        return;
+    // 将文本作为一系列按键事件发送（而非剪贴板），确保远程输入框能直接显示字符
+    // 处理基本ASCII与BMP字符：ASCII直接发送对应keysym；BMP和代理对使用Unicode keysym编码
+    // 参考 X11/keysym 约定：Unicode keysym = 0x01000000 | UCS-4 码点
+    NSUInteger i = 0;
+    while (i < text.length) {
+        unichar high = [text characterAtIndex:i++];
+        uint32_t codepoint = 0;
+        if (CFStringIsSurrogateHighCharacter(high)) {
+            if (i < text.length) {
+                unichar low = [text characterAtIndex:i];
+                if (CFStringIsSurrogateLowCharacter(low)) {
+                    codepoint = CFStringGetLongCharacterForSurrogatePair(high, low);
+                    i++; // 消耗低位代理项
+                } else {
+                    // 非法代理对，跳过该字符
+                    continue;
+                }
+            } else {
+                // 字符串结尾的孤立高位代理，跳过
+                continue;
+            }
+        } else {
+            codepoint = (uint32_t)high;
+        }
+
+        uint32_t keysym;
+        // 特殊控制字符映射
+        if (codepoint == '\n' || codepoint == '\r') {
+            keysym = XK_Return;
+        } else if (codepoint == '\t') {
+            keysym = XK_Tab;
+        } else if (codepoint == 0x08) { // Backspace
+            keysym = XK_BackSpace;
+        } else if (codepoint <= 0x007F) {
+            // ASCII 直接作为 keysym 发送
+            keysym = codepoint;
+        } else if (codepoint <= 0xFFFF) {
+            // BMP 范围使用 Unicode keysym 编码
+            keysym = 0x01000000u | codepoint;
+        } else {
+            // 超出BMP（如部分emoji），同样使用 Unicode keysym 编码
+            keysym = 0x01000000u | codepoint;
+        }
+
+        if (!SendKeyEvent(self.rfbClient, keysym, TRUE)) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to send key down for codepoint U+%04X", codepoint);
+            continue;
+        }
+        if (!SendKeyEvent(self.rfbClient, keysym, FALSE)) {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to send key up for codepoint U+%04X", codepoint);
+            continue;
+        }
     }
-    
-    NSLog(@"📝 [ScrcpyVNCClient] Text input sent: %@", text);
+
+    NSLog(@"📝 [ScrcpyVNCClient] Text input typed: %@", text);
 }
 
 - (void)handleVNCKeyboardEvent:(NSNotification *)notification {
@@ -1338,7 +1564,7 @@
     }
 }
 
-#pragma mark - 连续更新支持（基于RoyalVNC实现）
+#pragma mark - 连续更新支持
 
 - (void)sendEnableContinuousUpdates:(BOOL)enable x:(int)x y:(int)y width:(int)width height:(int)height {
     if (!self.connected || !self.rfbClient) {
@@ -1399,7 +1625,18 @@
         self.incrementalUpdatesEnabled = YES;
         NSLog(@"🔄 [ScrcpyVNCClient] Sent full framebuffer update request, enabling incremental updates");
     } else {
-        NSLog(@"🔄 [ScrcpyVNCClient] Sent incremental framebuffer update request");
+        CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+        if ((now - sLastIncrementalUpdateLogTime) >= kVNCLogThrottleInterval) {
+            if (sSuppressedIncrementalUpdateLogs > 0) {
+                NSLog(@"🔄 [ScrcpyVNCClient] Sent incremental framebuffer update request (suppressed %lu repeats)", (unsigned long)sSuppressedIncrementalUpdateLogs);
+                sSuppressedIncrementalUpdateLogs = 0;
+            } else {
+                NSLog(@"🔄 [ScrcpyVNCClient] Sent incremental framebuffer update request");
+            }
+            sLastIncrementalUpdateLogTime = now;
+        } else {
+            sSuppressedIncrementalUpdateLogs++;
+        }
     }
 }
 
@@ -1437,5 +1674,56 @@
         });
     }
 }
+
+// MARK: - VNC Quick Actions
+
+- (void)executeVNCActions:(NSArray<NSNumber *> *)vncActions completion:(void(^)(BOOL success, NSString *error))completion {
+    if (!self.connected || !self.rfbClient) {
+        if (completion) completion(NO, @"VNC not connected");
+        return;
+    }
+
+    // Swift 侧映射：0 = InputKeys, 1 = SyncClipboard
+    for (NSNumber *actionNum in vncActions) {
+        NSInteger action = actionNum.integerValue;
+        switch (action) {
+            case 0: { // InputKeys
+                // 键动作通过 SessionConnectionManager 直接以通知方式发送到本类
+                // 这里无需处理，留作兼容占位以避免崩溃
+                NSLog(@"🧩 [ScrcpyVNCClient] executeVNCActions: InputKeys placeholder (handled via notifications)");
+                break;
+            }
+            case 1: { // SyncClipboard -> 将本地剪贴板同步到远端
+                NSString *clip = [UIPasteboard generalPasteboard].string;
+                if (clip.length == 0) {
+                    NSLog(@"📋 [ScrcpyVNCClient] Local clipboard empty, notifying UI");
+                    // 通知 UI 显示无本地剪贴板内容的提示
+                    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCClipboardSynced
+                                                                        object:nil
+                                                                      userInfo:@{ kKeyIsEmpty: @YES }];
+                    break;
+                }
+                const char *utf8 = [clip UTF8String];
+                if (!SendClientCutText(self.rfbClient, (char *)utf8, (int)strlen(utf8))) {
+                    if (completion) completion(NO, @"Failed to sync clipboard to VNC server");
+                    return;
+                }
+                NSLog(@"📋 [ScrcpyVNCClient] Synced clipboard to server (%lu bytes)", (unsigned long)strlen(utf8));
+                // 通知 UI 层显示提示（不展示内容，仅提示成功）
+                [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCClipboardSynced
+                                                                    object:nil
+                                                                  userInfo:@{ kKeyIsEmpty: @NO }];
+                break;
+            }
+            default:
+                NSLog(@"⚠️ [ScrcpyVNCClient] Unknown VNC action: %ld", (long)action);
+                break;
+        }
+    }
+
+    if (completion) completion(YES, nil);
+}
+
+// (UI提示交由主应用控制器处理)
 
 @end

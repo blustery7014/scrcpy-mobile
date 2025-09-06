@@ -18,6 +18,7 @@
 #import "ScrcpyInputMaskView.h"
 #import "ScrcpyCommon.h"
 #import "Scrcpy_Remote-Swift.h"
+#import "ScrcpyConstants.h"
 
 @interface SDL_uikitviewcontroller () <ScrcpyMenuViewDelegate>
 @property (nonatomic, assign)   NSInteger  homeIndicatorHidden;
@@ -90,6 +91,12 @@ static char inputMaskViewKey;
                                              selector:@selector(keyboardWillHide:)
                                                  name:UIKeyboardWillHideNotification
                                                object:nil];
+
+    // 监听 VNC 提示（例如：剪贴板同步成功）
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleVNCTipNotification:)
+                                                 name:kNotificationVNCClipboardSynced
+                                               object:nil];
 }
 
 -(void)viewWillUnload
@@ -107,18 +114,57 @@ static char inputMaskViewKey;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+#pragma mark - VNC Tips
+
+-(void)handleVNCTipNotification:(NSNotification *)notification {
+    BOOL isEmpty = [notification.userInfo[kKeyIsEmpty] boolValue];
+    NSString *message = isEmpty
+        ? NSLocalizedString(@"No Local Clipboard Content", nil)
+        : NSLocalizedString(@"Synced Local Clipboard Content", nil);
+
+    // Show a concise, one-line tip without exposing clipboard contents
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [self presentViewController:alert animated:YES completion:nil];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [alert dismissViewControllerAnimated:YES completion:nil];
+    });
+}
+
 #pragma mark - Keyboard Notifications
 
 - (void)keyboardWillShow:(NSNotification *)notification {
-    // 当键盘显示时，创建并显示输入遮罩视图
+    // 当键盘显示时，创建并显示输入遮罩视图，并在键盘上方显示工具栏
     if (!self.inputMaskView) {
         self.inputMaskView = [[ScrcpyInputMaskView alloc] initWithFrame:self.view.bounds];
     }
     [self.inputMaskView showInView:self.view];
+
+    // 读取键盘最终位置与动画参数
+    NSDictionary *info = notification.userInfo;
+    CGRect kbFrameScreen = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+    NSTimeInterval duration = [info[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
+    UIViewAnimationCurve curve = [info[UIKeyboardAnimationCurveUserInfoKey] integerValue];
+
+    // 将键盘frame转换到当前视图坐标系
+    // Convert to window coordinates so the overlay (added to window) can align correctly
+    CGRect kbFrameInView = [self.view.window convertRect:kbFrameScreen fromWindow:nil];
+
+    // 获取当前设备类型（adb/vnc）
+    SessionConnectionManager *connectionManager = [SessionConnectionManager shared];
+    NSString *deviceTypeString = [connectionManager getCurrentDeviceType];
+
+    // 更新并动画展示工具栏
+    [self.inputMaskView showKeyboardToolbarAboveKeyboardFrame:kbFrameInView
+                                              deviceTypeString:deviceTypeString
+                                                     duration:duration
+                                                         curve:curve];
 }
 
 - (void)keyboardWillHide:(NSNotification *)notification {
-    // 当键盘隐藏时，移除输入遮罩视图
+    // 当键盘隐藏时，隐藏工具栏并移除输入遮罩视图
+    [self.inputMaskView hideKeyboardToolbarWithNotification:notification];
     [self.inputMaskView hide];
 }
 

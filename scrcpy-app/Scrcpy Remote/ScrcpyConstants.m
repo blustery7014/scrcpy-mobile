@@ -17,6 +17,7 @@ NSString * const kIconSwitchButton = @"square.circle";
 NSString * const kIconKeyboardButton = @"keyboard";
 NSString * const kIconActionsButton = @"ellipsis.circle";
 NSString * const kIconDisconnectButton = @"xmark.circle";
+NSString * const kIconClipboardSyncButton = @"square.and.arrow.up.on.square";
 
 // UserDefaults Keys
 NSString * const kUserDefaultsPositionRatioX = @"ScrcpyMenuPositionRatioX";
@@ -28,6 +29,11 @@ NSString * const kNotificationVNCDragOffset = @"ScrcpyVNCDragOffsetNotification"
 NSString * const kNotificationVNCMouseEvent = @"ScrcpyVNCMouseEventNotification";
 NSString * const kNotificationVNCScrollEvent = @"ScrcpyVNCScrollEventNotification";
 NSString * const kNotificationVNCKeyboardEvent = @"ScrcpyVNCKeyboardEventNotification";
+NSString * const kNotificationVNCClipboardSynced = @"ScrcpyVNCClipboardSyncedNotification";
+NSString * const kNotificationVNCSyncClipboardRequest = @"ScrcpyVNCSyncClipboardRequestNotification";
+NSString * const kNotificationVNCClearCandidateModifiers = @"ScrcpyVNCClearCandidateModifiersNotification";
+NSString * const kNotificationVNCModifierStateUpdated = @"ScrcpyVNCModifierStateUpdatedNotification";
+NSString * const kNotificationVNCNextKeyAlreadyCombined = @"ScrcpyVNCNextKeyAlreadyCombinedNotification";
 
 // Device Types
 NSString * const kDeviceTypeVNC = @"vnc";
@@ -61,6 +67,7 @@ NSString * const kKeyNormalizedOffset = @"normalizedOffset";
 NSString * const kKeyZoomScale = @"zoomScale";
 NSString * const kKeyType = @"type";
 NSString * const kKeyIsRightClick = @"isRightClick";
+NSString * const kKeyIsEmpty = @"isEmpty";
 
 // Keyboard Event Keys
 NSString * const kKeyKeyCode = @"keyCode";

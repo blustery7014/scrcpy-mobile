@@ -1097,7 +1097,7 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
             }
             
             // 先执行键动作，再执行其他快捷动作
-            executeVNCKeyActionsDirectly(keyActions) { success, error in
+            executeVNCKeyActionsDirectly(keyActions, intervalMs: action.vncInputKeysConfig.intervalMs) { success, error in
                 if success {
                     print("✅ [SessionConnectionManager] VNC key actions executed successfully")
                     // 执行其他快捷动作
@@ -1116,7 +1116,7 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
             }
         } else {
             // 只执行键动作
-            executeVNCKeyActionsDirectly(keyActions) { success, error in
+            executeVNCKeyActionsDirectly(keyActions, intervalMs: action.vncInputKeysConfig.intervalMs) { success, error in
                 DispatchQueue.main.async {
                     if success {
                         print("✅ [SessionConnectionManager] VNC key actions executed successfully")
@@ -1132,28 +1132,64 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
     /// - Parameters:
     ///   - keyActions: 键动作字典数组
     ///   - completion: 完成回调
-    private func executeVNCKeyActionsDirectly(_ keyActions: [[String: Any]], completion: @escaping (Bool, String?) -> Void) {
+    private func executeVNCKeyActionsDirectly(_ keyActions: [[String: Any]], intervalMs: Int, completion: @escaping (Bool, String?) -> Void) {
         guard let clientWrapper = scrcpyClientWrapper else {
             completion(false, "No ScrcpyClientWrapper available")
             return
         }
-        
-        // 目前我们先模拟键动作的执行，输出调试信息
-        // 这样用户可以看到键动作被正确解析和处理
-        print("🔧 [SessionConnectionManager] Executing \(keyActions.count) VNC key actions:")
-        
+        // 实际发送键事件到 VNC 客户端（通过通知）
+        // 参照 ScrcpyVNCClient.m 中的 handleVNCKeyboardEvent -> sendKeyEvent 实现
+        let notificationName = Notification.Name("ScrcpyVNCKeyboardEventNotification")
+        let typeKey = "type" // kKeyType
+        let keyCodeKey = "keyCode" // kKeyKeyCode
+        let keyDown = "keyDown" // kKeyboardEventTypeKeyDown
+        let keyUp = "keyUp"     // kKeyboardEventTypeKeyUp
+
+        // 打印调试信息
+        print("🔧 [SessionConnectionManager] Executing \(keyActions.count) VNC key actions (interval: \(intervalMs)ms)")
+
+        // 事件调度：按顺序依次发送，支持 press/down/up
+        let intervalSec = max(0, Double(intervalMs)) / 1000.0
+        let pressHoldSec = min(0.06, max(0.02, intervalSec / 2.0)) // 按下到抬起的最小保持时间
+
+        var cumulativeDelay: TimeInterval = 0
+
         for (index, keyAction) in keyActions.enumerated() {
-            if let type = keyAction["type"] as? String,
-               let keyCode = keyAction["keyCode"] as? String {
-                let action = keyAction["action"] as? String ?? "press"
-                print("🔧 [SessionConnectionManager] Key action \(index + 1): \(type) - keyCode: \(keyCode) - action: \(action)")
+            guard let codeStr = keyAction["keyCode"] as? String,
+                  let code = Int(codeStr) else {
+                print("⚠️ [SessionConnectionManager] Invalid key action (missing/invalid keyCode): \(keyAction)")
+                continue
             }
+
+            let action = (keyAction["action"] as? String ?? "press").lowercased()
+
+            // 发送 keyDown
+            if action == "down" || action == "press" {
+                let delay = cumulativeDelay
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
+                    NotificationCenter.default.post(name: notificationName, object: nil, userInfo: [typeKey: keyDown, keyCodeKey: NSNumber(value: code)])
+                    print("⌨️ [SessionConnectionManager] -> keyDown \(code) (step \(index + 1))")
+                }
+            }
+
+            // 发送 keyUp
+            if action == "up" || action == "press" {
+                let upDelay = cumulativeDelay + (action == "press" ? pressHoldSec : 0)
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + upDelay) {
+                    NotificationCenter.default.post(name: notificationName, object: nil, userInfo: [typeKey: keyUp, keyCodeKey: NSNumber(value: code)])
+                    print("⌨️ [SessionConnectionManager] -> keyUp \(code) (step \(index + 1))")
+                }
+            }
+
+            // 累计间隔用于下一个按键
+            cumulativeDelay += max(intervalSec, pressHoldSec)
         }
-        
-        // 暂时返回成功，这样其他 VNC 动作（如 Sync Clipboard）可以正常执行
-        // TODO: 在将来的版本中实现真正的键事件发送
-        print("✅ [SessionConnectionManager] VNC key actions processed (simulation mode)")
-        completion(true, nil)
+
+        // 在最后一个事件完成后回调完成
+        let completionDelay = cumulativeDelay + 0.05
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + completionDelay) {
+            completion(true, nil)
+        }
     }
     
     // MARK: - ADB Action Execution via Client

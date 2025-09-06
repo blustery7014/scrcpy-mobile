@@ -68,6 +68,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 @property (nonatomic, strong) UIButton *switchButton;
 @property (nonatomic, strong) UIButton *keyboardButton;
 @property (nonatomic, strong) UIButton *actionsButton;
+@property (nonatomic, strong) UIButton *clipboardSyncButton;
 @property (nonatomic, strong) UIButton *disconnectButton;
 
 // State
@@ -447,6 +448,10 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     NSLog(@"🎯 [ScrcpyMenuView] Added TapGesture to Actions button");
     
     [self.menuView addSubview:self.actionsButton];
+    
+    // Clipboard Sync button (VNC only)
+    self.clipboardSyncButton = [self createButtonWithIcon:kIconClipboardSyncButton position:tempButtonFrame];
+    [self.menuView addSubview:self.clipboardSyncButton];
     
     // Disconnect button
     self.disconnectButton = [self createButtonWithIcon:kIconDisconnectButton position:tempButtonFrame];
@@ -960,6 +965,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     if (!self.switchButton.hidden) count++;
     if (!self.keyboardButton.hidden) count++;
     if (!self.actionsButton.hidden) count++;
+    if (!self.clipboardSyncButton.hidden) count++;
     if (!self.disconnectButton.hidden) count++;
     return count;
 }
@@ -986,6 +992,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         self.switchButton.hidden = NO;
         self.keyboardButton.hidden = NO;
         self.actionsButton.hidden = NO;
+        self.clipboardSyncButton.hidden = YES; // ADB: do not show clipboard sync
         self.disconnectButton.hidden = NO;
         
         // 移除的Pinch手势（如果存在）
@@ -1005,6 +1012,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         self.switchButton.hidden = YES;
         self.keyboardButton.hidden = NO;
         self.actionsButton.hidden = NO;
+        self.clipboardSyncButton.hidden = NO; // VNC: show clipboard sync
         self.disconnectButton.hidden = NO;
         
         // 为VNC设备添加手势（延迟添加以确保SDL窗口初始化完成）
@@ -1033,6 +1041,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     if (!self.switchButton.hidden) [visibleButtons addObject:self.switchButton];
     if (!self.keyboardButton.hidden) [visibleButtons addObject:self.keyboardButton];
     if (!self.actionsButton.hidden) [visibleButtons addObject:self.actionsButton];
+    if (!self.clipboardSyncButton.hidden) [visibleButtons addObject:self.clipboardSyncButton];
     if (!self.disconnectButton.hidden) [visibleButtons addObject:self.disconnectButton];
     
     return [visibleButtons copy];
@@ -2340,6 +2349,9 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         [self switchButtonTapped:nil];
     } else if ([buttonType isEqualToString:kIconKeyboardButton]) {
         [self keyboardButtonTapped:nil];
+    } else if ([buttonType isEqualToString:kIconClipboardSyncButton]) {
+        // Post notification to request VNC clipboard sync
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCSyncClipboardRequest object:nil];
     } else if ([buttonType isEqualToString:kIconDisconnectButton]) {
         [self disconnectButtonTapped:nil];
     }
