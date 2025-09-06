@@ -235,6 +235,8 @@ static const CGFloat kKeyButtonSpacing = 6.0;
         self.keysScrollView.frame = CGRectZero;
         self.keysScrollView.contentSize = CGSizeZero;
         for (UIView *v in self.keysScrollView.subviews) { [v removeFromSuperview]; }
+        self.keysScrollView.hidden = YES;
+        self.keysScrollView.userInteractionEnabled = NO;
         return;
     }
 
@@ -254,6 +256,8 @@ static const CGFloat kKeyButtonSpacing = 6.0;
     self.keysScrollView.frame = CGRectMake(scrollX, 0, scrollW, kToolbarHeight);
 
     // Add keys to scroll area
+    self.keysScrollView.hidden = NO;
+    self.keysScrollView.userInteractionEnabled = YES;
     for (UIView *v in self.keysScrollView.subviews) { [v removeFromSuperview]; }
     CGFloat x = 0;
     NSArray<UIButton *> *buttons = self.keyButtons;
