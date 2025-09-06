@@ -17,17 +17,17 @@ enum ExecutionTiming: String, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .immediate: return "Execute Immediately"
-        case .delayed: return "Execute After Delay"
-        case .confirmation: return "Wait for Confirmation"
+        case .immediate: return NSLocalizedString("Execute Immediately", comment: "Execution timing option")
+        case .delayed: return NSLocalizedString("Execute After Delay", comment: "Execution timing option")
+        case .confirmation: return NSLocalizedString("Wait for Confirmation", comment: "Execution timing option")
         }
     }
     
     var description: String {
         switch self {
-        case .immediate: return "Actions will execute right after connection"
-        case .delayed: return "Actions will execute after specified delay"
-        case .confirmation: return "Actions will wait for manual confirmation"
+        case .immediate: return NSLocalizedString("Actions will execute right after connection", comment: "Execution timing description")
+        case .delayed: return NSLocalizedString("Actions will execute after specified delay", comment: "Execution timing description")
+        case .confirmation: return NSLocalizedString("Actions will wait for manual confirmation", comment: "Execution timing description")
         }
     }
     
@@ -170,8 +170,8 @@ enum VNCQuickAction: String, Codable, CaseIterable {
     
     var description: String {
         switch self {
-        case .inputKeys: return "Send key combinations to VNC device"
-        case .syncClipboard: return "Sync clipboard with VNC device"
+        case .inputKeys: return NSLocalizedString("Send key combinations to VNC device", comment: "VNC quick action description")
+        case .syncClipboard: return NSLocalizedString("Sync clipboard with VNC device", comment: "VNC quick action description")
         }
     }
 }
@@ -463,10 +463,10 @@ enum ADBActionType: String, Codable, CaseIterable {
     
     var description: String {
         switch self {
-        case .homeKey: return "Execute ADB Home key (keyevent 3)"
-        case .switchKey: return "Execute ADB App Switch key (keyevent 187)"
-        case .inputKeys: return "Execute ADB custom key sequence"
-        case .shellCommands: return "Execute ADB shell commands"
+        case .homeKey: return NSLocalizedString("Execute ADB Home key (keyevent 3)", comment: "ADB action description")
+        case .switchKey: return NSLocalizedString("Execute ADB App Switch key (keyevent 187)", comment: "ADB action description")
+        case .inputKeys: return NSLocalizedString("Execute ADB custom key sequence", comment: "ADB action description")
+        case .shellCommands: return NSLocalizedString("Execute ADB shell commands", comment: "ADB action description")
         }
     }
 }

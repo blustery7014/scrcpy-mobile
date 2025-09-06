@@ -69,17 +69,17 @@ class WindowUtil {
             print("✅ [WindowUtil] Found frontmost window, showing global action confirmation for: \(action.name)")
             
             let alert = UIAlertController(
-                title: "Execute Action",
+                title: NSLocalizedString("Execute Action", comment: "Title for execute action confirmation"),
                 message: getActionExecutionSummary(action),
                 preferredStyle: .alert
             )
             
-            alert.addAction(UIAlertAction(title: "Execute", style: .default) { _ in
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Execute", comment: "Execute button"), style: .default) { _ in
                 print("✅ [WindowUtil] User confirmed action execution")
                 confirmCallback()
             })
             
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: "Cancel button"), style: .cancel) { _ in
                 print("❌ [WindowUtil] User cancelled action execution")
             })
             

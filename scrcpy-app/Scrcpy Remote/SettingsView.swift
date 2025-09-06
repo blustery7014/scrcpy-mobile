@@ -304,7 +304,10 @@ struct SettingsView: View {
                             Text("Logs Management")
                             Spacer()
                             if logManager.logFilesCount > 0 {
-                                Text("(\(logManager.logFilesCount) files)")
+                                Text(String(
+                                    format: NSLocalizedString("(%d files)", comment: "Number of log files"),
+                                    logManager.logFilesCount
+                                ))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }

@@ -186,7 +186,7 @@ struct SessionCreateView: View {
                                 HStack {
                                     Text("Video Encoder")
                                     Spacer()
-                                    Text(sessionModel.adbOptions.videoEncoder.isEmpty ? "Default" : sessionModel.adbOptions.videoEncoder)
+                                    Text(sessionModel.adbOptions.videoEncoder.isEmpty ? NSLocalizedString("Default", comment: "Default option label") : sessionModel.adbOptions.videoEncoder)
                                         .foregroundColor(sessionModel.adbOptions.videoEncoder.isEmpty ? .secondary : .primary)
                                 }
                             }
@@ -217,7 +217,7 @@ struct SessionCreateView: View {
                                     HStack {
                                         Text("Audio Encoder")
                                         Spacer()
-                                        Text(sessionModel.adbOptions.audioEncoder.isEmpty ? "Default" : sessionModel.adbOptions.audioEncoder)
+                                        Text(sessionModel.adbOptions.audioEncoder.isEmpty ? NSLocalizedString("Default", comment: "Default option label") : sessionModel.adbOptions.audioEncoder)
                                             .foregroundColor(sessionModel.adbOptions.audioEncoder.isEmpty ? .secondary : .primary)
                                     }
                                 }
@@ -406,18 +406,18 @@ struct SessionCreateView: View {
     private func validateSession() -> Bool {
         // Check host
         if hostInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            validationErrorMessage = "Please enter a valid host address."
+            validationErrorMessage = NSLocalizedString("Please enter a valid host address.", comment: "Validation: invalid host")
             return false
         }
         
         // Check port
         if portInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            validationErrorMessage = "Please enter a port number."
+            validationErrorMessage = NSLocalizedString("Please enter a port number.", comment: "Validation: empty port")
             return false
         }
         
         if !isValidPort(portInput) {
-            validationErrorMessage = "Please enter a valid port number (1-65535)."
+            validationErrorMessage = NSLocalizedString("Please enter a valid port number (1-65535).", comment: "Validation: invalid port range")
             return false
         }
         
@@ -425,7 +425,7 @@ struct SessionCreateView: View {
         if effectiveDeviceType == .vnc {
             // VNC User is optional, only check password
             if sessionModel.vncOptions.vncPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                validationErrorMessage = "Please enter a VNC password."
+                validationErrorMessage = NSLocalizedString("Please enter a VNC password.", comment: "Validation: empty VNC password")
                 return false
             }
         }
@@ -435,19 +435,19 @@ struct SessionCreateView: View {
             if sessionModel.adbOptions.startNewDisplay {
                 if sessionModel.adbOptions.displayWidth.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                    !isValidPositiveInteger(sessionModel.adbOptions.displayWidth) {
-                    validationErrorMessage = "Please enter a valid display width."
+                    validationErrorMessage = NSLocalizedString("Please enter a valid display width.", comment: "Validation: invalid width")
                     return false
                 }
                 
                 if sessionModel.adbOptions.displayHeight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                    !isValidPositiveInteger(sessionModel.adbOptions.displayHeight) {
-                    validationErrorMessage = "Please enter a valid display height."
+                    validationErrorMessage = NSLocalizedString("Please enter a valid display height.", comment: "Validation: invalid height")
                     return false
                 }
                 
                 if !sessionModel.adbOptions.displayDPI.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                    !isValidPositiveInteger(sessionModel.adbOptions.displayDPI) {
-                    validationErrorMessage = "Please enter a valid display DPI."
+                    validationErrorMessage = NSLocalizedString("Please enter a valid display DPI.", comment: "Validation: invalid DPI")
                     return false
                 }
             }
@@ -455,21 +455,21 @@ struct SessionCreateView: View {
             // Validate max FPS if provided
             if !sessionModel.adbOptions.maxFPS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                !isValidPositiveInteger(sessionModel.adbOptions.maxFPS) {
-                validationErrorMessage = "Please enter a valid max FPS value."
+                validationErrorMessage = NSLocalizedString("Please enter a valid max FPS value.", comment: "Validation: invalid fps")
                 return false
             }
             
             // Validate max screen size if provided
             if !sessionModel.adbOptions.maxScreenSize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                !isValidPositiveInteger(sessionModel.adbOptions.maxScreenSize) {
-                validationErrorMessage = "Please enter a valid max screen size."
+                validationErrorMessage = NSLocalizedString("Please enter a valid max screen size.", comment: "Validation: invalid max screen size")
                 return false
             }
         }
         
         // Check Tailscale configuration
         if sessionModel.useTailscale && appSettings.tailscaleAuthKey.isEmpty {
-            validationErrorMessage = "Tailscale authentication is required but not configured."
+            validationErrorMessage = NSLocalizedString("Tailscale authentication is required but not configured.", comment: "Validation: tailscale not configured")
             return false
         }
         
@@ -542,7 +542,10 @@ struct VideoEncoderSelectionView: View {
                         .scaleEffect(1.5)
                     Text("Detecting Video Encoders...")
                         .font(.headline)
-                    Text("Connecting to \(host):\(port)")
+                    Text(String(
+                        format: NSLocalizedString("Connecting to %@:%d", comment: "Connecting to host:port"),
+                        host, port
+                    ))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -641,7 +644,7 @@ struct VideoEncoderSelectionView: View {
                 detectEncoders()
             }
         } message: {
-            Text(errorMessage ?? "Failed to detect encoders")
+            Text(errorMessage ?? NSLocalizedString("Failed to detect encoders", comment: "Fallback detection error message"))
         }
         .onAppear {
             detectEncoders()
@@ -663,12 +666,12 @@ struct VideoEncoderSelectionView: View {
                         encoder.mediaType.lowercased().hasPrefix("video/")
                     }
                 } else {
-                    var fullErrorMessage = error?.localizedDescription ?? "Failed to detect encoders. Please check your connection and try again."
+                    var fullErrorMessage = error?.localizedDescription ?? NSLocalizedString("Failed to detect encoders. Please check your connection and try again.", comment: "Detection failure default message")
                     
                     // Add raw ADB output for diagnostic purposes
                     if let nsError = error as NSError?,
                        let adbOutput = nsError.userInfo["ADBOutput"] as? String {
-                        fullErrorMessage += "\n\nDiagnostic info:\n\(adbOutput)"
+                        fullErrorMessage += "\n\n" + NSLocalizedString("Diagnostic info:", comment: "Label for additional diagnostic information") + "\n\(adbOutput)"
                     }
                     
                     errorMessage = fullErrorMessage
@@ -698,7 +701,10 @@ struct AudioEncoderSelectionView: View {
                         .scaleEffect(1.5)
                     Text("Detecting Audio Encoders...")
                         .font(.headline)
-                    Text("Connecting to \(host):\(port)")
+                    Text(String(
+                        format: NSLocalizedString("Connecting to %@:%d", comment: "Connecting to host:port"),
+                        host, port
+                    ))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -797,7 +803,7 @@ struct AudioEncoderSelectionView: View {
                 detectEncoders()
             }
         } message: {
-            Text(errorMessage ?? "Failed to detect encoders")
+            Text(errorMessage ?? NSLocalizedString("Failed to detect encoders", comment: "Fallback detection error message"))
         }
         .onAppear {
             detectEncoders()
@@ -819,12 +825,12 @@ struct AudioEncoderSelectionView: View {
                         encoder.mediaType.lowercased().hasPrefix("audio/")
                     }
                 } else {
-                    var fullErrorMessage = error?.localizedDescription ?? "Failed to detect encoders. Please check your connection and try again."
+                    var fullErrorMessage = error?.localizedDescription ?? NSLocalizedString("Failed to detect encoders. Please check your connection and try again.", comment: "Detection failure default message")
                     
                     // Add raw ADB output for diagnostic purposes
                     if let nsError = error as NSError?,
                        let adbOutput = nsError.userInfo["ADBOutput"] as? String {
-                        fullErrorMessage += "\n\nDiagnostic info:\n\(adbOutput)"
+                        fullErrorMessage += "\n\n" + NSLocalizedString("Diagnostic info:", comment: "Label for additional diagnostic information") + "\n\(adbOutput)"
                     }
                     
                     errorMessage = fullErrorMessage

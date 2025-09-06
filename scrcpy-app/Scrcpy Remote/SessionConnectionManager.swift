@@ -1384,18 +1384,21 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
             String(errorMessage.prefix(maxLength)) + "..." : errorMessage
         
         let alert = UIAlertController(
-            title: "Scrcpy Connection Error",
-            message: "The connection was terminated due to an error:\n\n\(truncatedMessage)",
+            title: NSLocalizedString("Scrcpy Connection Error", comment: "Alert title when scrcpy connection fails"),
+            message: String(
+                format: NSLocalizedString("The connection was terminated due to an error:\n\n%@", comment: "Alert message for scrcpy connection error with details"),
+                truncatedMessage
+            ),
             preferredStyle: .alert
         )
         
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: "OK button"), style: .default) { _ in
             print("✅ [SessionConnectionManager] User acknowledged error alert")
         })
         
         // 如果消息被截断，添加"查看详情"按钮
         if errorMessage.count > maxLength {
-            alert.addAction(UIAlertAction(title: "View Details", style: .default) { _ in
+            alert.addAction(UIAlertAction(title: NSLocalizedString("View Details", comment: "View details button"), style: .default) { _ in
                 print("📋 [SessionConnectionManager] User requested full error details")
                 self.showDetailedErrorAlert(with: errorMessage)
             })
@@ -1461,12 +1464,12 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         print("📋 [SessionConnectionManager] Showing detailed error alert")
         
         let alert = UIAlertController(
-            title: "Detailed Error Information",
+            title: NSLocalizedString("Detailed Error Information", comment: "Title for detailed error info alert"),
             message: errorMessage,
             preferredStyle: .alert
         )
         
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: "OK button"), style: .default) { _ in
             print("✅ [SessionConnectionManager] User closed detailed error alert")
         })
         

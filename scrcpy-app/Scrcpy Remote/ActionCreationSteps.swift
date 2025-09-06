@@ -65,7 +65,7 @@ struct StepIndicatorView: View {
                         .scaleEffect(step == currentStep ? 1.1 : 1.0)
                         .animation(.spring(response: 0.5, dampingFraction: 0.6), value: currentStep)
                         
-                        Text(stepTitles[step - 1])
+                        Text(LocalizedStringKey(stepTitles[step - 1]))
                             .font(.caption)
                             .fontWeight(step == currentStep ? .semibold : .regular)
                             .foregroundColor(step <= currentStep ? .primary : .secondary)
@@ -361,7 +361,10 @@ struct Step2View: View {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
-                        Text("\(selectedVNCQuickActions.count) action(s) selected")
+                        Text(String(
+                            format: NSLocalizedString("%d action(s) selected", comment: "Count of selected actions"),
+                            selectedVNCQuickActions.count
+                        ))
                             .font(.subheadline)
                             .foregroundColor(.green)
                     }

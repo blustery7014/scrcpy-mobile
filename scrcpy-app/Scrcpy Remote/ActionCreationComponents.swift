@@ -79,13 +79,13 @@ struct QuickActionCardView: View {
                 .font(.title2)
                 .foregroundColor(isSelected ? .white : .blue)
             
-            Text(action.rawValue)
+            Text(NSLocalizedString(action.rawValue, comment: "VNC quick action title"))
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundColor(isSelected ? .white : .primary)
                 .multilineTextAlignment(.center)
-            
-            Text(action.description)
+
+            Text(NSLocalizedString(action.description, comment: "VNC quick action description"))
                 .font(.caption2)
                 .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
                 .multilineTextAlignment(.center)
@@ -124,15 +124,15 @@ struct ADBActionTypeCardView: View {
                 .foregroundColor(isSelected ? .white : .blue)
                 .frame(height: 24)
             
-            Text(actionType.rawValue)
+            Text(NSLocalizedString(actionType.rawValue, comment: "ADB action type title"))
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundColor(isSelected ? .white : .primary)
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
                 .frame(height: 16)
-            
-            Text(actionType.description)
+
+            Text(NSLocalizedString(actionType.description, comment: "ADB action type description"))
                 .font(.caption2)
                 .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
                 .multilineTextAlignment(.center)
@@ -1353,10 +1353,10 @@ struct VNCKeySelectorView: View {
                     .padding()
                 }
             }
-            .navigationTitle("Select PC Key")
+            .navigationTitle(NSLocalizedString("Select PC Key", comment: "Select PC key title"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                trailing: Button("Cancel") {
+                trailing: Button(NSLocalizedString("Cancel", comment: "Cancel")) {
                     dismiss()
                 }
             )

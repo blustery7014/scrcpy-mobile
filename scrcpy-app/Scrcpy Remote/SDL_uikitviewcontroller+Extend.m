@@ -167,11 +167,11 @@ static char inputMaskViewKey;
 
 - (void)didTapActionsButton {
     // 显示功能开发中的提示
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Actions" 
-                                                                   message:@"该功能正在开发中，请稍等" 
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:NSLocalizedString(@"Actions", @"Actions title") 
+                                                                   message:NSLocalizedString(@"This feature is under development, please wait.", @"WIP message") 
                                                             preferredStyle:UIAlertControllerStyleAlert];
     
-    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"好的" 
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"OK", @"OK button") 
                                                        style:UIAlertActionStyleDefault 
                                                      handler:nil];
     

@@ -304,11 +304,11 @@
     if (message) {
         // Could show a toast or update status label
         // For now, show an alert to make sure we see the status
-        UIAlertController *statusAlert = [UIAlertController alertControllerWithTitle:@"Status Update"
+        UIAlertController *statusAlert = [UIAlertController alertControllerWithTitle:NSLocalizedString(@"Status Update", @"Status update alert title")
                                                                              message:message
                                                                       preferredStyle:UIAlertControllerStyleAlert];
         
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"OK"
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"OK", @"OK button")
                                                            style:UIAlertActionStyleDefault
                                                          handler:nil];
         [statusAlert addAction:okAction];
@@ -324,7 +324,7 @@
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     
-    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"OK"
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"OK", @"OK button")
                                                        style:UIAlertActionStyleDefault
                                                      handler:nil];
     [alert addAction:okAction];
@@ -337,21 +337,21 @@
     NSLog(@"[ScrcpyActionsTableViewController] Action details for confirmation - ID: %@, Type: %@, Timing: %@", 
           action.actionId, action.deviceType, action.executionTiming);
     
-    NSString *message = [NSString stringWithFormat:@"Are you sure you want to execute '%@'?\n\nAction ID: %@\nDevice Type: %@\nTiming: %@", 
+    NSString *message = [NSString stringWithFormat:NSLocalizedString(@"Are you sure you want to execute '%@'?\n\nAction ID: %@\nDevice Type: %@\nTiming: %@", @"Confirmation message with details"), 
                          action.name, action.actionId, action.deviceType, action.executionTiming];
     
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Confirm Action"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:NSLocalizedString(@"Confirm Action", @"Confirm action alert title")
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     
-    UIAlertAction *executeAction = [UIAlertAction actionWithTitle:@"Execute"
+    UIAlertAction *executeAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"Execute", @"Execute button")
                                                            style:UIAlertActionStyleDefault
                                                          handler:^(UIAlertAction * _Nonnull alertAction) {
                                                              NSLog(@"[ScrcpyActionsTableViewController] User confirmed action execution");
                                                              completion();
                                                          }];
     
-    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Cancel"
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", @"Cancel button")
                                                           style:UIAlertActionStyleCancel
                                                         handler:nil];
     
