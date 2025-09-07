@@ -169,6 +169,10 @@ class AppSettings: ObservableObject {
     
     @AppStorage("settings.live_activity.enabled")
     var liveActivityEnabled: Bool = true
+
+    // Picture in Picture setting
+    @AppStorage("settings.pip.enabled")
+    var pipEnabled: Bool = false
     
     // 新增：ADB配对历史
     @AppStorage("settings.adb_pairing_history")
@@ -264,6 +268,23 @@ struct SettingsView: View {
                         NavigationLink(destination: LiveActivityDebugView()) {
                             HStack {
                                 Text("Debug Live Activity")
+                                Spacer()
+                                Image(systemName: "ladybug")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                            }
+                        }
+                        #endif
+                    }
+
+                    // Picture in Picture toggle
+                    if #available(iOS 15.0, *) {
+                        Toggle("Picture in Picture", isOn: $appSettings.pipEnabled)
+                        
+                        #if DEBUG
+                        NavigationLink(destination: PIPDebugView()) {
+                            HStack {
+                                Text("Debug Picture in Picture")
                                 Spacer()
                                 Image(systemName: "ladybug")
                                     .foregroundColor(.orange)
