@@ -279,6 +279,15 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         // 如果当前有活跃连接，启动 Live Activity
         startLiveActivityIfNeeded()
         
+        // 若无活跃连接但仍存在旧的 Live Activity，则停止它，避免卡住
+        if #available(iOS 16.1, *),
+           let manager = liveActivityManager as? ScrcpyLiveActivityManager,
+           manager.hasActiveActivity,
+           !connectionStatus.isActive {
+            print("🧹 [SessionConnectionManager] No active connection; stopping stale Live Activity in background")
+            manager.stopActivity()
+        }
+
         // 启动后台断开计时器
         startBackgroundDisconnectTimer()
     }
@@ -754,11 +763,18 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         if isUsingTailscale {
             SessionNetworking.shared.stopAllForwarding()
         }
-        
-        // 更新状态
-        connectionStatus = ScrcpyStatusDisconnected
-        isConnecting = false
-        connectionStartTime = nil
+
+        // 主动同步 Live Activity 状态并结束（在后台计时器断开时不会收到状态通知）
+        if #available(iOS 16.1, *),
+           let manager = liveActivityManager as? ScrcpyLiveActivityManager,
+           manager.hasActiveActivity {
+            let duration = connectionDuration
+            print("🎭 [SessionConnectionManager] Sync Live Activity on background disconnect, duration: \(duration)s")
+            manager.updateActivity(status: ScrcpyStatusDisconnected, statusMessage: "Disconnected in background", connectionDuration: duration)
+        }
+
+        // 清理当前会话并停止相关资源（其中包含停止 Live Activity 的保障）
+        clearCurrentSession(clearPendingAction: true)
     }
     
     // MARK: - Utility Methods

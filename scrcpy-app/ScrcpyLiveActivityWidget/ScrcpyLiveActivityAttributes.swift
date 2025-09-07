@@ -18,11 +18,13 @@ public struct ScrcpyLiveActivityAttributes: ActivityAttributes {
         public var connectionStatus: String
         public var connectionStatusCode: Int
         public var isConnected: Bool
-        public var startTime: Date
         public var isUsingTailscale: Bool
+        public var startTime: Date
         
         // 动态更新的信息
         public var lastUpdateTime: Date
+        /// 已连接分钟（文本，向上取整，至少 1m），由主应用计算后写入
+        public var elapsedMinutesText: String
         
         public init(
             sessionName: String,
@@ -33,7 +35,8 @@ public struct ScrcpyLiveActivityAttributes: ActivityAttributes {
             connectionStatusCode: Int,
             isConnected: Bool,
             startTime: Date = Date(),
-            isUsingTailscale: Bool = false
+            isUsingTailscale: Bool = false,
+            elapsedMinutesText: String? = nil
         ) {
             self.sessionName = sessionName
             self.deviceType = deviceType
@@ -42,25 +45,16 @@ public struct ScrcpyLiveActivityAttributes: ActivityAttributes {
             self.connectionStatus = connectionStatus
             self.connectionStatusCode = connectionStatusCode
             self.isConnected = isConnected
-            self.startTime = startTime
             self.isUsingTailscale = isUsingTailscale
+            self.startTime = startTime
             self.lastUpdateTime = Date()
-        }
-        
-        // 计算连接时长
-        public var connectionDuration: TimeInterval {
-            Date().timeIntervalSince(startTime)
-        }
-        
-        // 格式化连接时长 (仅显示分钟数)
-        public var formattedDuration: String {
-            let duration = connectionDuration
-            let minutes = Int(duration) / 60
-            
-            if minutes > 0 {
-                return String(format: "%dm", minutes)
+            // 分钟文本（由主应用计算后写入；若未提供则按 startTime 计算）
+            if let elapsedMinutesText {
+                self.elapsedMinutesText = elapsedMinutesText
             } else {
-                return "< 1m"
+                let seconds = max(0, Date().timeIntervalSince(startTime))
+                let minutes = max(1, Int(ceil(seconds / 60.0)))
+                self.elapsedMinutesText = "\(minutes)m"
             }
         }
         

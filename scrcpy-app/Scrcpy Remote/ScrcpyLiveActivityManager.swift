@@ -70,6 +70,8 @@ class ScrcpyLiveActivityManager: ObservableObject {
         logger.debug("⏰ [ScrcpyLiveActivityManager] Connection start time: \(self.connectionStartTime!)")
         
         // 创建初始状态
+        let initialMinutes = Self.ceilMinutes(since: self.connectionStartTime!)
+        let initialElapsedText = "\(initialMinutes)m"
         let initialContentState = ScrcpyLiveActivityAttributes.ContentState(
             sessionName: sessionName,
             deviceType: deviceType,
@@ -79,7 +81,8 @@ class ScrcpyLiveActivityManager: ObservableObject {
             connectionStatusCode: Int(initialStatus.rawValue),
             isConnected: initialStatus.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
             startTime: self.connectionStartTime!,
-            isUsingTailscale: isUsingTailscale
+            isUsingTailscale: isUsingTailscale,
+            elapsedMinutesText: initialElapsedText
         )
         
         // 创建 Activity 属性
@@ -123,17 +126,27 @@ class ScrcpyLiveActivityManager: ObservableObject {
         // 获取当前状态
         let currentState = activity.contentState
         
-        // 计算使用的开始时间
-        let actualStartTime: Date
-        if let duration = connectionDuration, duration > 0 {
-            // 使用传入的持续时间计算开始时间
-            actualStartTime = Date().addingTimeInterval(-duration)
-            logger.debug("⏰ [ScrcpyLiveActivityManager] Using actual connection duration: \(duration)s")
-        } else {
-            // 使用原始开始时间
-            actualStartTime = currentState.startTime
+        // Compute new elapsed minutes label if active
+        var newElapsedLabel = currentState.elapsedMinutesText
+        if status.rawValue >= 3 { // only compute when connected/active like before
+            let duration: TimeInterval
+            if let connectionDuration, connectionDuration > 0 {
+                duration = connectionDuration
+            } else {
+                duration = Date().timeIntervalSince(currentState.startTime)
+            }
+            let minutes = max(1, Int(ceil(duration / 60.0)))
+            newElapsedLabel = "\(minutes)m"
         }
-        
+
+        // Skip update if nothing changed materially
+        if currentState.elapsedMinutesText == newElapsedLabel,
+           currentState.connectionStatusCode == Int(status.rawValue),
+           (statusMessage ?? status.description) == currentState.connectionStatus {
+            logger.debug("⏳ [LiveActivity] No visible change; skip update")
+            return
+        }
+
         // 创建新状态
         let newContentState = ScrcpyLiveActivityAttributes.ContentState(
             sessionName: currentState.sessionName,
@@ -143,10 +156,13 @@ class ScrcpyLiveActivityManager: ObservableObject {
             connectionStatus: statusMessage ?? status.description,
             connectionStatusCode: Int(status.rawValue),
             isConnected: status.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
-            startTime: actualStartTime,
-            isUsingTailscale: currentState.isUsingTailscale
+            startTime: currentState.startTime,
+            isUsingTailscale: currentState.isUsingTailscale,
+            elapsedMinutesText: newElapsedLabel
         )
         
+        logger.debug("🕒 [LiveActivity] elapsedMinutesText=\(newContentState.elapsedMinutesText)")
+
         // 更新 Activity
         Task {
             do {
@@ -212,8 +228,9 @@ class ScrcpyLiveActivityManager: ObservableObject {
     /// 开始定时更新
     private func startUpdateTimer() {
         stopUpdateTimer()
-        
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+        // Increase cadence to 1s so Live Activity receives frequent updates.
+        // Note: ActivityKit may throttle rendering, but state will be current.
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateCurrentActivity()
         }
         
@@ -245,11 +262,17 @@ class ScrcpyLiveActivityManager: ObservableObject {
         }
         
         logger.debug("⏰ [ScrcpyLiveActivityManager] Updating with actual duration: \(actualDuration)s")
-        
-        // 创建更新的状态（使用实际连接时间）
+
+        // Compute new label at minute granularity (ceil, min 1m)
+        let newMinutes = max(1, Int(ceil(actualDuration / 60.0)))
+        let newLabel = "\(newMinutes)m"
+
         let currentState = activity.contentState
-        let actualStartTime = Date().addingTimeInterval(-actualDuration)
-        
+        if currentState.elapsedMinutesText == newLabel {
+            // No change yet; avoid redundant update
+            return
+        }
+
         let updatedState = ScrcpyLiveActivityAttributes.ContentState(
             sessionName: currentState.sessionName,
             deviceType: currentState.deviceType,
@@ -258,13 +281,15 @@ class ScrcpyLiveActivityManager: ObservableObject {
             connectionStatus: currentState.connectionStatus,
             connectionStatusCode: currentState.connectionStatusCode,
             isConnected: currentState.isConnected,
-            startTime: actualStartTime,
-            isUsingTailscale: currentState.isUsingTailscale
+            startTime: currentState.startTime,
+            isUsingTailscale: currentState.isUsingTailscale,
+            elapsedMinutesText: newLabel
         )
-        
+
         Task {
             do {
                 await activity.update(using: updatedState)
+                logger.debug("📨 [LiveActivity] Pushed minute update text=\(updatedState.elapsedMinutesText)")
             } catch {
                 logger.error("❌ [ScrcpyLiveActivityManager] Failed to update activity timer: \(error.localizedDescription)")
             }
@@ -306,4 +331,12 @@ class ScrcpyLiveActivityManager: ObservableObject {
         stopUpdateTimer()
         logger.info("🔄 [ScrcpyLiveActivityManager] Deinitialized")
     }
-} 
+
+    // MARK: - Helpers
+    /// 向上取整的分钟数（最少 1m）
+    private static func ceilMinutes(since startTime: Date, now: Date = Date()) -> Int {
+        let seconds = max(0, now.timeIntervalSince(startTime))
+        let minutes = Int(ceil(seconds / 60.0))
+        return max(1, minutes)
+    }
+}

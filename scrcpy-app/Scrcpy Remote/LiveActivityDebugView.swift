@@ -187,6 +187,8 @@ struct LiveActivityDebugView: View {
             return
         }
         
+        let start = Date()
+        let startMinutes = max(1, Int(ceil(Date().timeIntervalSince(start) / 60.0)))
         let contentState = ScrcpyLiveActivityAttributes.ContentState(
             sessionName: sessionName,
             deviceType: deviceType,
@@ -195,8 +197,8 @@ struct LiveActivityDebugView: View {
             connectionStatus: statusMessage.isEmpty ? status.description : statusMessage,
             connectionStatusCode: Int(status.rawValue),
             isConnected: status.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
-            startTime: Date(),
-            isUsingTailscale: isUsingTailscale
+            isUsingTailscale: isUsingTailscale,
+            elapsedMinutesText: "\(startMinutes)m"
         )
         
         let attributes = ScrcpyLiveActivityAttributes(
@@ -242,8 +244,8 @@ struct LiveActivityDebugView: View {
             connectionStatus: statusMessage.isEmpty ? status.description : statusMessage,
             connectionStatusCode: Int(status.rawValue),
             isConnected: status.rawValue >= 3, // sdlWindowCreated = 3, connected = 6, sdlWindowAppeared = 7
-            startTime: currentState.startTime,
-            isUsingTailscale: isUsingTailscale
+            isUsingTailscale: isUsingTailscale,
+            elapsedMinutesText: currentState.elapsedMinutesText
         )
         
         Task {
