@@ -277,7 +277,9 @@ struct SettingsView: View {
                         #endif
                     }
 
-                    // Picture in Picture toggle
+                    // Picture in Picture toggle - Temporarily hidden for later use
+                    // TODO: Restore Picture in Picture settings when needed
+                    /*
                     if #available(iOS 15.0, *) {
                         Toggle("Picture in Picture", isOn: $appSettings.pipEnabled)
                         
@@ -293,6 +295,7 @@ struct SettingsView: View {
                         }
                         #endif
                     }
+                    */
                     
                     NavigationLink(destination: AboutView()) {
                         Text("About Scrcpy Remote")

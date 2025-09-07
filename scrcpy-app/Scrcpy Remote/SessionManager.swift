@@ -143,6 +143,9 @@ struct ADBSessionOptions: Codable, Identifiable {
     // 强制 ADB 转发连接选项
     var forceAdbForward: Bool = false
     
+    // 自定义标志字典，用于支持额外的 scrcpy 参数
+    var customFlags: [String: String] = [:]
+    
     init() { }
     
     init(from decoder: any Decoder) throws {
@@ -178,6 +181,9 @@ struct ADBSessionOptions: Codable, Identifiable {
         
         // 解码强制 ADB 转发连接选项，默认为 false
         self.forceAdbForward = try container.decodeIfPresent(Bool.self, forKey: .forceAdbForward) ?? false
+        
+        // 解码自定义标志，默认为空字典
+        self.customFlags = try container.decodeIfPresent([String: String].self, forKey: .customFlags) ?? [:]
     }
 }
 

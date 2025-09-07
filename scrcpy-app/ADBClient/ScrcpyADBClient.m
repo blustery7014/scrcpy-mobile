@@ -349,6 +349,32 @@ void ScrcpyTryResetVideo(void) {
         NSLog(@"⚠️ Unsupported option value: %@, %@", key, argValue);
     }
     
+    // Handle customFlags - add custom parameters with "--" prefix
+    NSDictionary *customFlags = self.sessionArguments[@"adbOptions"][@"customFlags"];
+    if ([customFlags isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"🔧 Processing customFlags: %@", customFlags);
+        for (NSString *flagName in customFlags) {
+            NSString *flagValue = customFlags[flagName];
+            
+            // Add "--" prefix if not present
+            NSString *scrcpyFlagName = [flagName hasPrefix:@"--"] ? flagName : [NSString stringWithFormat:@"--%@", flagName];
+            
+            if ([flagValue isEqualToString:@"true"] || [flagValue isEqualToString:@""]) {
+                // Boolean flag
+                [args setObject:@(YES) forKey:scrcpyFlagName];
+                NSLog(@"🔧 Added custom boolean flag: %@", scrcpyFlagName);
+            } else if ([flagValue isEqualToString:@"false"]) {
+                // Skip false flags
+                NSLog(@"🔧 Skipping false flag: %@", scrcpyFlagName);
+                continue;
+            } else {
+                // Value flag
+                [args setObject:flagValue forKey:scrcpyFlagName];
+                NSLog(@"🔧 Added custom value flag: %@=%@", scrcpyFlagName, flagValue);
+            }
+        }
+    }
+    
     NSMutableArray *argv = [NSMutableArray arrayWithArray:@[@"scrcpy"]];
     for (NSString *key in args) {
         id value = args[key];

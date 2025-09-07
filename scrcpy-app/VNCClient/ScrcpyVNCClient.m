@@ -52,6 +52,10 @@ static inline int ScrcpyVNCShiftedKeysym(int keysym, BOOL shiftActive) {
 @property (nonatomic, assign) BOOL nextKeyAlreadyCombined;
 // Track physical (real) modifier key down states from SDL events
 @property (nonatomic, assign) BOOL physMetaDown, physCtrlDown, physAltDown, physShiftDown;
+// Timestamp (CFAbsoluteTime) of last non-modifier key pressed while any modifier was active
+@property (nonatomic, assign) CFAbsoluteTime lastKeyWithModifierTime;
+// Timestamp of last non-modifier key press (for suppressing duplicate SDL_TEXTINPUT)
+@property (nonatomic, assign) CFAbsoluteTime lastNonModifierKeyTime;
 @end
 
 @implementation ScrcpyVNCClient
@@ -751,6 +755,8 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
     // 当接收到非修饰键的按下事件时，通知清除一次性（候选）修饰键状态
     if (isPressed) {
         if (!isModifier) {
+            // Record timestamp for any plain (non-modifier) key press
+            self.lastNonModifierKeyTime = CFAbsoluteTimeGetCurrent();
             // If toolbar already combined modifiers for this key, skip augmentation
             BOOL alreadyCombined = self.nextKeyAlreadyCombined;
             self.nextKeyAlreadyCombined = NO;
@@ -782,6 +788,15 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
             } else {
                 // Already combined by toolbar, do not augment; also ensure we don't release anything for it
                 self.lastAugmentedMask = ScrcpyModifierMaskNone;
+            }
+
+            // Record a timestamp if any modifier is effectively active for this key
+            BOOL anyModifierEffective = self.physCtrlDown || self.physAltDown || self.physShiftDown || self.physMetaDown ||
+                                        self.lockMeta || self.lockCtrl || self.lockAlt || self.lockShift ||
+                                        self.candMeta || self.candCtrl || self.candAlt || self.candShift ||
+                                        (self.lastAugmentedMask != ScrcpyModifierMaskNone) || alreadyCombined;
+            if (anyModifierEffective) {
+                self.lastKeyWithModifierTime = CFAbsoluteTimeGetCurrent();
             }
         }
     }
@@ -836,6 +851,20 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
                         self.lockMeta || self.lockCtrl || self.lockAlt || self.lockShift ||
                         self.candMeta || self.candCtrl || self.candAlt || self.candShift ||
                         (self.lastAugmentedMask != ScrcpyModifierMaskNone) || self.nextKeyAlreadyCombined;
+
+    // Additionally, if a non-modifier key with modifiers was pressed very recently,
+    // suppress the following SDL_TEXTINPUT once (accounts for ordering where modifiers are released first)
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    const CFAbsoluteTime kSuppressWindow = 0.25; // seconds
+    // Suppress after a recent non-modifier key press to avoid duplicate visible characters
+    if (self.lastNonModifierKeyTime > 0 && (now - self.lastNonModifierKeyTime) <= kSuppressWindow) {
+        anyModActive = YES;
+    }
+    // Also suppress if a key was sent with modifiers very recently
+    if (!anyModActive && self.lastKeyWithModifierTime > 0 && (now - self.lastKeyWithModifierTime) <= kSuppressWindow) {
+        anyModActive = YES;
+        // Do not clear timestamps immediately; let time window expire naturally
+    }
     if (anyModActive) {
         return;
     }
@@ -1723,7 +1752,5 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
 
     if (completion) completion(YES, nil);
 }
-
-// (UI提示交由主应用控制器处理)
 
 @end

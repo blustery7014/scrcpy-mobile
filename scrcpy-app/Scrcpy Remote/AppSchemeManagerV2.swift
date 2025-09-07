@@ -42,10 +42,17 @@ import UIKit
  - display-width/width: 显示宽度
  - display-height/height: 显示高度
  - display-dpi/dpi: 显示 DPI
+ - display-id: 显示器 ID (用于多显示器支持)
  
  VNC 参数：
  - vnc-user/user: VNC 用户名
  - vnc-password/password: VNC 密码
+ 
+ 自定义参数支持：
+ - 任何未在上述列表中的参数都会被自动添加为 scrcpy 的自定义标志
+ - 参数值为 "true" 或空值时，会被处理为布尔标志（如 --custom-flag）
+ - 参数值为其他值时，会被处理为键值对标志（如 --custom-flag=value）
+ - 例如：custom-option=123 会转换为 --custom-option=123
  */
 
 // MARK: - Notification Names
@@ -380,7 +387,11 @@ class AppSchemeManagerV2: ObservableObject {
                 }
             
             default:
-                print("⚠️ [AppSchemeManagerV2] Unknown parameter: \(name)")
+                // 存储未知参数到 customFlags 中
+                print("🔧 [AppSchemeManagerV2] Storing unknown parameter in customFlags: \(name) = \(value ?? "nil")")
+                if let value = value {
+                    session.adbOptions.customFlags[name] = value
+                }
                 break
             }
         }
@@ -467,12 +478,21 @@ class AppSchemeManagerV2: ObservableObject {
                     session.adbOptions.volumeScale = volume
                 }
             default:
+                // 存储未知参数到 customFlags 中
+                print("🔧 [AppSchemeManagerV2] Storing unknown parameter in customFlags: \(name) = \(value ?? "nil")")
+                if let value = value {
+                    session.adbOptions.customFlags[name] = value
+                }
                 break
             }
         }
         
+        // 应用自定义标志到 scrcpy 选项
+        scrcpyOptions = applyCustomFlagsToOptions(scrcpyOptions, customFlags: session.adbOptions.customFlags)
+        
         print("📋 [AppSchemeManagerV2] Parsed session: \(session)")
         print("⚙️ [AppSchemeManagerV2] Scrcpy options: \(scrcpyOptions)")
+        print("🔧 [AppSchemeManagerV2] Custom flags: \(session.adbOptions.customFlags)")
         
         return session
     }
@@ -507,6 +527,7 @@ class AppSchemeManagerV2: ObservableObject {
             "audio-encoder": "--audio-encoder",
             "video-buffer": "--video-buffer",
             "audio-buffer": "--audio-buffer",
+            "display-id": "--display-id",
             "turn-screen-off": "--turn-screen-off",
             "stay-awake": "--stay-awake",
             "show-touches": "--show-touches",
@@ -533,6 +554,40 @@ class AppSchemeManagerV2: ObservableObject {
                 if let value = value, !value.isEmpty {
                     newOptions[mappedName] = value
                 }
+            }
+        } else {
+            // 处理未知参数，自动添加 "--" 前缀
+            let customFlagName = name.hasPrefix("--") ? name : "--\(name)"
+            if let value = value, !value.isEmpty {
+                if value == "true" || value == "" {
+                    // 布尔类型的自定义标志
+                    newOptions[customFlagName] = true
+                } else {
+                    // 有值的自定义标志
+                    newOptions[customFlagName] = value
+                }
+            }
+        }
+        
+        return newOptions
+    }
+    
+    /// 将 customFlags 应用到 scrcpy 选项
+    private func applyCustomFlagsToOptions(_ options: [String: Any], customFlags: [String: String]) -> [String: Any] {
+        var newOptions = options
+        
+        for (flagName, flagValue) in customFlags {
+            let scrcpyFlagName = flagName.hasPrefix("--") ? flagName : "--\(flagName)"
+            
+            if flagValue == "true" || flagValue.isEmpty {
+                // 布尔标志
+                newOptions[scrcpyFlagName] = true
+            } else if flagValue == "false" {
+                // 显式设为 false 的标志不添加
+                continue
+            } else {
+                // 有值的标志
+                newOptions[scrcpyFlagName] = flagValue
             }
         }
         
