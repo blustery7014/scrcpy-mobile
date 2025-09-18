@@ -344,3 +344,25 @@
 "• Include device name for easy identification" = "• 包含设备名称以便识别";
 "• Names are automatically numbered if duplicates exist" = "• 如有重名会自动编号";
 "Select PC Key" = "选择电脑按键";
+
+/* Test & Debug functionality */
+"Test Video Player" = "测试视频播放器";
+"Test Video" = "测试视频";
+"Start test video first" = "请先启动测试视频";
+"Video layer ready (test video playing)" = "视频层已就绪（测试视频正在播放）";
+"Test video playing (layer should be available soon)" = "测试视频正在播放（视频层即将可用）";
+"No video layer found (try playing the test video)" = "未找到视频层（请尝试播放测试视频）";
+"This tool helps you test and debug Live Activity functionality. You can:" = "此工具帮助您测试和调试实况活动功能。您可以：";
+"Start/stop test activities" = "启动/停止测试活动";
+"Test different device types" = "测试不同的设备类型";
+"PiP uses the current video layer. Use the test player above or connect to a device to test real content." = "PiP 使用当前视频层。请使用上方的测试播放器或连接设备来测试真实内容。";
+
+/* VNC Compression and Quality Levels */
+"VNC Compression None" = "不压缩";
+"VNC Compression Standard" = "标准压缩";
+"VNC Compression Maximum" = "最大压缩";
+"VNC Quality Lowest" = "最低质量";
+"VNC Quality Low" = "低质量";
+"VNC Quality Standard" = "标准质量";
+"VNC Quality High" = "高质量";
+"VNC Quality Highest" = "最高质量";

@@ -24,6 +24,8 @@ typedef enum : NSUInteger {
     ScrcpyHardwareDecodingSDLRender = 2,
 } ScrcpyHardwareDecodingType;
 
+static ScrcpyHardwareDecodingType bScrcpyHardwareDecodingEnabled = ScrcpyHardwareDecodingLayerRender;
+
 const char *ScrcpyCoreVersion(void)
 {
     return SCRCPY_VERSION;
@@ -34,10 +36,18 @@ float ScrcpyRenderScreenScale(void)
     return [UIScreen mainScreen].nativeScale;
 }
 
+void SetScrcpyHardwareDecodingEnabled(BOOL enabled) {
+    bScrcpyHardwareDecodingEnabled = enabled ? ScrcpyHardwareDecodingLayerRender : ScrcpyHardwareDecodingDisabled;
+}
+
 int ScrcpyEnableHardwareDecoding(void)
 {
     // To enable hardware decoding if target not simulator
-    return TARGET_OS_SIMULATOR ? ScrcpyHardwareDecodingDisabled : ScrcpyHardwareDecodingLayerRender;
+#if TARGET_OS_SIMULATOR
+    return ScrcpyHardwareDecodingDisabled
+#else
+    return (int)bScrcpyHardwareDecodingEnabled;
+#endif
 }
 
 float ScrcpyAudioVolumeScale(float update_scale)

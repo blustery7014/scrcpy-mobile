@@ -4,7 +4,8 @@ set -e;
 set -x;
 
 OUTPUT=$(cd $OUTPUT && pwd);
-BUILD_DIR=$(mktemp -d -t SDL);
+BUILD_DIR="$PWD/build/libsdl";
+mkdir -p "$BUILD_DIR";
 cd $BUILD_DIR;
 
 curl -O https://www.libsdl.org/release/SDL2-2.32.8.tar.gz;
@@ -69,4 +70,4 @@ echo "Copy headers...";
 [[ -d "$OUTPUT/include/SDL2" ]] || mkdir -pv $OUTPUT/include/SDL2;
 cp -v SDL2-*/include/*.h $OUTPUT/include/SDL2;
 
-[[ -d "$BUILD_DIR" ]] && rm -rf $BUILD_DIR;
+echo "Build artifacts preserved in: $BUILD_DIR";

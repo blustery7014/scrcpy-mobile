@@ -8,25 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		AA18D7282E0800BE00CD7D92 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */; };
+		AA63F8FA2E791F8600154E2A /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA63F8F92E791F8600154E2A /* VideoToolbox.framework */; };
+		AA63F8FC2E791F9500154E2A /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = AA63F8FB2E791F9500154E2A /* libbz2.tbd */; };
+		AA63FA592E798FDC00154E2A /* libiconv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = AA63FA582E798FDC00154E2A /* libiconv.tbd */; };
 		AA7AF64D2DF57467002EC51D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64C2DF57467002EC51D /* WidgetKit.framework */; };
 		AA7AF64F2DF57467002EC51D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7AF64E2DF57467002EC51D /* SwiftUI.framework */; };
 		AA7AF6602DF57468002EC51D /* ScrcpyLiveActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		AAA176472D13B6A40050862D /* ffmpegkit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF332D0D277400D361CA /* ffmpegkit.xcframework */; };
-		AAA176482D13B6A40050862D /* libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF352D0D277400D361CA /* libswscale.xcframework */; };
-		AAA176492D13B6A40050862D /* libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF342D0D277400D361CA /* libswresample.xcframework */; };
-		AAA1764A2D13B6A40050862D /* libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF392D0D277400D361CA /* libavutil.xcframework */; };
-		AAA1764B2D13B6A40050862D /* libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF372D0D277400D361CA /* libavformat.xcframework */; };
-		AAA1764C2D13B6A40050862D /* libavfilter.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF362D0D277400D361CA /* libavfilter.xcframework */; };
-		AAA1764D2D13B6A40050862D /* libavdevice.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF3A2D0D277400D361CA /* libavdevice.xcframework */; };
-		AAA1764E2D13B6A40050862D /* libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF382D0D277400D361CA /* libavcodec.xcframework */; };
-		AAA176572D13B6C20050862D /* libswresample.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA1764F2D13B6C20050862D /* libswresample.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA176582D13B6C20050862D /* libswscale.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176502D13B6C20050862D /* libswscale.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA176592D13B6C20050862D /* ffmpegkit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176512D13B6C20050862D /* ffmpegkit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA1765A2D13B6C20050862D /* libavformat.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176522D13B6C20050862D /* libavformat.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA1765B2D13B6C20050862D /* libavcodec.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176532D13B6C20050862D /* libavcodec.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA1765C2D13B6C20050862D /* libavfilter.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176542D13B6C20050862D /* libavfilter.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA1765D2D13B6C20050862D /* libavutil.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176552D13B6C20050862D /* libavutil.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AAA1765E2D13B6C20050862D /* libavdevice.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAA176562D13B6C20050862D /* libavdevice.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		AAA4EF452D0D887900D361CA /* KeychainSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AAA4EF442D0D887900D361CA /* KeychainSwift */; };
 		AAA4EF622D0DFA7800D361CA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF612D0DFA7800D361CA /* AVFoundation.framework */; };
 		AAA4EF642D0DFA7E00D361CA /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAA4EF632D0DFA7E00D361CA /* CoreHaptics.framework */; };
@@ -87,14 +74,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				AAA176572D13B6C20050862D /* libswresample.xcframework in Embed Frameworks */,
-				AAA176582D13B6C20050862D /* libswscale.xcframework in Embed Frameworks */,
-				AAA176592D13B6C20050862D /* ffmpegkit.xcframework in Embed Frameworks */,
-				AAA1765A2D13B6C20050862D /* libavformat.xcframework in Embed Frameworks */,
-				AAA1765B2D13B6C20050862D /* libavcodec.xcframework in Embed Frameworks */,
-				AAA1765C2D13B6C20050862D /* libavfilter.xcframework in Embed Frameworks */,
-				AAA1765D2D13B6C20050862D /* libavutil.xcframework in Embed Frameworks */,
-				AAA1765E2D13B6C20050862D /* libavdevice.xcframework in Embed Frameworks */,
 				AAA4EFA52D0FBEB000D361CA /* VNCClient.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -104,28 +83,23 @@
 
 /* Begin PBXFileReference section */
 		AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
+		AA63F8F92E791F8600154E2A /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
+		AA63F8FB2E791F9500154E2A /* libbz2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbz2.tbd; path = usr/lib/libbz2.tbd; sourceTree = SDKROOT; };
+		AA63FA482E798F4100154E2A /* libavutil.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavutil.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libavutil/libavutil.a"; sourceTree = "<group>"; };
+		AA63FA4A2E798F8D00154E2A /* libswscale.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libswscale.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libswscale.a"; sourceTree = "<group>"; };
+		AA63FA4B2E798F8D00154E2A /* libavdevice.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavdevice.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libavdevice.a"; sourceTree = "<group>"; };
+		AA63FA4C2E798F8D00154E2A /* libswresample.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libswresample.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libswresample.a"; sourceTree = "<group>"; };
+		AA63FA4D2E798F8D00154E2A /* libavutil.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavutil.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libavutil.a"; sourceTree = "<group>"; };
+		AA63FA4E2E798F8D00154E2A /* libavfilter.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavfilter.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libavfilter.a"; sourceTree = "<group>"; };
+		AA63FA4F2E798F8D00154E2A /* libavcodec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavcodec.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libavcodec.a"; sourceTree = "<group>"; };
+		AA63FA502E798F8D00154E2A /* libavformat.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavformat.a; path = "../../../../Downloads/ffmpeg-ios/FFmpeg/libs/libavformat.a"; sourceTree = "<group>"; };
+		AA63FA582E798FDC00154E2A /* libiconv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libiconv.tbd; path = usr/lib/libiconv.tbd; sourceTree = SDKROOT; };
 		AA7AF64B2DF57467002EC51D /* ScrcpyLiveActivityWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ScrcpyLiveActivityWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA7AF64C2DF57467002EC51D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		AA7AF64E2DF57467002EC51D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		AA7EA5262D01F33E00FF7760 /* Scrcpy Remote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Scrcpy Remote.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA8E623A2DC6502300999976 /* libarchive.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; path = libarchive.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA8E626B2DC655DD00999976 /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = usr/lib/libarchive.tbd; sourceTree = SDKROOT; };
-		AAA1764F2D13B6C20050862D /* libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswresample.xcframework; path = ../../porting/libs/xcframeworks/libswresample.xcframework; sourceTree = "<group>"; };
-		AAA176502D13B6C20050862D /* libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswscale.xcframework; path = ../../porting/libs/xcframeworks/libswscale.xcframework; sourceTree = "<group>"; };
-		AAA176512D13B6C20050862D /* ffmpegkit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ffmpegkit.xcframework; path = ../../porting/libs/xcframeworks/ffmpegkit.xcframework; sourceTree = "<group>"; };
-		AAA176522D13B6C20050862D /* libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavformat.xcframework; path = ../../porting/libs/xcframeworks/libavformat.xcframework; sourceTree = "<group>"; };
-		AAA176532D13B6C20050862D /* libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavcodec.xcframework; path = ../../porting/libs/xcframeworks/libavcodec.xcframework; sourceTree = "<group>"; };
-		AAA176542D13B6C20050862D /* libavfilter.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavfilter.xcframework; path = ../../porting/libs/xcframeworks/libavfilter.xcframework; sourceTree = "<group>"; };
-		AAA176552D13B6C20050862D /* libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavutil.xcframework; path = ../../porting/libs/xcframeworks/libavutil.xcframework; sourceTree = "<group>"; };
-		AAA176562D13B6C20050862D /* libavdevice.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavdevice.xcframework; path = ../../porting/libs/xcframeworks/libavdevice.xcframework; sourceTree = "<group>"; };
-		AAA4EF332D0D277400D361CA /* ffmpegkit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ffmpegkit.xcframework; path = ../porting/libs/xcframeworks/ffmpegkit.xcframework; sourceTree = "<group>"; };
-		AAA4EF342D0D277400D361CA /* libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswresample.xcframework; path = ../porting/libs/xcframeworks/libswresample.xcframework; sourceTree = "<group>"; };
-		AAA4EF352D0D277400D361CA /* libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libswscale.xcframework; path = ../porting/libs/xcframeworks/libswscale.xcframework; sourceTree = "<group>"; };
-		AAA4EF362D0D277400D361CA /* libavfilter.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavfilter.xcframework; path = ../porting/libs/xcframeworks/libavfilter.xcframework; sourceTree = "<group>"; };
-		AAA4EF372D0D277400D361CA /* libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavformat.xcframework; path = ../porting/libs/xcframeworks/libavformat.xcframework; sourceTree = "<group>"; };
-		AAA4EF382D0D277400D361CA /* libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavcodec.xcframework; path = ../porting/libs/xcframeworks/libavcodec.xcframework; sourceTree = "<group>"; };
-		AAA4EF392D0D277400D361CA /* libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavutil.xcframework; path = ../porting/libs/xcframeworks/libavutil.xcframework; sourceTree = "<group>"; };
-		AAA4EF3A2D0D277400D361CA /* libavdevice.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavdevice.xcframework; path = ../porting/libs/xcframeworks/libavdevice.xcframework; sourceTree = "<group>"; };
 		AAA4EF4E2D0DA3B100D361CA /* Scrcpy Remote Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Scrcpy Remote Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA4EF612D0DFA7800D361CA /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		AAA4EF632D0DFA7E00D361CA /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
@@ -283,14 +257,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AAA176472D13B6A40050862D /* ffmpegkit.xcframework in Frameworks */,
-				AAA176482D13B6A40050862D /* libswscale.xcframework in Frameworks */,
-				AAA176492D13B6A40050862D /* libswresample.xcframework in Frameworks */,
-				AAA1764A2D13B6A40050862D /* libavutil.xcframework in Frameworks */,
-				AAA1764B2D13B6A40050862D /* libavformat.xcframework in Frameworks */,
-				AAA1764C2D13B6A40050862D /* libavfilter.xcframework in Frameworks */,
-				AAA1764D2D13B6A40050862D /* libavdevice.xcframework in Frameworks */,
-				AAA1764E2D13B6A40050862D /* libavcodec.xcframework in Frameworks */,
+				AA63FA592E798FDC00154E2A /* libiconv.tbd in Frameworks */,
+				AA63F8FC2E791F9500154E2A /* libbz2.tbd in Frameworks */,
+				AA63F8FA2E791F8600154E2A /* VideoToolbox.framework in Frameworks */,
 				AAA4EFA42D0FBEB000D361CA /* VNCClient.framework in Frameworks */,
 				AAA4EF6C2D0DFAB700D361CA /* AudioToolbox.framework in Frameworks */,
 				AAA4EF6A2D0DFA9900D361CA /* CoreFoundation.framework in Frameworks */,
@@ -330,7 +299,6 @@
 		AA7EA51D2D01F33E00FF7760 = {
 			isa = PBXGroup;
 			children = (
-				AAA1765F2D13B6CC0050862D /* ffmpeg */,
 				AAA4EFC72D1072DE00D361CA /* ADBClient */,
 				AAA4EF592D0DEC9300D361CA /* Scrcpy SDL */,
 				AA7EA5282D01F33E00FF7760 /* Scrcpy Remote */,
@@ -354,24 +322,20 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		AAA1765F2D13B6CC0050862D /* ffmpeg */ = {
-			isa = PBXGroup;
-			children = (
-				AAA176512D13B6C20050862D /* ffmpegkit.xcframework */,
-				AAA176532D13B6C20050862D /* libavcodec.xcframework */,
-				AAA176562D13B6C20050862D /* libavdevice.xcframework */,
-				AAA176542D13B6C20050862D /* libavfilter.xcframework */,
-				AAA176522D13B6C20050862D /* libavformat.xcframework */,
-				AAA176552D13B6C20050862D /* libavutil.xcframework */,
-				AAA1764F2D13B6C20050862D /* libswresample.xcframework */,
-				AAA176502D13B6C20050862D /* libswscale.xcframework */,
-			);
-			path = ffmpeg;
-			sourceTree = "<group>";
-		};
 		AAA4EF322D0D277400D361CA /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				AA63FA582E798FDC00154E2A /* libiconv.tbd */,
+				AA63FA4E2E798F8D00154E2A /* libavfilter.a */,
+				AA63FA502E798F8D00154E2A /* libavformat.a */,
+				AA63FA482E798F4100154E2A /* libavutil.a */,
+				AA63FA4F2E798F8D00154E2A /* libavcodec.a */,
+				AA63FA4B2E798F8D00154E2A /* libavdevice.a */,
+				AA63FA4D2E798F8D00154E2A /* libavutil.a */,
+				AA63FA4C2E798F8D00154E2A /* libswresample.a */,
+				AA63FA4A2E798F8D00154E2A /* libswscale.a */,
+				AA63F8FB2E791F9500154E2A /* libbz2.tbd */,
+				AA63F8F92E791F8600154E2A /* VideoToolbox.framework */,
 				AA18D7272E0800BE00CD7D92 /* CoreBluetooth.framework */,
 				AA8E626B2DC655DD00999976 /* libarchive.tbd */,
 				AA8E623A2DC6502300999976 /* libarchive.a */,
@@ -388,14 +352,6 @@
 				AAA4EF652D0DFA8800D361CA /* GameController.framework */,
 				AAA4EF632D0DFA7E00D361CA /* CoreHaptics.framework */,
 				AAA4EF612D0DFA7800D361CA /* AVFoundation.framework */,
-				AAA4EF332D0D277400D361CA /* ffmpegkit.xcframework */,
-				AAA4EF382D0D277400D361CA /* libavcodec.xcframework */,
-				AAA4EF3A2D0D277400D361CA /* libavdevice.xcframework */,
-				AAA4EF362D0D277400D361CA /* libavfilter.xcframework */,
-				AAA4EF372D0D277400D361CA /* libavformat.xcframework */,
-				AAA4EF392D0D277400D361CA /* libavutil.xcframework */,
-				AAA4EF342D0D277400D361CA /* libswresample.xcframework */,
-				AAA4EF352D0D277400D361CA /* libswscale.xcframework */,
 				AA7AF64C2DF57467002EC51D /* WidgetKit.framework */,
 				AA7AF64E2DF57467002EC51D /* SwiftUI.framework */,
 			);
@@ -544,6 +500,8 @@
 				en,
 				Base,
 				"zh-Hans",
+				ja,
+				ko,
 			);
 			mainGroup = AA7EA51D2D01F33E00FF7760;
 			minimizedProjectReferenceProxies = 1;
@@ -853,11 +811,18 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
-				MARKETING_VERSION = 4.3.2;
+				MARKETING_VERSION = 4.3.3;
 				OTHER_LDFLAGS = (
 					"-ladb-full",
 					"-lscrcpy",
 					"-ltsnet-forwarder",
+					"-lavfilter",
+					"-lswscale",
+					"-lswresample",
+					"-lavdevice",
+					"-lavformat",
+					"-lavcodec",
+					"-lavutil",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -904,11 +869,18 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../porting/libs/$(PLATFORM_NAME)/$(ARCHS)";
-				MARKETING_VERSION = 4.3.2;
+				MARKETING_VERSION = 4.3.3;
 				OTHER_LDFLAGS = (
 					"-ladb-full",
 					"-lscrcpy",
 					"-ltsnet-forwarder",
+					"-lavfilter",
+					"-lswscale",
+					"-lswresample",
+					"-lavdevice",
+					"-lavformat",
+					"-lavcodec",
+					"-lavutil",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mobile.scrcpy-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";

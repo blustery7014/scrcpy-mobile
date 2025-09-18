@@ -11,3 +11,4 @@
 
 float ScrcpyAudioVolumeScale(float update_scale);
 const char *ScrcpyCoreVersion(void);
+void SetScrcpyHardwareDecodingEnabled(BOOL enabled);

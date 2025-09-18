@@ -67,7 +67,7 @@ struct SessionCreateView: View {
                 Section(header: Text("Remote Device")) {
                     TextField("Session Name (Optional)", text: $sessionModel.sessionName)
                         .autocorrectionDisabled()
-                    TextField("Host or vnc://host to force protocol", text: $hostInput)
+                    TextField("Host or vnc://host or adb://host", text: $hostInput)
                         .textContentType(.URL)
                         .autocorrectionDisabled()
                         .autocapitalization(.none)
@@ -238,6 +238,8 @@ struct SessionCreateView: View {
                         
                         Toggle("Keep Remote Device Awake During Use", isOn: $sessionModel.adbOptions.stayAwake)
                         
+                        Toggle("Enable Hardware Decoding", isOn: $sessionModel.adbOptions.enableHardwareDecoding)
+                        
                         Toggle("Start New Display", isOn: $sessionModel.adbOptions.startNewDisplay)
                         
                         if sessionModel.adbOptions.startNewDisplay {
@@ -289,9 +291,10 @@ struct SessionCreateView: View {
             }
             .navigationBarTitle(isEditMode ? "Edit Session" : "Create Session", displayMode: .inline)
             .onAppear {
-                // Initialize local inputs from session model when view appears
-                if hostInput.isEmpty { hostInput = sessionModel.host }
-                if portInput.isEmpty { portInput = sessionModel.port }
+                // Always initialize local inputs from session model when view appears.
+                // This ensures values are populated when reopening the editor.
+                hostInput = sessionModel.host
+                portInput = sessionModel.port
             }
             .onChange(of: hostInput) { newValue in
                 // If user types explicit scheme, ignore any previous force toggle
@@ -310,6 +313,8 @@ struct SessionCreateView: View {
                     Button("Save") {
                         // Validate session before saving
                         if validateSession() {
+                            // Sync inputs to model for saving
+                            syncInputsToSessionModel()
                             // Apply force VNC mode to session if needed
                             applyForceVNCMode()
                             

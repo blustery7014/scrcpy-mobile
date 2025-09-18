@@ -18,11 +18,11 @@ enum VNCCompressionLevel: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .none:
-            return "不压缩"
+            return NSLocalizedString("VNC Compression None", comment: "VNC compression level option")
         case .standard:
-            return "标准压缩"
+            return NSLocalizedString("VNC Compression Standard", comment: "VNC compression level option")
         case .maximum:
-            return "最大压缩"
+            return NSLocalizedString("VNC Compression Maximum", comment: "VNC compression level option")
         }
     }
     
@@ -49,15 +49,15 @@ enum VNCQualityLevel: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .lowest:
-            return "最低质量"
+            return NSLocalizedString("VNC Quality Lowest", comment: "VNC quality level option")
         case .low:
-            return "低质量"
+            return NSLocalizedString("VNC Quality Low", comment: "VNC quality level option")
         case .standard:
-            return "标准质量"
+            return NSLocalizedString("VNC Quality Standard", comment: "VNC quality level option")
         case .high:
-            return "高质量"
+            return NSLocalizedString("VNC Quality High", comment: "VNC quality level option")
         case .highest:
-            return "最高质量"
+            return NSLocalizedString("VNC Quality Highest", comment: "VNC quality level option")
         }
     }
     
@@ -146,6 +146,9 @@ struct ADBSessionOptions: Codable, Identifiable {
     // 自定义标志字典，用于支持额外的 scrcpy 参数
     var customFlags: [String: String] = [:]
     
+    // 硬件解码选项，默认启用
+    var enableHardwareDecoding: Bool = true
+    
     init() { }
     
     init(from decoder: any Decoder) throws {
@@ -184,6 +187,9 @@ struct ADBSessionOptions: Codable, Identifiable {
         
         // 解码自定义标志，默认为空字典
         self.customFlags = try container.decodeIfPresent([String: String].self, forKey: .customFlags) ?? [:]
+        
+        // 解码硬件解码选项，默认为 true
+        self.enableHardwareDecoding = try container.decodeIfPresent(Bool.self, forKey: .enableHardwareDecoding) ?? true
     }
 }
 

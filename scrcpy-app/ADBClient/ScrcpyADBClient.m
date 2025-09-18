@@ -415,6 +415,17 @@ void ScrcpyTryResetVideo(void) {
         }
     }
     
+    // Setup hardware decoding based on session settings
+    BOOL enableHardwareDecoding = YES; // Default to enabled
+    if (self.sessionArguments && self.sessionArguments[@"adbOptions"]) {
+        id hardwareDecodingSetting = self.sessionArguments[@"adbOptions"][@"enableHardwareDecoding"];
+        if ([hardwareDecodingSetting isKindOfClass:[NSNumber class]]) {
+            enableHardwareDecoding = [hardwareDecodingSetting boolValue];
+        }
+    }
+    NSLog(@"Hardware decoding enabled: %@", enableHardwareDecoding ? @"YES" : @"NO");
+    SetScrcpyHardwareDecodingEnabled(enableHardwareDecoding);
+    
     // Setup arguments
     NSArray *startArgs = [self buildScrcpyArgs:serial];
     NSLog(@"Starting scrcpy with arguments: %@", startArgs);

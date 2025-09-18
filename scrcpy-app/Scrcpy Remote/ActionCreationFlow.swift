@@ -189,7 +189,7 @@ struct NewActionView: View {
         action.name = actionName
         
         if let device = selectedDevice {
-            action.deviceId = device.id
+            action.deviceId = device.sessionModel.deviceId
             action.deviceType = device.sessionModel.deviceType
             action.executionTiming = executionTiming
             action.delaySeconds = delaySeconds
@@ -411,7 +411,7 @@ struct EditActionView: View {
             loadSavedSessions()
             // Find and select the associated device
             if let deviceId = action.deviceId {
-                selectedDevice = savedSessions.first { $0.id == deviceId }
+                selectedDevice = savedSessions.first { $0.sessionModel.deviceId == deviceId }
             }
         }
     }
@@ -528,7 +528,7 @@ struct EditActionView: View {
             updatedAction.name = actionName
             
             if let device = selectedDevice {
-                updatedAction.deviceId = device.id
+                updatedAction.deviceId = device.sessionModel.deviceId
                 updatedAction.deviceType = device.sessionModel.deviceType
                 updatedAction.executionTiming = executionTiming
                 updatedAction.delaySeconds = delaySeconds
