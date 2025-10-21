@@ -1,0 +1,368 @@
+/* Common buttons */
+"OK" = "OK";
+"Cancel" = "キャンセル";
+"Done" = "完了";
+"Back" = "戻る";
+"Next" = "次へ";
+"Skip" = "スキップ";
+"Retry" = "再試行";
+"Refresh" = "更新";
+"Delete" = "削除";
+"Save" = "保存";
+
+/* Alerts and messages */
+"Scrcpy Connection Error" = "Scrcpy接続エラー";
+"Detailed Error Information" = "詳細なエラー情報";
+"View Details" = "詳細を表示";
+"The connection was terminated due to an error:\n\n%@" = "エラーにより接続が終了しました：\n\n%@";
+"Status Update" = "ステータス更新";
+
+/* Global action confirmation */
+"Execute Action" = "自動化を実行";
+"Execute" = "実行";
+"Confirm Action" = "自動化を確認";
+"Are you sure you want to execute '%@'?\n\nAction ID: %@\nDevice Type: %@\nTiming: %@" = "'%@'を実行しますか？\n\nAction ID：%@\nデバイスタイプ：%@\nタイミング：%@";
+
+/* General navigation */
+"Sessions" = "セッション";
+"Actions" = "自動化";
+"New Action" = "新しいAction";
+"Edit Action" = "Actionを編集";
+"Delete Action" = "Actionを削除";
+"Duplicate Action" = "Actionを複製";
+"Copy URL Scheme" = "URLスキームをコピー";
+"Delete Session" = "セッションを削除";
+"Save Session" = "セッションを保存";
+"Save Action" = "Actionを保存";
+"Device*" = "デバイス*";
+"Actions*" = "自動化*";
+"Name*" = "名前*";
+
+/* Session create & options */
+"Connection Options" = "接続オプション";
+"VNC Session Options" = "VNCセッションオプション";
+"ADB Session Options" = "ADBセッションオプション";
+"Encoder Options" = "エンコーダオプション";
+"Video Encoder" = "ビデオエンコーダ";
+"Audio Encoder" = "オーディオエンコーダ";
+"Default Encoder" = "デフォルトエンコーダ";
+"Detected Encoders" = "検出されたエンコーダ";
+"Detected Audio Encoders" = "検出されたオーディオエンコーダ";
+"Detecting Video Encoders..." = "ビデオエンコーダを検出中…";
+"Detecting Audio Encoders..." = "オーディオエンコーダを検出中…";
+"Enter host and port first" = "まずホストとポートを入力してください";
+"Volume Scale" = "音量スケール";
+"Size:" = "サイズ：";
+"Sync iPhone Size" = "iPhoneサイズに同期";
+"Remote Device" = "リモートデバイス";
+"Host Address" = "ホストアドレス";
+"Port" = "ポート";
+"Use Socks Proxy" = "Socksプロキシを使用";
+"This session will connect through Tailscale network" = "このセッションはTailscaleネットワーク経由で接続します";
+
+/* Logs */
+"Application Logs" = "アプリケーションログ";
+"Log Files" = "ログファイル";
+"Logs Management" = "ログ管理";
+"Log Files Statistics" = "ログファイル統計";
+"Current log size:" = "現在のログサイズ：";
+"Total logs size:" = "ログ総サイズ：";
+"Total files:" = "ファイル総数：";
+"Total size:" = "総サイズ：";
+"File:" = "ファイル：";
+"Last Modified:" = "最終更新：";
+"Empty Log File" = "空のログファイル";
+"Loading log content..." = "ログ内容を読み込み中…";
+"Long press to copy" = "長押ししてコピー";
+"Start using the app to generate logs." = "アプリを使用してログを生成してください。";
+"Enable logging in settings to start recording logs" = "設定でログを有効にして記録を開始してください";
+"Clear" = "クリア";
+"Clear All" = "すべてクリア";
+"Clear All Logs" = "すべてのログをクリア";
+"Clear Old Logs" = "古いログをクリア";
+"Keep Current Only" = "現在のもののみ保持";
+"Delete Log File" = "ログファイルを削除";
+"This will permanently delete all log files. This action cannot be undone!" = "すべてのログファイルが完全に削除されます。この操作は取り消せません！";
+"This will delete all log files except the current one. Are you sure?" = "現在のログ以外のすべてのログファイルが削除されます。よろしいですか？";
+
+/* Tailscale */
+"Tailscale" = "Tailscale";
+"Tailscale Configuration" = "Tailscale設定";
+"Tailscale Auth Setting" = "Tailscale認証設定";
+"Tailscale Authentication Configured" = "Tailscale認証が設定されました";
+"MagicDNS:" = "MagicDNS：";
+"Tailscale IPv4:" = "Tailscale IPv4：";
+"Tailscale IPv6:" = "Tailscale IPv6：";
+"Please ensure you have a Tailscale account and the target device is connected to your Tailscale network." = "Tailscaleアカウントをお持ちで、対象デバイスがTailscaleネットワークに接続されていることを確認してください。";
+
+/* Status */
+"Connected Successfully" = "接続成功";
+"Connection Failed" = "接続失敗";
+"Connection Status" = "接続ステータス";
+"Connection failed. Please check your network settings and try again." = "接続に失敗しました。ネットワーク設定を確認して再試行してください。";
+"Connection Setup Failed" = "接続設定に失敗";
+"Validation Error" = "検証エラー";
+"Status" = "ステータス";
+"Status Message" = "ステータスメッセージ";
+
+/* URL scheme */
+"URL Scheme Connection" = "URLスキーム接続";
+"URL Scheme Copied" = "URLスキームをコピーしました";
+"URL Scheme has been copied to clipboard:\n\n%@" = "URLスキームがクリップボードにコピーされました：\n\n%@";
+
+/* Session & action naming */
+"Session Name" = "セッション名";
+"Select Device" = "デバイスを選択";
+"Action Name" = "自動化名";
+"Name Your Action" = "自動化に名前を付ける";
+"Action name is required" = "自動化名が必要です";
+"Action name looks good" = "自動化名は適切です";
+"Action configured" = "自動化が設定されました";
+
+/* Action configuration */
+"Execution Timing" = "実行タイミング";
+"Wait" = "待機";
+"Delay Time" = "遅延時間";
+"seconds" = "秒";
+"VNC Quick Actions" = "VNCクイック自動化";
+"Quick Actions" = "クイック自動化";
+"ADB Actions" = "ADB自動化";
+"Configure Actions" = "自動化を設定";
+"Send Key Event" = "キーイベントを送信";
+"Select PC Key" = "PCキーを選択";
+"Select Key" = "キーを選択";
+"Search keys..." = "キーを検索…";
+"Selected Keys:" = "選択されたキー：";
+"Drag to reorder" = "ドラッグして並び替え";
+"Modifiers (Optional)" = "修飾キー（オプション）";
+"Configure a sequence of keys to send to the device" = "デバイスに送信するキーシーケンスを設定";
+"Configure a sequence of keys to send to the VNC device" = "VNCデバイスに送信するキーシーケンスを設定";
+"Key interval:" = "キー間隔：";
+"Command interval:" = "コマンド間隔：";
+"Commands:" = "コマンド：";
+"Input Keys Configuration" = "入力キー設定";
+"VNC Input Keys Configuration" = "VNC入力キー設定";
+"Shell Commands Configuration" = "シェルコマンド設定";
+"Enter shell commands to execute on the Android device" = "Androidデバイスで実行するシェルコマンドを入力";
+"Common ADB Shell Examples" = "一般的なADBシェルの例";
+"One command per line" = "1行に1つのコマンド";
+"Examples" = "例";
+"Please enter at least one shell command" = "少なくとも1つのシェルコマンドを入力してください";
+"Please configure keys for Input Keys action" = "「入力キー」自動化のキーを設定してください";
+"Please configure at least one key" = "少なくとも1つのキーを設定してください";
+"Select actions to perform on the VNC device" = "VNCデバイスで実行する自動化を選択";
+"Select at least one action to perform when executing this action" = "この自動化の実行時に実行する動作を少なくとも1つ選択してください";
+"Choose a device to associate with this action" = "この自動化に関連付けるデバイスを選択";
+"Choose when to execute the actions after connection" = "接続後の自動化実行タイミングを選択";
+
+/* ADB keys management */
+"Manage ADB Keys" = "ADBキーを管理";
+"Generate New Keys" = "新しいキーを生成";
+"Generate New Key Pair" = "新しいキーペアを生成";
+"Export Keys" = "キーをエクスポート";
+"ADB Keys Directory" = "ADBキーディレクトリ";
+"ADB Keys Managements" = "ADBキー管理";
+"Private Key (adbkey)" = "秘密鍵（adbkey）";
+"Public Key (adbkey.pub)" = "公開鍵（adbkey.pub）";
+"Clear Pairing History" = "ペアリング履歴をクリア";
+"Clear Persistent State" = "永続状態をクリア";
+"This will permanently delete all pairing history. This action cannot be undone." = "すべてのペアリング履歴が完全に削除されます。この操作は取り消せません。";
+
+/* Pairing */
+"Pair ADB with Pairing Code" = "ペアリングコードでADBをペアリング";
+"Pairing Information" = "ペアリング情報";
+"Recent Pairing History" = "最近のペアリング履歴";
+"Tap Next in the top-right corner when ready" = "準備ができたら右上の「次へ」をタップ";
+"Please create a session first in the Sessions tab" = "まず「セッション」タブでセッションを作成してください";
+
+/* About */
+"About Scrcpy Remote" = "Scrcpy Remoteについて";
+"Settings" = "設定";
+"General" = "一般";
+"Appearance" = "外観";
+"System" = "システムに従う";
+"Letters" = "文字";
+"Numbers" = "123";
+"Navigation" = "ナビゲーション";
+"Hardware" = "ハードウェア";
+"Media" = "メディア";
+"Control" = "コントロール";
+"Modifiers" = "修飾キー";
+"Others" = "その他";
+"Function" = "ファンクション";
+"Symbols" = "記号";
+"Ctrl" = "Ctrl";
+"Alt" = "Alt";
+"Shift" = "Shift";
+"Cmd" = "Command";
+"Dark" = "ダーク";
+"Light" = "ライト";
+"Background Active" = "バックグラウンドでアクティブ";
+"1 minute" = "1分";
+"5 minutes" = "5分";
+"10 minutes" = "10分";
+"30 minutes" = "30分";
+"1 hour" = "1時間";
+"Always" = "常に";
+"Live Activity in Dynamic Island" = "Dynamic Islandでライブアクティビティ";
+"Debug Live Activity" = "ライブアクティビティをデバッグ";
+"Enable Log Recording" = "ログ記録を有効にする";
+"(%d files)" = "(%d ファイル)";
+
+/* Session Create */
+"Remote Device" = "リモートデバイス";
+"Session Name (Optional)" = "セッション名（オプション）";
+"Host or vnc://host or adb://host" = "ホストまたはvnc://hostまたはadb://host";
+"Port" = "ポート";
+"Force Switch to VNC mode" = "VNCモードに強制切り替え";
+"Connection Options" = "接続オプション";
+"Connect over Tailscale" = "Tailscale経由で接続";
+"VNC Session Options" = "VNCセッションオプション";
+"VNC User (Optional)" = "VNCユーザー（オプション）";
+"VNC Password" = "VNCパスワード";
+"ADB Session Options" = "ADBセッションオプション";
+"Video Codec" = "ビデオコーデック";
+"Audio Codec" = "オーディオコーデック";
+"Video Encoder" = "ビデオエンコーダ";
+"Audio Encoder" = "オーディオエンコーダ";
+"Default" = "デフォルト";
+"Max FPS, Default: 60" = "最大FPS、デフォルト：60";
+"Enable Audio (Android 11+)" = "オーディオを有効にする（Android 11以降）";
+"Enable Clipboard Sync" = "クリップボード同期を有効にする";
+"Turn Remote Screen Off After Connected" = "接続後にリモート画面をオフにする";
+"Turn Remote Screen Off After Disconnected" = "切断後にリモート画面をオフにする";
+"Keep Remote Device Awake During Use" = "使用中はリモートデバイスを起動状態に保つ";
+"Start New Display" = "新しいディスプレイを開始";
+"Size:" = "サイズ：";
+"Width" = "幅";
+"Height" = "高さ";
+"Display DPI" = "ディスプレイDPI";
+"Max Screen Size" = "最大画面サイズ";
+"Bit Rate, Default: 4M or 4000K" = "ビットレート、デフォルト：4Mまたは4000K";
+"Compress Level" = "圧縮レベル";
+"Quality Level" = "品質レベル";
+"Force Connect ADB Forward" = "ADBフォワード接続を強制";
+"Create Session" = "セッションを作成";
+"Edit Session" = "セッションを編集";
+"Connect Session" = "セッションに接続";
+"Duplicate Session" = "セッションを複製";
+"Select Video Encoder" = "ビデオエンコーダを選択";
+"Select Audio Encoder" = "オーディオエンコーダを選択";
+"Enter custom encoder name" = "カスタムエンコーダ名を入力";
+"Connecting to %@:%d" = "%@:%dに接続中";
+"Detection Failed" = "検出に失敗";
+"Failed to detect encoders" = "エンコーダの検出に失敗";
+"Failed to detect encoders. Please check your connection and try again." = "エンコーダの検出に失敗しました。接続を確認して再試行してください。";
+"Diagnostic info:" = "診断情報：";
+"Tailscale Auth" = "Tailscale認証";
+"Refresh Encoders" = "エンコーダを更新";
+
+/* Validation messages */
+"Please enter a valid host address." = "有効なホストアドレスを入力してください。";
+"Please enter a port number." = "ポート番号を入力してください。";
+"Please enter a valid port number (1-65535)." = "有効なポート番号（1-65535）を入力してください。";
+"Please enter a VNC password." = "VNCパスワードを入力してください。";
+"Please enter a valid display width." = "有効なディスプレイ幅を入力してください。";
+"Please enter a valid display height." = "有効なディスプレイ高さを入力してください。";
+"Please enter a valid display DPI." = "有効なディスプレイDPIを入力してください。";
+"Please enter a valid max FPS value." = "有効な最大FPS値を入力してください。";
+"Please enter a valid max screen size." = "有効な最大画面サイズを入力してください。";
+"Tailscale authentication is required but not configured." = "Tailscale認証が必要ですが、設定されていません。";
+"VNC Client Implementation:" = "VNCクライアント実装：";
+"Additionally, this app has built-in Tailscale tsnet module, which allows you to establish a virtual network between the app and your target service through Tailscale, then connect to it." = "また、このアプリには内蔵のTailscale tsnetモジュールがあり、アプリとターゲットサービス間でTailscaleを通じて仮想ネットワークを確立し、接続できます。";
+"For detailed usage help, please check:" = "詳細な使用方法については、以下をご確認ください：";
+"→ Tailscale Usage Guide" = "→ Tailscale使用ガイド";
+"→ LibVNCClient Documentation" = "→ LibVNCClientドキュメント";
+"→ Join Our Telegram Channel" = "→ Telegramチャンネルに参加";
+"Tips:" = "ヒント：";
+"To pair your Android device for wireless ADB debugging:" = "ワイヤレスADBデバッグ用にAndroidデバイスをペアリングするには：";
+"1. Open Android Settings" = "1. Android設定を開く";
+"2. Go to Developer Options" = "2. 開発者オプションに移動";
+"3. Enable Wireless Debugging" = "3. ワイヤレスデバッグを有効にする";
+"4. Tap 'Pair device with pairing code'" = "4. 「ペアリングコードでデバイスをペアリング」をタップ";
+"5. Enter the Host:Port and Pairing Code below" = "5. 下記にホスト:ポートとペアリングコードを入力";
+"How to Get Auth Key" = "認証キーの取得方法";
+"To get your Tailscale Auth Key:" = "Tailscale認証キーを取得するには：";
+"1. Visit https://login.tailscale.com/admin/settings/keys" = "1. https://login.tailscale.com/admin/settings/keys にアクセス";
+"2. Create a new Auth Key" = "2. 新しい認証キーを作成";
+"3. Copy the key and paste it above" = "3. キーをコピーして上記に貼り付け";
+"Android" = "Android";
+"iOS" = "iOS";
+"Unknown" = "不明";
+
+/* Other */
+"Networking" = "ネットワーク";
+"Network Addresses" = "ネットワークアドレス";
+"Request & Support" = "リクエスト＆サポート";
+"Submit an Issue" = "問題を報告";
+"Start Activity" = "アクティビティを開始";
+"Stop Activity" = "アクティビティを停止";
+"Stop All Activities" = "すべてのアクティビティを停止";
+"Update Activity" = "アクティビティを更新";
+"Start a new scrcpy session by tapping the + button.\nSessions will be saved here for quick access." = "右上の+ボタンをタップして新しいscrcpyセッションを開始してください。セッションはクイックアクセスのためにここに保存されます。";
+"Start a new scrcpy action by tapping the + button.\nActions are used to start scrcpy sessions and execute custom actions automatically." = "右上の+ボタンをタップして新しいScrcpy Actionを作成してください。Actionはscrcpyセッションを開始し、カスタム動作を自動実行するために使用されます。";
+"Actions are required to create a meaningful automation" = "意味のある自動化を作成するにはActionが必要です";
+"No Scrcpy Sessions" = "Scrcpyセッションなし";
+"No Scrcpy Actions" = "Scrcpy Actionなし";
+"No log files found" = "ログファイルが見つかりません";
+"No saved devices" = "保存されたデバイスなし";
+"A default name has been generated based on your selections. You can modify it if needed." = "選択内容に基づいてデフォルト名が生成されました。必要に応じて変更できます。";
+"This log file contains no content yet." = "このログファイルにはまだ内容がありません。";
+"This app uses LibVNCClient, a cross-platform C library that provides VNC client functionality. LibVNCClient is part of the LibVNCServer/LibVNCClient project, which is free software licensed under the GPL." = "このアプリは、VNCクライアント機能を提供するクロスプラットフォームCライブラリであるLibVNCClientを使用しています。LibVNCClientは、GPLライセンスの下でライセンスされたフリーソフトウェアであるLibVNCServer/LibVNCClientプロジェクトの一部です。";
+"Request & Support" = "リクエスト＆サポート";
+"This feature is under development, please wait." = "この機能は開発中です、お待ちください";
+
+/* Misc */
+"Select the type of action to perform on the Android device" = "Androidデバイスで実行する自動化Actionの種類を選択";
+"Select actions to perform on the VNC device" = "VNCデバイスで実行する自動化Actionを選択";
+"Please select a device to continue" = "続行するデバイスを選択してください";
+"Please select at least one VNC action" = "少なくとも1つのVNC自動化を選択してください";
+"Choose a device to associate with this action" = "このActionに関連付けるデバイスを選択";
+"No additional configuration needed" = "追加設定は不要です";
+"No saved devices" = "保存されたデバイスなし";
+"Enter action name" = "Action名を入力";
+"%d action(s) selected" = "%d個の自動化Actionが選択されました";
+"Execute Immediately" = "即座に実行";
+"Execute After Delay" = "遅延後実行";
+"Wait for Confirmation" = "確認を待つ";
+"Actions will execute right after connection" = "接続後すぐにActionが実行されます";
+"Actions will execute after specified delay" = "指定された遅延後にActionが実行されます";
+"Actions will wait for manual confirmation" = "手動確認後にActionが実行されます";
+"Input Keys" = "入力キー";
+"Sync Clipboard" = "クリップボード同期";
+"Send key combinations to VNC device" = "VNCデバイスにキーの組み合わせを送信";
+"Sync clipboard with VNC device" = "VNCデバイスとクリップボードを同期";
+"Home Key" = "ホームキー";
+"Switch Key" = "マルチタスクキー";
+"Shell Commands" = "シェルコマンド";
+"Execute ADB Home key (keyevent 3)" = "ADBホームキーを実行（keyevent 3）";
+"Execute ADB App Switch key (keyevent 187)" = "ADBアプリ切り替えキーを実行（keyevent 187）";
+"Execute ADB custom key sequence" = "ADBカスタムキーシーケンスを実行";
+"Execute ADB shell commands" = "ADBシェルコマンドを実行";
+"Your action will be saved and ready to use" = "Actionが保存され、使用準備が整います";
+"• Use descriptive names like 'Connect to Dev Server'" = "• 「開発サーバーに接続」のような説明的な名前を使用";
+"• Include device name for easy identification" = "• 識別しやすいようにデバイス名を含める";
+"• Names are automatically numbered if duplicates exist" = "• 重複する場合は自動的に番号が付けられます";
+"Select PC Key" = "PCキーを選択";
+
+/* Test & Debug functionality */
+"Test Video Player" = "テストビデオプレーヤー";
+"Test Video" = "テストビデオ";
+"Start test video first" = "まずテストビデオを開始してください";
+"Video layer ready (test video playing)" = "ビデオレイヤー準備完了（テストビデオ再生中）";
+"Test video playing (layer should be available soon)" = "テストビデオ再生中（レイヤーがまもなく利用可能になります）";
+"No video layer found (try playing the test video)" = "ビデオレイヤーが見つかりません（テストビデオの再生をお試しください）";
+"This tool helps you test and debug Live Activity functionality. You can:" = "このツールはライブアクティビティ機能のテストとデバッグを支援します。以下が可能です：";
+"Start/stop test activities" = "テストアクティビティの開始/停止";
+"Test different device types" = "異なるデバイスタイプのテスト";
+"PiP uses the current video layer. Use the test player above or connect to a device to test real content." = "PiPは現在のビデオレイヤーを使用します。上記のテストプレーヤーを使用するか、デバイスに接続して実際のコンテンツをテストしてください。";
+
+/* VNC Compression and Quality Levels */
+"VNC Compression None" = "圧縮なし";
+"VNC Compression Standard" = "標準圧縮";
+"VNC Compression Maximum" = "最大圧縮";
+"VNC Quality Lowest" = "最低品質";
+"VNC Quality Low" = "低品質";
+"VNC Quality Standard" = "標準品質";
+"VNC Quality High" = "高品質";
+"VNC Quality Highest" = "最高品質";

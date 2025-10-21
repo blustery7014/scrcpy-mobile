@@ -1144,6 +1144,7 @@ struct ActionsView: View {
                 List(actionManager.actions) { action in
                     ActionRowView(action: action, onExecute: { executeAction(action) })
                         .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                        .id("\(action.id)-\(action.deviceId?.uuidString ?? "none")-\(action.name)")
                         .contextMenu {
                             Button(action: {
                                 executeAction(action)
@@ -1409,9 +1410,9 @@ struct ActionsView: View {
 struct ActionRowView: View {
     let action: ScrcpyAction
     let onExecute: () -> Void
-    
+
     @State private var deviceName: String = "Unknown Device"
-    
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
@@ -1420,14 +1421,14 @@ struct ActionRowView: View {
                     .font(.headline)
                     .foregroundColor(.primary)
                     .lineLimit(2)
-                
+
                 // Device info
                 HStack(spacing: 6) {
                     // Device type icon
                     Image(systemName: action.deviceType == .vnc ? "desktopcomputer" : "iphone")
                         .font(.caption)
                         .foregroundColor(action.deviceType == .vnc ? .blue : .green)
-                    
+
                     // Device name
                     Text(deviceName)
                         .font(.subheadline)
@@ -1435,9 +1436,9 @@ struct ActionRowView: View {
                         .lineLimit(1)
                 }
             }
-            
+
             Spacer()
-            
+
             VStack(alignment: .trailing, spacing: 6) {
                 // Execute button
                 Button(action: onExecute) {
@@ -1445,13 +1446,13 @@ struct ActionRowView: View {
                         .font(.title2)
                         .foregroundColor(.blue)
                 }
-                
+
                 // Execution timing
                 HStack(spacing: 4) {
                     Image(systemName: action.executionTiming.icon)
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    
+
                     Text(executionTimingText)
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -1460,6 +1461,12 @@ struct ActionRowView: View {
         }
         .padding(.vertical, 9) // Increased from 4 to 14 (added 10px)
         .onAppear {
+            loadDeviceName()
+        }
+        .onChange(of: action.deviceId) { _ in
+            loadDeviceName()
+        }
+        .onChange(of: action.deviceType) { _ in
             loadDeviceName()
         }
     }

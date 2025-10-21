@@ -82,13 +82,6 @@ static bool convert_yuv420v_from_frame_data3(const Uint8 *frame_data3, int width
 }
 
 int avcodec_send_packet_hijack(AVCodecContext *avctx, const AVPacket *avpkt) {
-    if (avpkt && avctx) {
-        fprintf(stderr, "[INFO] AVPacket: size=%d, pts=%lld, dts=%lld, duration=%lld, stream_index=%d\n",
-                avpkt->size, avpkt->pts, avpkt->dts, avpkt->duration, avpkt->stream_index);
-        fprintf(stderr, "[INFO] AVCodecContext: %dx%d, pix_fmt=%d, codec_id=%d\n",
-                avctx->width, avctx->height, avctx->pix_fmt, avctx->codec_id);
-    }
-
     int ret = avcodec_send_packet(avctx, avpkt);
     if (ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];

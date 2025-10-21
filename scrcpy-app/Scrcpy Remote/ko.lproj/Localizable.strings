@@ -1,0 +1,368 @@
+/* Common buttons */
+"OK" = "확인";
+"Cancel" = "취소";
+"Done" = "완료";
+"Back" = "뒤로";
+"Next" = "다음";
+"Skip" = "건너뛰기";
+"Retry" = "재시도";
+"Refresh" = "새로고침";
+"Delete" = "삭제";
+"Save" = "저장";
+
+/* Alerts and messages */
+"Scrcpy Connection Error" = "Scrcpy 연결 오류";
+"Detailed Error Information" = "상세 오류 정보";
+"View Details" = "세부 정보 보기";
+"The connection was terminated due to an error:\n\n%@" = "오류로 인해 연결이 종료되었습니다:\n\n%@";
+"Status Update" = "상태 업데이트";
+
+/* Global action confirmation */
+"Execute Action" = "자동화 실행";
+"Execute" = "실행";
+"Confirm Action" = "자동화 확인";
+"Are you sure you want to execute '%@'?\n\nAction ID: %@\nDevice Type: %@\nTiming: %@" = "'%@'을(를) 실행하시겠습니까?\n\nAction ID: %@\n장치 유형: %@\n타이밍: %@";
+
+/* General navigation */
+"Sessions" = "세션";
+"Actions" = "자동화";
+"New Action" = "새 Action";
+"Edit Action" = "Action 편집";
+"Delete Action" = "Action 삭제";
+"Duplicate Action" = "Action 복제";
+"Copy URL Scheme" = "URL 스킴 복사";
+"Delete Session" = "세션 삭제";
+"Save Session" = "세션 저장";
+"Save Action" = "Action 저장";
+"Device*" = "장치*";
+"Actions*" = "자동화*";
+"Name*" = "이름*";
+
+/* Session create & options */
+"Connection Options" = "연결 옵션";
+"VNC Session Options" = "VNC 세션 옵션";
+"ADB Session Options" = "ADB 세션 옵션";
+"Encoder Options" = "인코더 옵션";
+"Video Encoder" = "비디오 인코더";
+"Audio Encoder" = "오디오 인코더";
+"Default Encoder" = "기본 인코더";
+"Detected Encoders" = "감지된 인코더";
+"Detected Audio Encoders" = "감지된 오디오 인코더";
+"Detecting Video Encoders..." = "비디오 인코더 감지 중…";
+"Detecting Audio Encoders..." = "오디오 인코더 감지 중…";
+"Enter host and port first" = "먼저 호스트와 포트를 입력하세요";
+"Volume Scale" = "볼륨 스케일";
+"Size:" = "크기:";
+"Sync iPhone Size" = "iPhone 크기 동기화";
+"Remote Device" = "원격 장치";
+"Host Address" = "호스트 주소";
+"Port" = "포트";
+"Use Socks Proxy" = "Socks 프록시 사용";
+"This session will connect through Tailscale network" = "이 세션은 Tailscale 네트워크를 통해 연결됩니다";
+
+/* Logs */
+"Application Logs" = "애플리케이션 로그";
+"Log Files" = "로그 파일";
+"Logs Management" = "로그 관리";
+"Log Files Statistics" = "로그 파일 통계";
+"Current log size:" = "현재 로그 크기:";
+"Total logs size:" = "총 로그 크기:";
+"Total files:" = "총 파일 수:";
+"Total size:" = "총 크기:";
+"File:" = "파일:";
+"Last Modified:" = "마지막 수정:";
+"Empty Log File" = "빈 로그 파일";
+"Loading log content..." = "로그 내용 로딩 중…";
+"Long press to copy" = "길게 눌러서 복사";
+"Start using the app to generate logs." = "앱을 사용하여 로그를 생성하세요.";
+"Enable logging in settings to start recording logs" = "설정에서 로깅을 활성화하여 로그 기록을 시작하세요";
+"Clear" = "지우기";
+"Clear All" = "모두 지우기";
+"Clear All Logs" = "모든 로그 지우기";
+"Clear Old Logs" = "오래된 로그 지우기";
+"Keep Current Only" = "현재 것만 보관";
+"Delete Log File" = "로그 파일 삭제";
+"This will permanently delete all log files. This action cannot be undone!" = "모든 로그 파일이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다!";
+"This will delete all log files except the current one. Are you sure?" = "현재 로그를 제외한 모든 로그 파일이 삭제됩니다. 계속하시겠습니까?";
+
+/* Tailscale */
+"Tailscale" = "Tailscale";
+"Tailscale Configuration" = "Tailscale 구성";
+"Tailscale Auth Setting" = "Tailscale 인증 설정";
+"Tailscale Authentication Configured" = "Tailscale 인증이 구성되었습니다";
+"MagicDNS:" = "MagicDNS:";
+"Tailscale IPv4:" = "Tailscale IPv4:";
+"Tailscale IPv6:" = "Tailscale IPv6:";
+"Please ensure you have a Tailscale account and the target device is connected to your Tailscale network." = "Tailscale 계정이 있고 대상 장치가 Tailscale 네트워크에 연결되어 있는지 확인하세요.";
+
+/* Status */
+"Connected Successfully" = "연결 성공";
+"Connection Failed" = "연결 실패";
+"Connection Status" = "연결 상태";
+"Connection failed. Please check your network settings and try again." = "연결에 실패했습니다. 네트워크 설정을 확인하고 다시 시도하세요.";
+"Connection Setup Failed" = "연결 설정 실패";
+"Validation Error" = "검증 오류";
+"Status" = "상태";
+"Status Message" = "상태 메시지";
+
+/* URL scheme */
+"URL Scheme Connection" = "URL 스킴 연결";
+"URL Scheme Copied" = "URL 스킴이 복사되었습니다";
+"URL Scheme has been copied to clipboard:\n\n%@" = "URL 스킴이 클립보드에 복사되었습니다:\n\n%@";
+
+/* Session & action naming */
+"Session Name" = "세션 이름";
+"Select Device" = "장치 선택";
+"Action Name" = "자동화 이름";
+"Name Your Action" = "자동화에 이름 지정";
+"Action name is required" = "자동화 이름이 필요합니다";
+"Action name looks good" = "자동화 이름이 적절합니다";
+"Action configured" = "자동화가 구성되었습니다";
+
+/* Action configuration */
+"Execution Timing" = "실행 타이밍";
+"Wait" = "대기";
+"Delay Time" = "지연 시간";
+"seconds" = "초";
+"VNC Quick Actions" = "VNC 빠른 자동화";
+"Quick Actions" = "빠른 자동화";
+"ADB Actions" = "ADB 자동화";
+"Configure Actions" = "자동화 구성";
+"Send Key Event" = "키 이벤트 전송";
+"Select PC Key" = "PC 키 선택";
+"Select Key" = "키 선택";
+"Search keys..." = "키 검색…";
+"Selected Keys:" = "선택된 키:";
+"Drag to reorder" = "드래그하여 순서 변경";
+"Modifiers (Optional)" = "수정자 키 (선택사항)";
+"Configure a sequence of keys to send to the device" = "장치에 전송할 키 시퀀스 구성";
+"Configure a sequence of keys to send to the VNC device" = "VNC 장치에 전송할 키 시퀀스 구성";
+"Key interval:" = "키 간격:";
+"Command interval:" = "명령 간격:";
+"Commands:" = "명령:";
+"Input Keys Configuration" = "입력 키 구성";
+"VNC Input Keys Configuration" = "VNC 입력 키 구성";
+"Shell Commands Configuration" = "셸 명령 구성";
+"Enter shell commands to execute on the Android device" = "Android 장치에서 실행할 셸 명령 입력";
+"Common ADB Shell Examples" = "일반적인 ADB 셸 예제";
+"One command per line" = "한 줄에 하나의 명령";
+"Examples" = "예제";
+"Please enter at least one shell command" = "최소 하나의 셸 명령을 입력하세요";
+"Please configure keys for Input Keys action" = "'입력 키' 자동화의 키를 구성하세요";
+"Please configure at least one key" = "최소 하나의 키를 구성하세요";
+"Select actions to perform on the VNC device" = "VNC 장치에서 수행할 자동화 선택";
+"Select at least one action to perform when executing this action" = "이 자동화 실행 시 수행할 작업을 최소 하나 선택하세요";
+"Choose a device to associate with this action" = "이 자동화와 연결할 장치 선택";
+"Choose when to execute the actions after connection" = "연결 후 자동화 실행 시점 선택";
+
+/* ADB keys management */
+"Manage ADB Keys" = "ADB 키 관리";
+"Generate New Keys" = "새 키 생성";
+"Generate New Key Pair" = "새 키 쌍 생성";
+"Export Keys" = "키 내보내기";
+"ADB Keys Directory" = "ADB 키 디렉토리";
+"ADB Keys Managements" = "ADB 키 관리";
+"Private Key (adbkey)" = "개인 키 (adbkey)";
+"Public Key (adbkey.pub)" = "공개 키 (adbkey.pub)";
+"Clear Pairing History" = "페어링 기록 지우기";
+"Clear Persistent State" = "영구 상태 지우기";
+"This will permanently delete all pairing history. This action cannot be undone." = "모든 페어링 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.";
+
+/* Pairing */
+"Pair ADB with Pairing Code" = "페어링 코드로 ADB 페어링";
+"Pairing Information" = "페어링 정보";
+"Recent Pairing History" = "최근 페어링 기록";
+"Tap Next in the top-right corner when ready" = "준비되면 우상단의 '다음'을 탭하세요";
+"Please create a session first in the Sessions tab" = "먼저 '세션' 탭에서 세션을 생성하세요";
+
+/* About */
+"About Scrcpy Remote" = "Scrcpy Remote 정보";
+"Settings" = "설정";
+"General" = "일반";
+"Appearance" = "외관";
+"System" = "시스템 따름";
+"Letters" = "문자";
+"Numbers" = "123";
+"Navigation" = "내비게이션";
+"Hardware" = "하드웨어";
+"Media" = "미디어";
+"Control" = "제어";
+"Modifiers" = "수정자 키";
+"Others" = "기타";
+"Function" = "기능";
+"Symbols" = "기호";
+"Ctrl" = "Ctrl";
+"Alt" = "Alt";
+"Shift" = "Shift";
+"Cmd" = "Command";
+"Dark" = "다크";
+"Light" = "라이트";
+"Background Active" = "백그라운드에서 활성화";
+"1 minute" = "1분";
+"5 minutes" = "5분";
+"10 minutes" = "10분";
+"30 minutes" = "30분";
+"1 hour" = "1시간";
+"Always" = "항상";
+"Live Activity in Dynamic Island" = "Dynamic Island에서 라이브 활동";
+"Debug Live Activity" = "라이브 활동 디버그";
+"Enable Log Recording" = "로그 기록 활성화";
+"(%d files)" = "(%d개 파일)";
+
+/* Session Create */
+"Remote Device" = "원격 장치";
+"Session Name (Optional)" = "세션 이름 (선택사항)";
+"Host or vnc://host or adb://host" = "호스트 또는 vnc://host 또는 adb://host";
+"Port" = "포트";
+"Force Switch to VNC mode" = "VNC 모드로 강제 전환";
+"Connection Options" = "연결 옵션";
+"Connect over Tailscale" = "Tailscale을 통해 연결";
+"VNC Session Options" = "VNC 세션 옵션";
+"VNC User (Optional)" = "VNC 사용자 (선택사항)";
+"VNC Password" = "VNC 비밀번호";
+"ADB Session Options" = "ADB 세션 옵션";
+"Video Codec" = "비디오 코덱";
+"Audio Codec" = "오디오 코덱";
+"Video Encoder" = "비디오 인코더";
+"Audio Encoder" = "오디오 인코더";
+"Default" = "기본값";
+"Max FPS, Default: 60" = "최대 FPS, 기본값: 60";
+"Enable Audio (Android 11+)" = "오디오 활성화 (Android 11 이상)";
+"Enable Clipboard Sync" = "클립보드 동기화 활성화";
+"Turn Remote Screen Off After Connected" = "연결 후 원격 화면 끄기";
+"Turn Remote Screen Off After Disconnected" = "연결 해제 후 원격 화면 끄기";
+"Keep Remote Device Awake During Use" = "사용 중 원격 장치 깨어있게 유지";
+"Start New Display" = "새 디스플레이 시작";
+"Size:" = "크기:";
+"Width" = "너비";
+"Height" = "높이";
+"Display DPI" = "디스플레이 DPI";
+"Max Screen Size" = "최대 화면 크기";
+"Bit Rate, Default: 4M or 4000K" = "비트레이트, 기본값: 4M 또는 4000K";
+"Compress Level" = "압축 레벨";
+"Quality Level" = "품질 레벨";
+"Force Connect ADB Forward" = "ADB 포워드 연결 강제";
+"Create Session" = "세션 생성";
+"Edit Session" = "세션 편집";
+"Connect Session" = "세션 연결";
+"Duplicate Session" = "세션 복제";
+"Select Video Encoder" = "비디오 인코더 선택";
+"Select Audio Encoder" = "오디오 인코더 선택";
+"Enter custom encoder name" = "사용자 정의 인코더 이름 입력";
+"Connecting to %@:%d" = "%@:%d에 연결 중";
+"Detection Failed" = "감지 실패";
+"Failed to detect encoders" = "인코더 감지 실패";
+"Failed to detect encoders. Please check your connection and try again." = "인코더 감지에 실패했습니다. 연결을 확인하고 다시 시도하세요.";
+"Diagnostic info:" = "진단 정보:";
+"Tailscale Auth" = "Tailscale 인증";
+"Refresh Encoders" = "인코더 새로고침";
+
+/* Validation messages */
+"Please enter a valid host address." = "유효한 호스트 주소를 입력하세요.";
+"Please enter a port number." = "포트 번호를 입력하세요.";
+"Please enter a valid port number (1-65535)." = "유효한 포트 번호(1-65535)를 입력하세요.";
+"Please enter a VNC password." = "VNC 비밀번호를 입력하세요.";
+"Please enter a valid display width." = "유효한 디스플레이 너비를 입력하세요.";
+"Please enter a valid display height." = "유효한 디스플레이 높이를 입력하세요.";
+"Please enter a valid display DPI." = "유효한 디스플레이 DPI를 입력하세요.";
+"Please enter a valid max FPS value." = "유효한 최대 FPS 값을 입력하세요.";
+"Please enter a valid max screen size." = "유효한 최대 화면 크기를 입력하세요.";
+"Tailscale authentication is required but not configured." = "Tailscale 인증이 필요하지만 구성되지 않았습니다.";
+"VNC Client Implementation:" = "VNC 클라이언트 구현:";
+"Additionally, this app has built-in Tailscale tsnet module, which allows you to establish a virtual network between the app and your target service through Tailscale, then connect to it." = "또한 이 앱에는 내장된 Tailscale tsnet 모듈이 있어 앱과 대상 서비스 간에 Tailscale을 통해 가상 네트워크를 구축하고 연결할 수 있습니다.";
+"For detailed usage help, please check:" = "자세한 사용법은 다음을 확인하세요:";
+"→ Tailscale Usage Guide" = "→ Tailscale 사용 가이드";
+"→ LibVNCClient Documentation" = "→ LibVNCClient 문서";
+"→ Join Our Telegram Channel" = "→ Telegram 채널 참여";
+"Tips:" = "팁:";
+"To pair your Android device for wireless ADB debugging:" = "무선 ADB 디버깅을 위해 Android 장치를 페어링하려면:";
+"1. Open Android Settings" = "1. Android 설정 열기";
+"2. Go to Developer Options" = "2. 개발자 옵션으로 이동";
+"3. Enable Wireless Debugging" = "3. 무선 디버깅 활성화";
+"4. Tap 'Pair device with pairing code'" = "4. '페어링 코드로 장치 페어링' 탭";
+"5. Enter the Host:Port and Pairing Code below" = "5. 아래에 호스트:포트와 페어링 코드 입력";
+"How to Get Auth Key" = "인증 키 획득 방법";
+"To get your Tailscale Auth Key:" = "Tailscale 인증 키를 획득하려면:";
+"1. Visit https://login.tailscale.com/admin/settings/keys" = "1. https://login.tailscale.com/admin/settings/keys 방문";
+"2. Create a new Auth Key" = "2. 새 인증 키 생성";
+"3. Copy the key and paste it above" = "3. 키를 복사하여 위에 붙여넣기";
+"Android" = "Android";
+"iOS" = "iOS";
+"Unknown" = "알 수 없음";
+
+/* Other */
+"Networking" = "네트워킹";
+"Network Addresses" = "네트워크 주소";
+"Request & Support" = "요청 및 지원";
+"Submit an Issue" = "문제 제출";
+"Start Activity" = "활동 시작";
+"Stop Activity" = "활동 중지";
+"Stop All Activities" = "모든 활동 중지";
+"Update Activity" = "활동 업데이트";
+"Start a new scrcpy session by tapping the + button.\nSessions will be saved here for quick access." = "우상단의 + 버튼을 탭하여 새로운 scrcpy 세션을 시작하세요. 세션은 빠른 액세스를 위해 여기에 저장됩니다.";
+"Start a new scrcpy action by tapping the + button.\nActions are used to start scrcpy sessions and execute custom actions automatically." = "우상단의 + 버튼을 탭하여 새로운 Scrcpy Action을 생성하세요. Action은 scrcpy 세션을 시작하고 사용자 정의 작업을 자동으로 실행하는 데 사용됩니다.";
+"Actions are required to create a meaningful automation" = "의미있는 자동화를 생성하려면 Action이 필요합니다";
+"No Scrcpy Sessions" = "Scrcpy 세션 없음";
+"No Scrcpy Actions" = "Scrcpy Action 없음";
+"No log files found" = "로그 파일을 찾을 수 없습니다";
+"No saved devices" = "저장된 장치 없음";
+"A default name has been generated based on your selections. You can modify it if needed." = "선택 사항을 기반으로 기본 이름이 생성되었습니다. 필요시 수정할 수 있습니다.";
+"This log file contains no content yet." = "이 로그 파일에는 아직 내용이 없습니다.";
+"This app uses LibVNCClient, a cross-platform C library that provides VNC client functionality. LibVNCClient is part of the LibVNCServer/LibVNCClient project, which is free software licensed under the GPL." = "이 앱은 VNC 클라이언트 기능을 제공하는 크로스 플랫폼 C 라이브러리인 LibVNCClient를 사용합니다. LibVNCClient는 GPL 라이선스 하에 있는 자유 소프트웨어인 LibVNCServer/LibVNCClient 프로젝트의 일부입니다.";
+"Request & Support" = "요청 및 지원";
+"This feature is under development, please wait." = "이 기능은 개발 중입니다. 잠시 기다려 주세요";
+
+/* Misc */
+"Select the type of action to perform on the Android device" = "Android 장치에서 수행할 자동화 Action 유형 선택";
+"Select actions to perform on the VNC device" = "VNC 장치에서 수행할 자동화 Action 선택";
+"Please select a device to continue" = "계속하려면 장치를 선택하세요";
+"Please select at least one VNC action" = "최소 하나의 VNC 자동화를 선택하세요";
+"Choose a device to associate with this action" = "이 Action과 연결할 장치 선택";
+"No additional configuration needed" = "추가 구성이 필요하지 않습니다";
+"No saved devices" = "저장된 장치 없음";
+"Enter action name" = "Action 이름 입력";
+"%d action(s) selected" = "%d개의 자동화 Action이 선택되었습니다";
+"Execute Immediately" = "즉시 실행";
+"Execute After Delay" = "지연 후 실행";
+"Wait for Confirmation" = "확인 대기";
+"Actions will execute right after connection" = "연결 후 바로 Action이 실행됩니다";
+"Actions will execute after specified delay" = "지정된 지연 후 Action이 실행됩니다";
+"Actions will wait for manual confirmation" = "수동 확인 후 Action이 실행됩니다";
+"Input Keys" = "입력 키";
+"Sync Clipboard" = "클립보드 동기화";
+"Send key combinations to VNC device" = "VNC 장치에 키 조합 전송";
+"Sync clipboard with VNC device" = "VNC 장치와 클립보드 동기화";
+"Home Key" = "홈 키";
+"Switch Key" = "멀티태스킹 키";
+"Shell Commands" = "셸 명령";
+"Execute ADB Home key (keyevent 3)" = "ADB 홈 키 실행 (keyevent 3)";
+"Execute ADB App Switch key (keyevent 187)" = "ADB 앱 전환 키 실행 (keyevent 187)";
+"Execute ADB custom key sequence" = "ADB 사용자 정의 키 시퀀스 실행";
+"Execute ADB shell commands" = "ADB 셸 명령 실행";
+"Your action will be saved and ready to use" = "Action이 저장되어 사용할 준비가 됩니다";
+"• Use descriptive names like 'Connect to Dev Server'" = "• '개발 서버에 연결'과 같은 설명적인 이름 사용";
+"• Include device name for easy identification" = "• 쉬운 식별을 위해 장치 이름 포함";
+"• Names are automatically numbered if duplicates exist" = "• 중복이 있으면 자동으로 번호가 매겨집니다";
+"Select PC Key" = "PC 키 선택";
+
+/* Test & Debug functionality */
+"Test Video Player" = "테스트 비디오 플레이어";
+"Test Video" = "테스트 비디오";
+"Start test video first" = "먼저 테스트 비디오를 시작하세요";
+"Video layer ready (test video playing)" = "비디오 레이어 준비 완료 (테스트 비디오 재생 중)";
+"Test video playing (layer should be available soon)" = "테스트 비디오 재생 중 (레이어가 곧 사용 가능해집니다)";
+"No video layer found (try playing the test video)" = "비디오 레이어를 찾을 수 없습니다 (테스트 비디오 재생을 시도해보세요)";
+"This tool helps you test and debug Live Activity functionality. You can:" = "이 도구는 라이브 활동 기능을 테스트하고 디버깅하는 데 도움이 됩니다. 다음을 할 수 있습니다:";
+"Start/stop test activities" = "테스트 활동 시작/중지";
+"Test different device types" = "다양한 장치 유형 테스트";
+"PiP uses the current video layer. Use the test player above or connect to a device to test real content." = "PiP는 현재 비디오 레이어를 사용합니다. 위의 테스트 플레이어를 사용하거나 장치에 연결하여 실제 콘텐츠를 테스트하세요.";
+
+/* VNC Compression and Quality Levels */
+"VNC Compression None" = "압축 없음";
+"VNC Compression Standard" = "표준 압축";
+"VNC Compression Maximum" = "최대 압축";
+"VNC Quality Lowest" = "최저 품질";
+"VNC Quality Low" = "낮은 품질";
+"VNC Quality Standard" = "표준 품질";
+"VNC Quality High" = "높은 품질";
+"VNC Quality Highest" = "최고 품질";

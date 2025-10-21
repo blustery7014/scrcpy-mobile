@@ -686,48 +686,38 @@ class SessionManager {
     }
     
     func saveAction(_ action: ScrcpyAction) {
-        print("📝 [ActionManager] saveAction called with: '\(action.name)' (ID: \(action.id))")
-        
-        // Update existing action or add new one
-        if let index = actions.firstIndex(where: { $0.id == action.id }) {
-            print("📝 [ActionManager] Updating existing action at index \(index): '\(action.name)' (ID: \(action.id))")
-            actions[index] = action
-        } else {
-            print("📝 [ActionManager] Adding new action: '\(action.name)' (ID: \(action.id))")
-            actions.append(action)
-        }
-        
-        // Save to persistent storage
-        saveActions()
-        
-        // Verify the save immediately
-        if let savedAction = actions.first(where: { $0.id == action.id }) {
-            print("✅ [ActionManager] Action in memory: '\(savedAction.name)' (ID: \(savedAction.id))")
-        } else {
-            print("❌ [ActionManager] Failed to find saved action with ID: \(action.id)")
-        }
-        
-        // Force UI refresh by triggering @Published change on main thread
+        print("📝 [ActionManager] saveAction called with: '\(action.name)' (ID: \(action.id), deviceId: \(action.deviceId?.uuidString ?? "nil"))")
+
+        // Ensure we're on the main thread for @Published to work properly
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            print("🔄 [ActionManager] About to force UI refresh...")
-            
-            // Debug: Print current actions before refresh
-            for (index, action) in self.actions.enumerated() {
-                print("🔄 [ActionManager] Before refresh Action[\(index)]: '\(action.name)' (ID: \(action.id))")
+
+            // Update existing action or add new one
+            if let index = self.actions.firstIndex(where: { $0.id == action.id }) {
+                print("📝 [ActionManager] Updating existing action at index \(index): '\(action.name)' (ID: \(action.id))")
+                print("📝 [ActionManager] Old deviceId: \(self.actions[index].deviceId?.uuidString ?? "nil"), New deviceId: \(action.deviceId?.uuidString ?? "nil")")
+
+                // Replace with new action object
+                self.actions[index] = action
+            } else {
+                print("📝 [ActionManager] Adding new action: '\(action.name)' (ID: \(action.id))")
+                self.actions.append(action)
             }
-            
-            // Force @Published to trigger by reassigning the array
-            let currentActions = self.actions
-            self.actions = []  // Clear first
-            self.actions = currentActions  // Then reassign to trigger @Published
-            
-            // Debug: Print actions after refresh
-            for (index, action) in self.actions.enumerated() {
-                print("🔄 [ActionManager] After refresh Action[\(index)]: '\(action.name)' (ID: \(action.id))")
+
+            // Save to persistent storage
+            self.saveActions()
+
+            // Verify the save immediately
+            if let savedAction = self.actions.first(where: { $0.id == action.id }) {
+                print("✅ [ActionManager] Action in memory: '\(savedAction.name)' (deviceId: \(savedAction.deviceId?.uuidString ?? "nil"))")
+            } else {
+                print("❌ [ActionManager] Failed to find saved action with ID: \(action.id)")
             }
-            
-            print("🔄 [ActionManager] Forced UI refresh by reassigning actions array")
+
+            // Force SwiftUI to detect the change by triggering objectWillChange
+            self.objectWillChange.send()
+
+            print("🔄 [ActionManager] Triggered objectWillChange to force UI refresh")
         }
     }
     

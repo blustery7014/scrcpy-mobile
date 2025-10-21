@@ -20,6 +20,11 @@ struct SessionCreateView: View {
     @State private var showingValidationError = false
     @State private var validationErrorMessage = ""
     @State private var forceVNCMode = false
+    // Local state for picker selections to ensure UI refresh
+    @State private var selectedCompressionLevel: VNCCompressionLevel = .standard
+    @State private var selectedQualityLevel: VNCQualityLevel = .standard
+    @State private var selectedVideoCodec: ADBVideoCodec = .h264
+    @State private var selectedAudioCodec: ADBAudioCodec = .opus
     private let isEditMode: Bool
     
     // Check if ADB is auto-selected based on input (not forced by user)
@@ -53,11 +58,15 @@ struct SessionCreateView: View {
     init() {
         isEditMode = false
     }
-    
+
     init(sessionModel: ScrcpySessionModel) {
         _sessionModel = State(initialValue: sessionModel)
         _hostInput = State(initialValue: sessionModel.host)
         _portInput = State(initialValue: sessionModel.port)
+        _selectedCompressionLevel = State(initialValue: sessionModel.vncOptions.compressionLevel)
+        _selectedQualityLevel = State(initialValue: sessionModel.vncOptions.qualityLevel)
+        _selectedVideoCodec = State(initialValue: sessionModel.adbOptions.videoCodec)
+        _selectedAudioCodec = State(initialValue: sessionModel.adbOptions.audioCodec)
         isEditMode = true
     }
     
@@ -133,19 +142,25 @@ struct SessionCreateView: View {
                         SecureField("VNC Password", text: $sessionModel.vncOptions.vncPassword)
                             .textContentType(.password)
                         
-                        Picker("Compress Level", selection: $sessionModel.vncOptions.compressionLevel) {
+                        Picker("Compress Level", selection: $selectedCompressionLevel) {
                             ForEach(VNCCompressionLevel.allCases, id: \.self) { level in
                                 Text(level.displayName).tag(level)
                             }
                         }
                         .pickerStyle(MenuPickerStyle())
-                        
-                        Picker("Quality Level", selection: $sessionModel.vncOptions.qualityLevel) {
+                        .onChange(of: selectedCompressionLevel) { newValue in
+                            sessionModel.vncOptions.compressionLevel = newValue
+                        }
+
+                        Picker("Quality Level", selection: $selectedQualityLevel) {
                             ForEach(VNCQualityLevel.allCases, id: \.self) { level in
                                 Text(level.displayName).tag(level)
                             }
                         }
                         .pickerStyle(MenuPickerStyle())
+                        .onChange(of: selectedQualityLevel) { newValue in
+                            sessionModel.vncOptions.qualityLevel = newValue
+                        }
                     }
                 }
                 if effectiveDeviceType == .adb {
@@ -163,10 +178,13 @@ struct SessionCreateView: View {
                                     }
                                 }
                             }
-                        Picker("Video Codec", selection: $sessionModel.adbOptions.videoCodec) {
+                        Picker("Video Codec", selection: $selectedVideoCodec) {
                             ForEach(ADBVideoCodec.allCases, id: \.self) { codec in
                                 Text(codec.rawValue)
                             }
+                        }
+                        .onChange(of: selectedVideoCodec) { newValue in
+                            sessionModel.adbOptions.videoCodec = newValue
                         }
                         // navigation with link to baidu.com
                         if hostInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || portInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -195,10 +213,13 @@ struct SessionCreateView: View {
                             .keyboardType(.numberPad)
                         Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
                         if sessionModel.adbOptions.enableAudio {
-                            Picker("Audio Codec", selection: $sessionModel.adbOptions.audioCodec) {
+                            Picker("Audio Codec", selection: $selectedAudioCodec) {
                                 ForEach(ADBAudioCodec.allCases, id: \.self) { codec in
                                     Text(codec.rawValue)
                                 }
+                            }
+                            .onChange(of: selectedAudioCodec) { newValue in
+                                sessionModel.adbOptions.audioCodec = newValue
                             }
                             if hostInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || portInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 HStack {
@@ -295,6 +316,12 @@ struct SessionCreateView: View {
                 // This ensures values are populated when reopening the editor.
                 hostInput = sessionModel.host
                 portInput = sessionModel.port
+
+                // Initialize picker state variables
+                selectedCompressionLevel = sessionModel.vncOptions.compressionLevel
+                selectedQualityLevel = sessionModel.vncOptions.qualityLevel
+                selectedVideoCodec = sessionModel.adbOptions.videoCodec
+                selectedAudioCodec = sessionModel.adbOptions.audioCodec
             }
             .onChange(of: hostInput) { newValue in
                 // If user types explicit scheme, ignore any previous force toggle

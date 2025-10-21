@@ -2273,7 +2273,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1720"
             endingLineNumber = "1720"
-            landmarkName = "-gestureRecognizer:shouldReceiveTouch:"
+            landmarkName = "-gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2337,7 +2337,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1558"
             endingLineNumber = "1558"
-            landmarkName = "-addTapGesture"
+            landmarkName = "-removeDragGesture"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2401,7 +2401,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "618"
             endingLineNumber = "618"
-            landmarkName = "-updateMenuPosition"
+            landmarkName = "-toggleMenuExpansion"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2417,7 +2417,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "637"
             endingLineNumber = "637"
-            landmarkName = "-updateMenuPosition"
+            landmarkName = "-toggleMenuExpansion"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2433,7 +2433,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1368"
             endingLineNumber = "1368"
-            landmarkName = "-handleVNCPinch:"
+            landmarkName = "-removePinchGesture"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2449,7 +2449,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1487"
             endingLineNumber = "1487"
-            landmarkName = "-addDragGesture"
+            landmarkName = "-handleVNCPinch:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -3147,20 +3147,6 @@
             symbolName = "get_hw_format"
             moduleName = "">
             <Locations>
-               <Location
-                  uuid = "7338AC2D-EE67-41E9-95DF-AE50BC021A01 - fc006c66400f8d49"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "get_hw_format"
-                  moduleName = "Scrcpy Remote.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/ethan/Src/github.com/scrcpy-mobile/porting/src/demuxer-porting.c"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "19"
-                  endingLineNumber = "19">
-               </Location>
             </Locations>
          </BreakpointContent>
       </BreakpointProxy>

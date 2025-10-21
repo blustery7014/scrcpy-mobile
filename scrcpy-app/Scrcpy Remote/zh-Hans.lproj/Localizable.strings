@@ -212,7 +212,7 @@
 /* Session Create */
 "Remote Device" = "远程设备";
 "Session Name (Optional)" = "会话名称（可选）";
-"Host or vnc://host to force protocol" = "主机（或使用 vnc://host 强制协议）";
+"Host or vnc://host or adb://host" = "主机（或使用 vnc://host 或 adb://host）";
 "Port" = "端口";
 "Force Switch to VNC mode" = "强制切换为 VNC 模式";
 "Connection Options" = "连接选项";

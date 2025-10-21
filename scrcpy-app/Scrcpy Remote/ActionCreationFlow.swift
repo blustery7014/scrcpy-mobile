@@ -515,41 +515,35 @@ struct EditActionView: View {
     
     private func saveAction() {
         guard !actionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        
-        // Create a deep copy of the original action using JSON serialization to avoid reference issues
-        do {
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(action)
-            
-            let decoder = JSONDecoder()
-            let updatedAction = try decoder.decode(ScrcpyAction.self, from: data)
-            
-            // Update the properties with new values
-            updatedAction.name = actionName
-            
-            if let device = selectedDevice {
-                updatedAction.deviceId = device.sessionModel.deviceId
-                updatedAction.deviceType = device.sessionModel.deviceType
-                updatedAction.executionTiming = executionTiming
-                updatedAction.delaySeconds = delaySeconds
-                
-                if device.sessionModel.deviceType == .vnc {
-                    updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
-                    updatedAction.vncInputKeysConfig = vncInputKeysConfig
-                } else {
-                    updatedAction.adbActionType = selectedADBActionType
-                    updatedAction.adbInputKeysConfig = adbInputKeysConfig
-                    updatedAction.adbShellConfig = adbShellConfig
-                    updatedAction.adbCommands = adbCommands
-                }
-            }
-            
-            print("📝 [EditActionView] Saving edited action: '\(updatedAction.name)' with ID: \(updatedAction.id)")
-            onSave(updatedAction)
-            dismiss()
-        } catch {
-            print("❌ [EditActionView] Failed to create deep copy for editing: \(error)")
+        guard let device = selectedDevice else {
+            print("❌ [EditActionView] Cannot save: no device selected")
+            return
         }
+
+        // Create a new action object with updated values
+        // This ensures proper SwiftUI refresh and change detection
+        let updatedAction = ScrcpyAction()
+        updatedAction.id = action.id  // Preserve the original ID
+        updatedAction.name = actionName
+        updatedAction.deviceId = device.sessionModel.deviceId
+        updatedAction.deviceType = device.sessionModel.deviceType
+        updatedAction.executionTiming = executionTiming
+        updatedAction.delaySeconds = delaySeconds
+        updatedAction.createdAt = action.createdAt  // Preserve creation date
+
+        if device.sessionModel.deviceType == .vnc {
+            updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
+            updatedAction.vncInputKeysConfig = vncInputKeysConfig
+        } else {
+            updatedAction.adbActionType = selectedADBActionType
+            updatedAction.adbInputKeysConfig = adbInputKeysConfig
+            updatedAction.adbShellConfig = adbShellConfig
+            updatedAction.adbCommands = adbCommands
+        }
+
+        print("📝 [EditActionView] Saving edited action: '\(updatedAction.name)' with device: \(device.sessionModel.sessionName) (deviceId: \(updatedAction.deviceId?.uuidString ?? "nil"))")
+        onSave(updatedAction)
+        dismiss()
     }
     
     private func resetForm() {

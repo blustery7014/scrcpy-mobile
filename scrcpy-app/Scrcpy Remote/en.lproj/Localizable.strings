@@ -1,0 +1,13 @@
+/* English localization strings file for Scrcpy Remote */
+/* This file serves as the base language template */
+/* Keys should match the source code string literals */
+
+/* VNC Compression and Quality Levels */
+"VNC Compression None" = "None";
+"VNC Compression Standard" = "Standard";
+"VNC Compression Maximum" = "Maximum";
+"VNC Quality Lowest" = "Quality Lowest";
+"VNC Quality Low" = "Low";
+"VNC Quality Standard" = "Standard";
+"VNC Quality High" = "High";
+"VNC Quality Highest" = "Highest";
