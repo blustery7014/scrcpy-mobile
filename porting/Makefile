@@ -40,7 +40,7 @@ scrcpy: scrcpy-config mkdir-output
 
 scrcpy-server:
 	set -x && \
-	export SCRCPY_VERSION=3.2 && \
+	export SCRCPY_VERSION=3.3.3 && \
 	export ANDROID_SDK_ROOT=~/Library/Android/sdk && \
 	export JAVA_HOME="/opt/homebrew/opt/openjdk@17" && \
 	export PATH="$$JAVA_HOME/bin:$$PATH" && \
@@ -62,3 +62,6 @@ tsnet-forwarder:
 	cd libtsnet/build && \
 		find . -name "*.a" -exec cp -v {} ../../libs/{} \; && \
 		find include -name "*.h" -exec cp -v {} ../../libs/{} \;
+
+server-diff:
+	bash ./scripts/server-diff.sh
