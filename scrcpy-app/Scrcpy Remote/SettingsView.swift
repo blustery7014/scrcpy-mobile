@@ -51,25 +51,25 @@ class AppSettings: ObservableObject {
     @AppStorage("settings.background_active_duration")
     var backgroundActiveDuration: BackgroundActiveDuration = .fiveMinutes
     
-    // 日志相关设置
+    // Logging related settings
     @AppStorage("settings.logging.enabled")
     var loggingEnabled: Bool = true {
         didSet {
-            // 只有在值真正改变时才调用 AppLogManager
+            // Only call AppLogManager when the value actually changes
             if loggingEnabled != AppLogManager.shared.isLoggingEnabled {
                 AppLogManager.shared.toggleLogging(loggingEnabled)
             }
         }
     }
-    
+
     init() {
         applyTheme()
-        
-        // 初始化日志设置，同步状态但不触发 didSet
+
+        // Initialize logging settings, sync state without triggering didSet
         let savedLoggingEnabled = UserDefaults.standard.bool(forKey: "settings.logging.enabled")
         AppLogManager.shared.isLoggingEnabled = savedLoggingEnabled
-        
-        // 监听系统外观变化通知
+
+        // Listen for system appearance change notifications
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAppearanceChange),
@@ -83,7 +83,7 @@ class AppSettings: ObservableObject {
     }
     
     @objc private func handleAppearanceChange() {
-        // 当系统外观变化时，如果用户设置为system模式，则应用相应主题
+        // When system appearance changes, apply the theme if user has set it to system mode
         if apperance == .system {
             applyTheme()
         }
@@ -97,34 +97,34 @@ class AppSettings: ObservableObject {
             return .light
         case .system:
             var window: UIWindow?
-            
-            // 先尝试iOS 14+的方式获取窗口
+
+            // First try iOS 14+ method to get the window
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 window = windowScene.windows.first
             }
-            
-            // 如果上面的方式不可用（iOS 13），尝试使用旧方法
+
+            // If the above method is not available (iOS 13), try the old method
             if window == nil {
                 window = UIApplication.shared.windows.first
             }
-            
+
             if let window = window {
                 return window.traitCollection.userInterfaceStyle == .dark ? .dark : .light
             }
-            
-            return .dark // 仅作为fallback返回dark
+
+            return .dark // Return dark as fallback only
         }
     }
     
     func applyTheme() {
         var window: UIWindow?
-        
-        // 先尝试iOS 14+的方式获取窗口
+
+        // First try iOS 14+ method to get the window
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             window = windowScene.windows.first
         }
-        
-        // 如果上面的方式不可用（iOS 13），尝试使用旧方法
+
+        // If the above method is not available (iOS 13), try the old method
         if window == nil {
             window = UIApplication.shared.windows.first
         }
@@ -173,12 +173,12 @@ class AppSettings: ObservableObject {
     // Picture in Picture setting
     @AppStorage("settings.pip.enabled")
     var pipEnabled: Bool = false
-    
-    // 新增：ADB配对历史
+
+    // New: ADB pairing history
     @AppStorage("settings.adb_pairing_history")
     var adbPairingHistory: String = ""
-    
-    // 配对历史记录结构
+
+    // Pairing history item structure
     struct PairingHistoryItem: Codable, Identifiable {
         let id = UUID()
         let hostPort: String
@@ -190,36 +190,36 @@ class AppSettings: ObservableObject {
         }
     }
     
-    // 获取配对历史数组
+    // Get pairing history array
     var pairingHistoryArray: [PairingHistoryItem] {
         if adbPairingHistory.isEmpty {
             return []
         }
-        
+
         do {
             let data = Data(adbPairingHistory.utf8)
             let items = try JSONDecoder().decode([PairingHistoryItem].self, from: data)
             return items
         } catch {
-            // 如果解析失败，尝试兼容旧格式（纯字符串数组）
+            // If parsing fails, try to support old format (plain string array)
             let oldFormat = adbPairingHistory.components(separatedBy: ",").filter { !$0.isEmpty }
             return oldFormat.map { PairingHistoryItem(hostPort: $0) }
         }
     }
-    
-    // 添加配对历史
+
+    // Add pairing history
     func addPairingHistory(_ hostPort: String) {
         var history = pairingHistoryArray
-        // 移除已存在的相同记录
+        // Remove existing same record
         history.removeAll { $0.hostPort == hostPort }
-        // 添加到开头
+        // Add to the beginning
         history.insert(PairingHistoryItem(hostPort: hostPort), at: 0)
-        // 限制历史记录数量为10个
+        // Limit history to 10 items
         if history.count > 10 {
             history = Array(history.prefix(10))
         }
-        
-        // 保存为JSON格式
+
+        // Save as JSON format
         do {
             let data = try JSONEncoder().encode(history)
             adbPairingHistory = String(data: data, encoding: .utf8) ?? ""
@@ -227,8 +227,8 @@ class AppSettings: ObservableObject {
             print("Failed to encode pairing history: \(error)")
         }
     }
-    
-    // 清除配对历史
+
+    // Clear pairing history
     func clearPairingHistory() {
         adbPairingHistory = ""
     }
@@ -237,11 +237,12 @@ class AppSettings: ObservableObject {
 struct SettingsView: View {
     @State private var showingClearAllLogsAlert = false
     @State private var showingSafariController = false
+    @State private var currentSafariURL: URL?
     @EnvironmentObject var appSettings: AppSettings
     @StateObject private var logManager = AppLogManager.shared
     @Environment(\.presentationMode) var presentationMode
-    
-    // 检查是否有 ADB 类型的会话
+
+    // Check if there are any ADB type sessions
     private var hasADBSessions: Bool {
         let sessions = SessionManager.shared.loadSessions()
         return sessions.contains { $0.deviceType == .adb }
@@ -309,7 +310,7 @@ struct SettingsView: View {
                         Text("Tailscale Auth Setting")
                     }
                 }
-                // 仅当有 ADB 类型的会话时才显示 ADB 管理选项
+                // Only show ADB management options when there are ADB type sessions
                 if hasADBSessions {
                     Section(header: Text("ADB Keys Managements")) {
                         NavigationLink(destination: ADBKeysManagementView()) {
@@ -369,10 +370,24 @@ struct SettingsView: View {
                 }
                 Section(header: Text("Request & Support")) {
                     Button(action: {
+                        currentSafariURL = URL(string: "https://github.com/wsvn53/scrcpy-mobile/issues")
                         showingSafariController = true
                     }) {
                         HStack {
                             Text("Submit an Issue")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                        }
+                    }
+                    .foregroundColor(.blue)
+
+                    Button(action: {
+                        currentSafariURL = URL(string: "https://scrcpy-remote.github.io/")
+                        showingSafariController = true
+                    }) {
+                        HStack {
+                            Text("Usage Guide")
                             Spacer()
                             Image(systemName: "arrow.up.right.square")
                                 .font(.caption)
@@ -387,10 +402,12 @@ struct SettingsView: View {
             })
         }
         .sheet(isPresented: $showingSafariController) {
-            SafariView(url: URL(string: "https://github.com/wsvn53/scrcpy-mobile/issues")!)
+            if let url = currentSafariURL {
+                SafariView(url: url)
+            }
         }
         .onAppear {
-            // 初始化日志管理器状态
+            // Initialize log manager state
             appSettings.loggingEnabled = logManager.isLoggingEnabled
         }
     }
@@ -637,18 +654,18 @@ struct TailscaleAuthSettingsView: View {
             // TailscaleManager will close connections automatically if not active
         }
     }
-    
+
     private func checkCurrentStatus() {
         let manager = TailscaleManager.shared
-        
+
         if manager.isConnected() {
             isConnected = true
-            
+
             // Get current IPs and MagicDNS separately
             tailscaleIPv4 = manager.getLastIPv4() ?? ""
             tailscaleIPv6 = manager.getLastIPv6() ?? ""
             tailscaleMagicDNS = manager.getLastMagicDNS() ?? ""
-            
+
             // Get detailed connection info
             if let info = manager.getConnectionInfo() {
                 connectionResult = "Already connected to Tailscale network!\n\(info)"
@@ -678,10 +695,10 @@ struct TailscaleAuthSettingsView: View {
     private func clearPersistentState() {
         DispatchQueue.global(qos: .userInitiated).async {
             let manager = TailscaleManager.shared
-            
+
             // First cleanup any active connections
             let cleanedCount = manager.cleanup()
-            
+
             // Then clear persistent state
             let success = manager.clearPersistentState()
             
@@ -762,11 +779,11 @@ struct TailscaleAuthSettingsView: View {
             // Step 4: Show current configuration
             let config = manager.getCurrentConfig()
             print("[Tailscale] Current config - Hostname: \(config.hostname ?? "N/A"), StateDir: \(config.stateDir ?? "N/A")")
-            
+
             // Step 5: Start async connection
             print("[Tailscale] Starting async connection...")
             manager.connectAsync()
-            
+
             // Step 6: Wait for connection with timeout
             let timeoutSeconds = 60
             var elapsed = 0
@@ -786,16 +803,16 @@ struct TailscaleAuthSettingsView: View {
                     DispatchQueue.main.async {
                         self.isConnecting = false
                         self.isConnected = true
-                        
+
                         // Get connection information
                         let ipv4 = manager.getLastIPv4()
                         let ipv6 = manager.getLastIPv6()
                         let hostname = manager.getLastHostname()
                         let magicDNS = manager.getLastMagicDNS()
-                        
+
                         print("[Tailscale] Connection info - IPv4: \(ipv4 ?? "N/A"), IPv6: \(ipv6 ?? "N/A")")
                         print("[Tailscale] Hostname: \(hostname ?? "N/A"), MagicDNS: \(magicDNS ?? "N/A")")
-                        
+
                         // Store connection information
                         self.tailscaleIPv4 = ipv4 ?? ""
                         self.tailscaleIPv6 = ipv6 ?? ""
@@ -827,26 +844,26 @@ struct TailscaleAuthSettingsView: View {
                         self.connectionResult = resultComponents.joined(separator: "\n")
                     }
                     return
-                    
+
                 } else if status == -1 {
                     // Connection failed
                     print("[Tailscale] Connection failed!")
                     DispatchQueue.main.async {
                         self.isConnecting = false
                         self.isConnected = false
-                        
+
                         let errorMessage = manager.getLastError() ?? "Unknown error"
                         print("[Tailscale] Error message: \(errorMessage)")
                         self.connectionResult = "Connection failed: \(errorMessage)\n\nTroubleshooting:\n• Check if Auth Key is valid and not expired\n• Ensure network connectivity\n• Verify Tailscale account permissions"
                     }
                     return
                 }
-                
+
                 // Still connecting, wait a bit more
                 Thread.sleep(forTimeInterval: 1.0)
                 elapsed += 1
             }
-            
+
             // Timeout reached
             print("[Tailscale] Connection timeout after \(timeoutSeconds) seconds")
             DispatchQueue.main.async {
@@ -1157,7 +1174,7 @@ struct LogFileDetailView: View {
 
     var body: some View {
         VStack {
-            // 文件信息
+            // File information
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("File:")
@@ -1190,8 +1207,8 @@ struct LogFileDetailView: View {
             .background(Color(.systemGray6))
             .cornerRadius(8)
             .padding(.horizontal)
-            
-            // 日志内容或空状态
+
+            // Log content or empty state
             if isLoading {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -1203,7 +1220,7 @@ struct LogFileDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
             } else if isLogContentEmpty {
-                // 空日志文件提示
+                // Empty log file notice
                 VStack(alignment: .center, spacing: 16) {
                     Image(systemName: "doc.text")
                         .font(.system(size: 60))
@@ -1230,7 +1247,7 @@ struct LogFileDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
             } else {
-                // 日志内容
+                // Log content
                 ScrollView {
                     Text(logContent)
                         .font(.system(.caption, design: .monospaced))
@@ -1269,8 +1286,8 @@ struct LogFileDetailView: View {
             loadLogContent()
         }
     }
-    
-    // 检查日志内容是否为空
+
+    // Check if log content is empty
     private var isLogContentEmpty: Bool {
         let trimmedContent = logContent.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedContent.isEmpty ||
@@ -1304,7 +1321,7 @@ struct DetailedLogsView: View {
 
     var body: some View {
         VStack {
-            // 控制栏
+            // Control bar
             HStack {
                 Toggle("Auto Refresh", isOn: $isAutoRefreshEnabled)
                     .onChange(of: isAutoRefreshEnabled) { enabled in
@@ -1329,8 +1346,8 @@ struct DetailedLogsView: View {
             }
             .padding()
             .background(Color(.systemGray6))
-            
-            // 日志内容
+
+            // Log content
             ScrollView {
                 Text(logs)
                     .font(.system(.caption, design: .monospaced))
@@ -1381,11 +1398,11 @@ struct DetailedLogsView: View {
     
     private func shareContent() {
         let activityVC = UIActivityViewController(activityItems: [logs], applicationActivities: nil)
-        
+
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first,
            let rootVC = window.rootViewController {
-            
+
             // For iPad
             if let popover = activityVC.popoverPresentationController {
                 popover.sourceView = window
@@ -1706,8 +1723,8 @@ struct ADBPairingView: View {
                 }
                 .padding(.vertical, 4)
             }
-            
-            // 配对历史记录
+
+            // Pairing history
             if !appSettings.pairingHistoryArray.isEmpty {
                 Section(header: Text("Recent Pairing History")) {
                     ForEach(appSettings.pairingHistoryArray) { item in
@@ -1820,24 +1837,24 @@ struct ADBPairingView: View {
         isPairing = true
         pairResultMessage = ""
         pairResultIsError = false
-        
-        // 调用 ADBClient 进行配对
+
+        // Call ADBClient to perform pairing
         let adbClient = ADBClient.shared()
         let hostPort = adbPairHostPort.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = adbPairCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         adbClient.executeADBCommandAsync(["pair", hostPort, code]) { output, returnCode in
             DispatchQueue.main.async {
                 isPairing = false
-                
+
                 if returnCode == 0, let output = output, output.lowercased().contains("success") {
                     pairResultMessage = "Pairing succeeded! You can now connect via ADB wireless."
                     pairResultIsError = false
-                    
-                    // 添加到配对历史
+
+                    // Add to pairing history
                     appSettings.addPairingHistory(hostPort)
-                    
-                    // 清空输入框
+
+                    // Clear input fields
                     adbPairHostPort = ""
                     adbPairCode = ""
                 } else {
@@ -1873,7 +1890,7 @@ struct SafariView: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {
-        // 不需要更新
+        // No update needed
     }
 }
 
