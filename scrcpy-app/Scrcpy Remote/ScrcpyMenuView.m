@@ -10,6 +10,8 @@
 #import <objc/runtime.h>
 #import "ScrcpyActionsBridge.h"
 #import "ScrcpyActionsTableViewController.h"
+#import "ADBClient.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // Add logging macro
 #define LOG_POSITION(fmt, ...) NSLog(@"[ScrcpyMenuView] " fmt, ##__VA_ARGS__)
@@ -109,6 +111,18 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 @property (nonatomic, strong) UIView *actionConfirmationView;
 @property (nonatomic, assign) CGPoint touchStartLocation;
 @property (nonatomic, assign) BOOL isDragging;
+
+// File Transfer 相关
+@property (nonatomic, strong) UIView *fileTransferPopupView;
+@property (nonatomic, strong) UIScrollView *fileTransferScrollView;
+@property (nonatomic, strong) NSMutableArray<NSURL *> *pendingFileURLs;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, UIProgressView *> *fileProgressViews;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, UILabel *> *fileStatusLabels;
+@property (nonatomic, assign) BOOL isFileTransferCancelled;
+@property (nonatomic, assign) NSInteger currentTransferIndex;
+@property (nonatomic, assign) BOOL hasFileTransferError;
+@property (nonatomic, strong) UIButton *fileTransferCloseButton;
+@property (nonatomic, strong) UILabel *fileTransferHeaderLabel;
 
 // Private method declarations
 - (void)savePositionRatio:(CGPoint)ratio;
@@ -1360,11 +1374,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (void)removePinchGesture {
-    if (self.pinchGesture) {
-        [self.pinchGesture.view removeGestureRecognizer:self.pinchGesture];
-        self.pinchGesture = nil;
-        LOG_POSITION(@"🗑️ Removed VNC pinch gesture");
-    }
+    [self safeRemoveGesture:&_pinchGesture];
+    LOG_POSITION(@"🗑️ Removed VNC pinch gesture");
 }
 
 - (UIWindow *)getSDLWindow {
@@ -1557,14 +1568,8 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (void)removeDragGesture {
-    if (self.dragGesture) {
-        [self.dragGesture.view removeGestureRecognizer:self.dragGesture];
-        self.dragGesture = nil;
-    }
-    if (self.scrollGesture) {
-        [self.scrollGesture.view removeGestureRecognizer:self.scrollGesture];
-        self.scrollGesture = nil;
-    }
+    [self safeRemoveGesture:&_dragGesture];
+    [self safeRemoveGesture:&_scrollGesture];
     LOG_POSITION(@"🗑️ Removed VNC drag and scroll gestures");
 }
 
@@ -1614,56 +1619,32 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 }
 
 - (void)removeTapGesture {
-    if (self.vncTapGesture) {
-        [self.vncTapGesture.view removeGestureRecognizer:self.vncTapGesture];
-        self.vncTapGesture = nil;
-    }
-    if (self.vncTwoFingerTapGesture) {
-        [self.vncTwoFingerTapGesture.view removeGestureRecognizer:self.vncTwoFingerTapGesture];
-        self.vncTwoFingerTapGesture = nil;
-    }
+    [self safeRemoveGesture:&_vncTapGesture];
+    [self safeRemoveGesture:&_vncTwoFingerTapGesture];
     LOG_POSITION(@"🗑️ Removed VNC tap gestures");
 }
 
 - (void)handleVNCTap:(UITapGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateEnded) {
-        return;
-    }
-    
-    CGPoint location = [gesture locationInView:gesture.view];
-    CGSize viewSize = gesture.view.bounds.size;
-    
-    // 判断是否为右键点击（可以根据需要调整逻辑，这里暂时都作为左键）
-    BOOL isRightClick = NO;
-    
-    NSLog(@"🎯 [ScrcpyMenuView] VNC tap gesture at (%.1f, %.1f), view size: (%.1fx%.1f)", 
-          location.x, location.y, viewSize.width, viewSize.height);
-    
-    // 发送点击事件通知
-    NSDictionary *userInfo = @{
-        kKeyType: kMouseEventTypeClick,
-        kKeyLocation: [NSValue valueWithCGPoint:location],
-        kKeyIsRightClick: @(isRightClick),
-        kKeyViewSize: [NSValue valueWithCGSize:viewSize]
-    };
-    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationVNCMouseEvent object:nil userInfo:userInfo];
+    [self handleVNCTapGesture:gesture isRightClick:NO];
 }
 
 - (void)handleVNCTwoFingerTap:(UITapGestureRecognizer *)gesture {
+    [self handleVNCTapGesture:gesture isRightClick:YES];
+}
+
+// Unified VNC tap gesture handler
+- (void)handleVNCTapGesture:(UITapGestureRecognizer *)gesture isRightClick:(BOOL)isRightClick {
     if (gesture.state != UIGestureRecognizerStateEnded) {
         return;
     }
-    
+
     CGPoint location = [gesture locationInView:gesture.view];
     CGSize viewSize = gesture.view.bounds.size;
-    
-    // 两指点击作为右键点击（类似TrackPad操作）
-    BOOL isRightClick = YES;
-    
-    NSLog(@"🎯 [ScrcpyMenuView] VNC two-finger tap gesture (right click) at (%.1f, %.1f), view size: (%.1fx%.1f)", 
-          location.x, location.y, viewSize.width, viewSize.height);
-    
-    // 发送右键点击事件通知
+
+    NSLog(@"🎯 [ScrcpyMenuView] VNC %@ tap gesture at (%.1f, %.1f), view size: (%.1fx%.1f)",
+          isRightClick ? @"two-finger (right click)" : @"single", location.x, location.y, viewSize.width, viewSize.height);
+
+    // 发送点击事件通知
     NSDictionary *userInfo = @{
         kKeyType: kMouseEventTypeClick,
         kKeyLocation: [NSValue valueWithCGPoint:location],
@@ -1677,13 +1658,87 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     // 设置手势优先级：点击手势优先级最高
     // 由于拖拽手势需要2-3个手指，它与单指点击手势在物理上不会冲突
     // 但为了确保点击响应速度，让其他单指手势等待点击手势失败
-    
+
     LOG_POSITION(@"🎯 Setting up VNC gesture priorities");
-    
+
     // 注意：由于拖拽手势配置为2-3指操作，理论上不会与单指点击冲突
     // 但如果有其他单指手势，可以在这里设置优先级
     if (self.vncTapGesture) {
         LOG_POSITION(@"✅ Tap gesture has highest priority for single finger touches");
+    }
+}
+
+#pragma mark - UI Helpers
+
+// Create an image with consistent container size (icon centered)
+- (UIImage *)imageWithIcon:(UIImage *)icon inSize:(CGSize)size {
+    UIGraphicsBeginImageContextWithOptions(size, NO, 0);
+    CGFloat x = (size.width - icon.size.width) / 2;
+    CGFloat y = (size.height - icon.size.height) / 2;
+    [icon drawInRect:CGRectMake(x, y, icon.size.width, icon.size.height)];
+    UIImage *result = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return result;
+}
+
+#pragma mark - VNC Gesture Helpers
+
+// Check if the gesture recognizer is a VNC-specific gesture
+- (BOOL)isVNCGesture:(UIGestureRecognizer *)gestureRecognizer {
+    return gestureRecognizer == self.pinchGesture ||
+           gestureRecognizer == self.dragGesture ||
+           gestureRecognizer == self.scrollGesture ||
+           gestureRecognizer == self.vncTapGesture ||
+           gestureRecognizer == self.vncTwoFingerTapGesture;
+}
+
+// Get descriptive name for a gesture recognizer (for logging)
+- (NSString *)gestureNameForRecognizer:(UIGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer == self.pinchGesture) return @"Pinch";
+    if (gestureRecognizer == self.dragGesture) return @"Drag";
+    if (gestureRecognizer == self.scrollGesture) return @"Scroll";
+    if (gestureRecognizer == self.vncTapGesture) return @"Tap";
+    if (gestureRecognizer == self.vncTwoFingerTapGesture) return @"TwoFingerTap";
+    return @"Unknown";
+}
+
+// Calculate normalized offset (clamped to [-1, 1]) from translation and view size
+- (CGPoint)normalizedOffsetForTranslation:(CGPoint)translation viewSize:(CGSize)viewSize {
+    CGFloat normalizedOffsetX = viewSize.width > 0 ? translation.x / viewSize.width : 0;
+    CGFloat normalizedOffsetY = viewSize.height > 0 ? translation.y / viewSize.height : 0;
+    return CGPointMake(MAX(-1.0, MIN(1.0, normalizedOffsetX)), MAX(-1.0, MIN(1.0, normalizedOffsetY)));
+}
+
+// Unified delegate notification for drag state changes
+- (void)notifyDelegateWithDragState:(NSString *)state location:(CGPoint)location viewSize:(CGSize)viewSize offset:(CGPoint)offset {
+    if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
+        [self.delegate didDragWithState:state location:location viewSize:viewSize offset:offset];
+    } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
+        [self.delegate didDragWithState:state location:location viewSize:viewSize];
+    }
+    [self didDragWithState:state location:location viewSize:viewSize offset:offset];
+}
+
+// Unified delegate notification for normalized offset during drag
+- (void)notifyDelegateWithNormalizedOffset:(CGPoint)normalizedOffset viewSize:(CGSize)viewSize isEnd:(BOOL)isEnd {
+    if (isEnd) {
+        if ([self.delegate respondsToSelector:@selector(didDragEndWithNormalizedOffset:viewSize:)]) {
+            [self.delegate didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+        }
+        [self didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+    } else {
+        if ([self.delegate respondsToSelector:@selector(didDragWithNormalizedOffset:viewSize:)]) {
+            [self.delegate didDragWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+        }
+        [self didDragWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+    }
+}
+
+// Helper to safely remove a gesture recognizer and nil the reference
+- (void)safeRemoveGesture:(UIGestureRecognizer * __strong *)gesturePtr {
+    if (gesturePtr && *gesturePtr) {
+        [(*gesturePtr).view removeGestureRecognizer:*gesturePtr];
+        *gesturePtr = nil;
     }
 }
 
@@ -1769,28 +1824,11 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         return NO;
     }
     
-    // 确俚Pinch手势只在VNC设备时响应
-    if (gestureRecognizer == self.pinchGesture) {
+    // 确保所有VNC手势只在VNC设备时响应
+    if ([self isVNCGesture:gestureRecognizer]) {
         BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
-        LOG_POSITION(@"🔍 [ScrcpyMenuView] Pinch gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
-        return shouldReceive;
-    }
-    // 确保拖拽手势只在VNC设备时响应
-    if (gestureRecognizer == self.dragGesture) {
-        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
-        LOG_POSITION(@"🔍 [ScrcpyMenuView] Drag gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
-        return shouldReceive;
-    }
-    // 确保滚动手势只在VNC设备时响应
-    if (gestureRecognizer == self.scrollGesture) {
-        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
-        LOG_POSITION(@"🔍 [ScrcpyMenuView] Scroll gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
-        return shouldReceive;
-    }
-    // 确保点击手势只在VNC设备时响应
-    if (gestureRecognizer == self.vncTapGesture || gestureRecognizer == self.vncTwoFingerTapGesture) {
-        BOOL shouldReceive = (self.currentDeviceType == ScrcpyDeviceTypeVNC);
-        LOG_POSITION(@"🔍 [ScrcpyMenuView] Tap gesture shouldReceive: %@", shouldReceive ? @"YES" : @"NO");
+        LOG_POSITION(@"🔍 [ScrcpyMenuView] VNC gesture %@ shouldReceive: %@",
+                     [self gestureNameForRecognizer:gestureRecognizer], shouldReceive ? @"YES" : @"NO");
         return shouldReceive;
     }
     return YES;
@@ -1852,147 +1890,74 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)handleDrag:(UIPanGestureRecognizer *)gesture {
     LOG_POSITION(@"🎯 [ScrcpyMenuView] handleDrag called - state: %ld, deviceType: %ld", (long)gesture.state, (long)self.currentDeviceType);
-    
+
     if (self.currentDeviceType != ScrcpyDeviceTypeVNC) {
         LOG_POSITION(@"⚠️ [ScrcpyMenuView] handleDrag ignored - not VNC device");
         return;
     }
-    
-    // 单指拖拽手势，用于鼠标移动
+
     CGPoint location = [gesture locationInView:gesture.view];
     CGSize viewSize = gesture.view.bounds.size;
-    
-    LOG_POSITION(@"🎯 VNC Single-finger drag gesture - state: %ld, location: (%.1f, %.1f)", 
+
+    LOG_POSITION(@"🎯 VNC Single-finger drag gesture - state: %ld, location: (%.1f, %.1f)",
                  (long)gesture.state, location.x, location.y);
-    
+
     switch (gesture.state) {
         case UIGestureRecognizerStateBegan: {
-            // 记录单指拖拽开始位置并设置拖拽状态
             self.dragStartLocation = location;
             self.currentDragOffset = CGPointZero;
             self.isDragging = YES;
-            
-            LOG_POSITION(@"🎯 VNC Single-finger drag began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f), isDragging: %@", 
+
+            LOG_POSITION(@"🎯 VNC Single-finger drag began - start location: (%.1f, %.1f), viewSize: (%.1f, %.1f), isDragging: %@",
                          location.x, location.y, viewSize.width, viewSize.height, self.isDragging ? @"YES" : @"NO");
-            
-            // 通知代理拖拽开始
-            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:kDragStateBegan location:location viewSize:viewSize offset:self.currentDragOffset];
-            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
-                // 兼容性处理
-                [self.delegate didDragWithState:kDragStateBegan location:location viewSize:viewSize];
-            }
-            
-            // 调用自己的代理方法实现
-            [self didDragWithState:kDragStateBegan location:location viewSize:viewSize offset:self.currentDragOffset];
+
+            [self notifyDelegateWithDragState:kDragStateBegan location:location viewSize:viewSize offset:self.currentDragOffset];
             break;
         }
-            
+
         case UIGestureRecognizerStateChanged: {
-            // 计算当前单指拖拽偏移量（相对于开始位置）
             CGPoint translation = [gesture translationInView:gesture.view];
             self.currentDragOffset = translation;
-            
-            // 计算归一化的偏移量（相对于视图尺寸的比例）
-            CGFloat normalizedOffsetX = translation.x / viewSize.width;
-            CGFloat normalizedOffsetY = translation.y / viewSize.height;
-            
-            // 确保归一化偏移量在合理范围内
-            normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
-            normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
-            
-            LOG_POSITION(@"🎯 VNC Single-finger drag changed - location: (%.1f, %.1f), translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
-                         location.x, location.y, translation.x, translation.y, normalizedOffsetX, normalizedOffsetY);
-            
-            // 通知代理拖拽移动（包含偏移量信息）
-            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:kDragStateChanged location:location viewSize:viewSize offset:self.currentDragOffset];
-            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
-                // 兼容性处理
-                [self.delegate didDragWithState:kDragStateChanged location:location viewSize:viewSize];
-            }
-            
-            // 调用自己的代理方法实现
-            [self didDragWithState:kDragStateChanged location:location viewSize:viewSize offset:self.currentDragOffset];
-            
-            // 通知代理渲染Rect控制（使用归一化偏移量）
-            if ([self.delegate respondsToSelector:@selector(didDragWithNormalizedOffset:viewSize:)]) {
-                CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
-                [self.delegate didDragWithNormalizedOffset:normalizedOffset viewSize:viewSize];
-            }
-            
-            // 调用自己的代理方法实现
-            CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
-            [self didDragWithNormalizedOffset:normalizedOffset viewSize:viewSize];
+            CGPoint normalizedOffset = [self normalizedOffsetForTranslation:translation viewSize:viewSize];
+
+            LOG_POSITION(@"🎯 VNC Single-finger drag changed - location: (%.1f, %.1f), translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)",
+                         location.x, location.y, translation.x, translation.y, normalizedOffset.x, normalizedOffset.y);
+
+            [self notifyDelegateWithDragState:kDragStateChanged location:location viewSize:viewSize offset:self.currentDragOffset];
+            [self notifyDelegateWithNormalizedOffset:normalizedOffset viewSize:viewSize isEnd:NO];
             break;
         }
-            
+
         case UIGestureRecognizerStateEnded: {
-            // 计算最终单指拖拽偏移量
             CGPoint translation = [gesture translationInView:gesture.view];
             self.currentDragOffset = translation;
-            self.totalDragOffset = CGPointMake(self.totalDragOffset.x + translation.x, 
+            self.totalDragOffset = CGPointMake(self.totalDragOffset.x + translation.x,
                                               self.totalDragOffset.y + translation.y);
-            
-            // 计算归一化的最终偏移量
-            CGFloat normalizedOffsetX = translation.x / viewSize.width;
-            CGFloat normalizedOffsetY = translation.y / viewSize.height;
-            normalizedOffsetX = MAX(-1.0, MIN(1.0, normalizedOffsetX));
-            normalizedOffsetY = MAX(-1.0, MIN(1.0, normalizedOffsetY));
-            
-            LOG_POSITION(@"🎯 VNC Single-finger drag ended - location: (%.1f, %.1f), final translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)", 
-                         location.x, location.y, translation.x, translation.y, normalizedOffsetX, normalizedOffsetY);
-            
-            // 通知代理拖拽结束（包含偏移量信息）
-            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:kDragStateEnded location:location viewSize:viewSize offset:self.currentDragOffset];
-            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
-                // 兼容性处理
-                [self.delegate didDragWithState:kDragStateEnded location:location viewSize:viewSize];
-            }
-            
-            // 调用自己的代理方法实现
-            [self didDragWithState:kDragStateEnded location:location viewSize:viewSize offset:self.currentDragOffset];
-            
-            // 通知代理最终渲染Rect控制（使用归一化偏移量）
-            if ([self.delegate respondsToSelector:@selector(didDragEndWithNormalizedOffset:viewSize:)]) {
-                CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
-                [self.delegate didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
-            }
-            
-            // 调用自己的代理方法实现
-            CGPoint normalizedOffset = CGPointMake(normalizedOffsetX, normalizedOffsetY);
-            [self didDragEndWithNormalizedOffset:normalizedOffset viewSize:viewSize];
-            
-            // 重置拖拽状态
+            CGPoint normalizedOffset = [self normalizedOffsetForTranslation:translation viewSize:viewSize];
+
+            LOG_POSITION(@"🎯 VNC Single-finger drag ended - location: (%.1f, %.1f), final translation: (%.1f, %.1f), normalized offset: (%.3f, %.3f)",
+                         location.x, location.y, translation.x, translation.y, normalizedOffset.x, normalizedOffset.y);
+
+            [self notifyDelegateWithDragState:kDragStateEnded location:location viewSize:viewSize offset:self.currentDragOffset];
+            [self notifyDelegateWithNormalizedOffset:normalizedOffset viewSize:viewSize isEnd:YES];
+
             self.isDragging = NO;
             LOG_POSITION(@"🎯 VNC Single-finger drag ended - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
             break;
         }
-            
+
         case UIGestureRecognizerStateCancelled: {
-            // 重置单指拖拽偏移量
             self.currentDragOffset = CGPointZero;
-            
+
             LOG_POSITION(@"🎯 VNC Single-finger drag cancelled - location: (%.1f, %.1f)", location.x, location.y);
-            
-            // 通知代理拖拽取消
-            if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:offset:)]) {
-                [self.delegate didDragWithState:kDragStateCancelled location:location viewSize:viewSize offset:self.currentDragOffset];
-            } else if ([self.delegate respondsToSelector:@selector(didDragWithState:location:viewSize:)]) {
-                // 兼容性处理
-                [self.delegate didDragWithState:kDragStateCancelled location:location viewSize:viewSize];
-            }
-            
-            // 调用自己的代理方法实现
-            [self didDragWithState:kDragStateCancelled location:location viewSize:viewSize offset:self.currentDragOffset];
-            
-            // 重置拖拽状态
+
+            [self notifyDelegateWithDragState:kDragStateCancelled location:location viewSize:viewSize offset:self.currentDragOffset];
+
             self.isDragging = NO;
             LOG_POSITION(@"🎯 VNC Single-finger drag cancelled - isDragging reset to: %@", self.isDragging ? @"YES" : @"NO");
             break;
         }
-            
+
         default:
             break;
     }
@@ -2304,37 +2269,29 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 - (void)buttonTouchDown:(UIButton *)sender {
     // Visual feedback for button press
-    [UIView animateWithDuration:0.1 animations:^{
-        sender.alpha = 0.5;
-        sender.transform = CGAffineTransformMakeScale(0.9, 0.9);
-    }];
+    [self animateButton:sender pressed:YES];
 }
 
 - (void)buttonTouchUpInside:(UIButton *)sender {
-    // Reset visual state
-    [UIView animateWithDuration:0.1 animations:^{
-        sender.alpha = 1.0;
-        sender.transform = CGAffineTransformIdentity;
-    }];
-    
+    [self animateButton:sender pressed:NO];
     // Handle button action based on accessibility identifier
     NSString *buttonType = sender.accessibilityIdentifier;
     [self handleButtonAction:buttonType];
 }
 
 - (void)buttonTouchUpOutside:(UIButton *)sender {
-    // Reset visual state
-    [UIView animateWithDuration:0.1 animations:^{
-        sender.alpha = 1.0;
-        sender.transform = CGAffineTransformIdentity;
-    }];
+    [self animateButton:sender pressed:NO];
 }
 
 - (void)buttonTouchCancel:(UIButton *)sender {
-    // Reset visual state
+    [self animateButton:sender pressed:NO];
+}
+
+// Unified button animation helper
+- (void)animateButton:(UIButton *)button pressed:(BOOL)pressed {
     [UIView animateWithDuration:0.1 animations:^{
-        sender.alpha = 1.0;
-        sender.transform = CGAffineTransformIdentity;
+        button.alpha = pressed ? 0.5 : 1.0;
+        button.transform = pressed ? CGAffineTransformMakeScale(0.9, 0.9) : CGAffineTransformIdentity;
     }];
 }
 
@@ -2434,19 +2391,26 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     [messageView addSubview:messageLabel];
     
     // Layout
-    messageView.frame = CGRectMake(0, 0, 180, 60);
+    CGFloat messageWidth = 180.0;
+    CGFloat messageHeight = 60.0;
+    messageView.frame = CGRectMake(0, 0, messageWidth, messageHeight);
     messageLabel.frame = messageView.bounds;
-    
-    // 计算位置（在 Actions 按钮上方）
-    CGRect actionsButtonFrame = [self convertRect:self.actionsButton.frame toView:window];
-    CGFloat popupX = actionsButtonFrame.origin.x - (messageView.frame.size.width - actionsButtonFrame.size.width) / 2;
-    CGFloat popupY = actionsButtonFrame.origin.y - messageView.frame.size.height - 10;
-    
-    // 确保 popup 在屏幕范围内
-    popupX = MAX(10, MIN(popupX, window.bounds.size.width - messageView.frame.size.width - 10));
-    popupY = MAX(10, popupY);
-    
-    messageView.frame = CGRectMake(popupX, popupY, messageView.frame.size.width, messageView.frame.size.height);
+
+    // 计算位置（在 Actions 按钮上方，与按钮右对齐）
+    // actionsButton 是 menuView 的子视图，需要从 menuView 坐标系转换到 window 坐标系
+    CGRect actionsButtonFrame = [self.menuView convertRect:self.actionsButton.frame toView:window];
+
+    // 使消息视图右边缘与按钮右边缘对齐
+    CGFloat popupX = CGRectGetMaxX(actionsButtonFrame) - messageWidth;
+    CGFloat popupY = actionsButtonFrame.origin.y - messageHeight - 10;
+
+    // 确保在屏幕范围内
+    popupX = MAX(10, MIN(popupX, window.bounds.size.width - messageWidth - 10));
+    if (popupY < 50) {
+        popupY = CGRectGetMaxY(actionsButtonFrame) + 10;
+    }
+
+    messageView.frame = CGRectMake(popupX, popupY, messageWidth, messageHeight);
     messageView.alpha = 0.0;
     messageView.transform = CGAffineTransformMakeScale(0.8, 0.8);
     
@@ -2511,19 +2475,32 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     
     // Layout TableView (留出一些边距)
     self.actionsTableView.frame = CGRectMake(10, 10, popupWidth - 20, popupHeight - 20);
-    
-    // 计算 popup 位置（在 Actions 按钮上方）
-    CGRect actionsButtonFrame = [self convertRect:self.actionsButton.frame toView:window];
-    CGFloat popupX = actionsButtonFrame.origin.x - (popupWidth - actionsButtonFrame.size.width) / 2;
+
+    // 计算 popup 位置（在 Actions 按钮上方，与按钮右对齐）
+    // actionsButton 是 menuView 的子视图，需要从 menuView 坐标系转换到 window 坐标系
+    CGRect actionsButtonFrame = [self.menuView convertRect:self.actionsButton.frame toView:window];
+
+    NSLog(@"🔧 [ScrcpyMenuView] Actions button frame in window: %@", NSStringFromCGRect(actionsButtonFrame));
+
+    // 使 popup 右边缘与按钮右边缘对齐
+    CGFloat popupX = CGRectGetMaxX(actionsButtonFrame) - popupWidth;
     CGFloat popupY = actionsButtonFrame.origin.y - popupHeight - 10;
-    
+
     // 确保 popup 在屏幕范围内
-    popupX = MAX(10, MIN(popupX, window.bounds.size.width - popupWidth - 10));
+    CGFloat minX = 10;
+    CGFloat maxX = window.bounds.size.width - popupWidth - 10;
+    popupX = MAX(minX, MIN(popupX, maxX));
+
     if (popupY < 50) {
         // 如果上方空间不够，显示在按钮下方
-        popupY = actionsButtonFrame.origin.y + actionsButtonFrame.size.height + 10;
+        popupY = CGRectGetMaxY(actionsButtonFrame) + 10;
     }
-    
+
+    // 确保 popup 不会超出屏幕底部
+    if (popupY + popupHeight > window.bounds.size.height - 10) {
+        popupY = window.bounds.size.height - popupHeight - 10;
+    }
+
     self.actionsPopupView.frame = CGRectMake(popupX, popupY, popupWidth, popupHeight);
     
     NSLog(@"🔥 [ScrcpyMenuView] Popup frame: %@", NSStringFromCGRect(self.actionsPopupView.frame));
@@ -2590,59 +2567,120 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
 
 #pragma mark - TableView DataSource & Delegate
 
+// Helper to check if "Send Files" should be shown (only for ADB devices)
+- (BOOL)shouldShowSendFilesOption {
+    return self.currentDeviceType == ScrcpyDeviceTypeADB;
+}
+
+// Helper to get the actual action index from table row
+- (NSInteger)actionIndexFromRow:(NSInteger)row {
+    return [self shouldShowSendFilesOption] ? row - 1 : row;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    NSLog(@"🔧 [ScrcpyMenuView] numberOfRowsInSection returning: %lu", (unsigned long)self.actionsData.count);
-    return self.actionsData.count;
+    NSInteger count = self.actionsData.count;
+    if ([self shouldShowSendFilesOption]) {
+        count += 1; // Add "Send Files" row
+    }
+    NSLog(@"🔧 [ScrcpyMenuView] numberOfRowsInSection returning: %ld", (long)count);
+    return count;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSLog(@"🔧 [ScrcpyMenuView] cellForRowAtIndexPath called for row: %ld", (long)indexPath.row);
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ActionCell" forIndexPath:indexPath];
-    
-    ScrcpyActionData *actionData = self.actionsData[indexPath.row];
-    
+
     // 配置 cell 外观
     cell.backgroundColor = [UIColor clearColor];
     cell.selectedBackgroundView = [[UIView alloc] init];
     cell.selectedBackgroundView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.2];
-    
+
+    // Left align text
+    cell.textLabel.textAlignment = NSTextAlignmentLeft;
+    cell.detailTextLabel.textAlignment = NSTextAlignmentLeft;
+
+    // Define consistent icon container size
+    CGSize iconContainerSize = CGSizeMake(28, 28);
+    UIImageSymbolConfiguration *largeConfig = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightMedium];
+    UIImageSymbolConfiguration *smallConfig = [UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightMedium];
+
+    // Check if this is the "Send Files" row (first row for ADB devices)
+    if ([self shouldShowSendFilesOption] && indexPath.row == 0) {
+        // Use SF Symbol for Send Files
+        UIImage *sendIcon = [[UIImage systemImageNamed:@"square.and.arrow.up.fill" withConfiguration:largeConfig]
+                             imageWithTintColor:[UIColor systemBlueColor] renderingMode:UIImageRenderingModeAlwaysOriginal];
+        cell.imageView.image = [self imageWithIcon:sendIcon inSize:iconContainerSize];
+        cell.textLabel.text = @"Send Files";
+        cell.textLabel.textColor = [UIColor whiteColor];
+        cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];
+        cell.detailTextLabel.text = @"Push files to /sdcard/Download";
+        cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
+        cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
+        return cell;
+    }
+
+    // Get actual action index
+    NSInteger actionIndex = [self actionIndexFromRow:indexPath.row];
+    if (actionIndex < 0 || actionIndex >= (NSInteger)self.actionsData.count) {
+        return cell;
+    }
+
+    ScrcpyActionData *actionData = self.actionsData[actionIndex];
+
+    // Use SF Symbol for custom actions (smaller icon, same container width)
+    UIImage *actionIcon = [[UIImage systemImageNamed:@"terminal.fill" withConfiguration:smallConfig]
+                           imageWithTintColor:[UIColor systemGrayColor] renderingMode:UIImageRenderingModeAlwaysOriginal];
+    cell.imageView.image = [self imageWithIcon:actionIcon inSize:iconContainerSize];
+
     // 配置文本
     cell.textLabel.text = actionData.name;
     cell.textLabel.textColor = [UIColor whiteColor];
     cell.textLabel.font = [UIFont systemFontOfSize:16.0];
-    
+
     // 配置细节文本
-    NSString *deviceTypeIcon = [actionData.deviceType isEqualToString:@"VNC"] ? @"💻" : @"📱";
     NSString *timingText = @"";
-    
     if ([actionData.executionTiming isEqualToString:@"immediate"]) {
-        timingText = @"⚡ Immediate";
+        timingText = @"Immediate";
     } else if ([actionData.executionTiming isEqualToString:@"delayed"]) {
-        timingText = [NSString stringWithFormat:@"⏱ %lds", (long)actionData.delaySeconds];
+        timingText = [NSString stringWithFormat:@"Delay %lds", (long)actionData.delaySeconds];
     } else {
-        timingText = @"✋ Confirm";
+        timingText = @"Confirm";
     }
-    
-    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ %@", deviceTypeIcon, timingText];
+
+    cell.detailTextLabel.text = timingText;
     cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
     cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
-    
+
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     NSLog(@"🔥 [ScrcpyMenuView] didSelectRowAtIndexPath called for row: %ld", (long)indexPath.row);
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    
-    ScrcpyActionData *selectedAction = self.actionsData[indexPath.row];
+
+    // Check if "Send Files" was tapped (first row for ADB devices)
+    if ([self shouldShowSendFilesOption] && indexPath.row == 0) {
+        NSLog(@"📤 [ScrcpyMenuView] Send Files selected");
+        [self hideActionsMenu];
+        [self showFilePicker];
+        return;
+    }
+
+    // Get actual action index
+    NSInteger actionIndex = [self actionIndexFromRow:indexPath.row];
+    if (actionIndex < 0 || actionIndex >= (NSInteger)self.actionsData.count) {
+        return;
+    }
+
+    ScrcpyActionData *selectedAction = self.actionsData[actionIndex];
     NSLog(@"🎯 [ScrcpyMenuView] Action selected: %@", selectedAction.name);
-    
+
     // 检查是否需要确认，如果需要确认则不立即隐藏菜单
     BOOL requiresConfirmation = [selectedAction.executionTiming isEqualToString:@"confirmation"];
-    
+
     // 执行选中的 action
     [self executeActionData:selectedAction];
-    
+
     // 只有当不需要确认时才立即隐藏 popup
     if (!requiresConfirmation) {
         [self hideActionsMenu];
@@ -2700,7 +2738,7 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
     if (!self.actionConfirmationView) {
         return;
     }
-    
+
     [UIView animateWithDuration:0.2 animations:^{
         self.actionConfirmationView.alpha = 0.0;
         self.actionConfirmationView.transform = CGAffineTransformMakeScale(0.9, 0.9);
@@ -2708,6 +2746,365 @@ static const CGFloat kDynamicIslandWidth = 100.0f;
         [self.actionConfirmationView removeFromSuperview];
         self.actionConfirmationView = nil;
     }];
+}
+
+#pragma mark - File Transfer
+
+- (void)showFilePicker {
+    NSLog(@"📂 [ScrcpyMenuView] Showing file picker");
+
+    // Create document picker for selecting files
+    NSArray *contentTypes = @[UTTypeItem, UTTypeData, UTTypeContent];
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc]
+                                              initForOpeningContentTypes:contentTypes
+                                              asCopy:YES];
+    picker.delegate = self;
+    picker.allowsMultipleSelection = YES;
+    picker.modalPresentationStyle = UIModalPresentationFormSheet;
+
+    // Find the top view controller to present from
+    UIViewController *topVC = [self topViewController];
+    if (topVC) {
+        [topVC presentViewController:picker animated:YES completion:nil];
+    } else {
+        NSLog(@"❌ [ScrcpyMenuView] Cannot present file picker - no top view controller");
+    }
+}
+
+- (UIViewController *)topViewController {
+    UIViewController *topVC = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            for (UIWindow *window in scene.windows) {
+                if (window.isKeyWindow) {
+                    topVC = window.rootViewController;
+                    while (topVC.presentedViewController) {
+                        topVC = topVC.presentedViewController;
+                    }
+                    return topVC;
+                }
+            }
+        }
+    }
+    return topVC;
+}
+
+#pragma mark - UIDocumentPickerDelegate
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    NSLog(@"📂 [ScrcpyMenuView] Picked %lu files", (unsigned long)urls.count);
+
+    if (urls.count == 0) {
+        return;
+    }
+
+    // Store file URLs and start transfer
+    self.pendingFileURLs = [urls mutableCopy];
+    self.isFileTransferCancelled = NO;
+    self.hasFileTransferError = NO;
+    self.currentTransferIndex = 0;
+
+    // Show progress popup
+    [self showFileTransferProgress];
+
+    // Start file transfer
+    [self startFileTransfer];
+}
+
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
+    NSLog(@"📂 [ScrcpyMenuView] File picker cancelled");
+}
+
+#pragma mark - File Transfer Progress UI
+
+- (void)showFileTransferProgress {
+    NSLog(@"📤 [ScrcpyMenuView] Showing file transfer progress popup");
+
+    UIWindow *window = [self activeWindow];
+    if (!window) return;
+
+    // Initialize dictionaries
+    self.fileProgressViews = [NSMutableDictionary dictionary];
+    self.fileStatusLabels = [NSMutableDictionary dictionary];
+
+    // Calculate popup size
+    CGFloat popupWidth = 320.0;
+    CGFloat rowHeight = 60.0;
+    CGFloat headerHeight = 50.0;
+    CGFloat cancelButtonHeight = 50.0;
+    CGFloat padding = 16.0;
+    CGFloat maxContentHeight = MIN(self.pendingFileURLs.count * rowHeight, 300.0);
+    CGFloat popupHeight = headerHeight + maxContentHeight + cancelButtonHeight + padding * 2;
+
+    // Create popup container
+    self.fileTransferPopupView = [[UIView alloc] init];
+    self.fileTransferPopupView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.95];
+    self.fileTransferPopupView.layer.cornerRadius = 16.0;
+    self.fileTransferPopupView.layer.shadowColor = [UIColor blackColor].CGColor;
+    self.fileTransferPopupView.layer.shadowOffset = CGSizeMake(0, 4);
+    self.fileTransferPopupView.layer.shadowOpacity = 0.4;
+    self.fileTransferPopupView.layer.shadowRadius = 10.0;
+
+    // Center the popup
+    CGFloat popupX = (window.bounds.size.width - popupWidth) / 2;
+    CGFloat popupY = (window.bounds.size.height - popupHeight) / 2;
+    self.fileTransferPopupView.frame = CGRectMake(popupX, popupY, popupWidth, popupHeight);
+
+    // Header label
+    self.fileTransferHeaderLabel = [[UILabel alloc] initWithFrame:CGRectMake(padding, padding, popupWidth - padding * 2, 30)];
+    self.fileTransferHeaderLabel.text = [NSString stringWithFormat:@"📤 Sending %lu file(s)...", (unsigned long)self.pendingFileURLs.count];
+    self.fileTransferHeaderLabel.textColor = [UIColor whiteColor];
+    self.fileTransferHeaderLabel.font = [UIFont systemFontOfSize:18.0 weight:UIFontWeightSemibold];
+    self.fileTransferHeaderLabel.textAlignment = NSTextAlignmentCenter;
+    [self.fileTransferPopupView addSubview:self.fileTransferHeaderLabel];
+
+    // Scroll view for file list
+    self.fileTransferScrollView = [[UIScrollView alloc] initWithFrame:CGRectMake(padding, headerHeight, popupWidth - padding * 2, maxContentHeight)];
+    self.fileTransferScrollView.showsVerticalScrollIndicator = YES;
+    [self.fileTransferPopupView addSubview:self.fileTransferScrollView];
+
+    // Add file rows
+    CGFloat yOffset = 0;
+    for (NSInteger i = 0; i < (NSInteger)self.pendingFileURLs.count; i++) {
+        NSURL *fileURL = self.pendingFileURLs[i];
+        NSString *fileName = fileURL.lastPathComponent;
+        NSString *fileKey = [NSString stringWithFormat:@"%ld", (long)i];
+
+        // File row container
+        UIView *rowView = [[UIView alloc] initWithFrame:CGRectMake(0, yOffset, self.fileTransferScrollView.bounds.size.width, rowHeight - 4)];
+
+        // File name label
+        UILabel *nameLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 4, rowView.bounds.size.width, 22)];
+        nameLabel.text = fileName;
+        nameLabel.textColor = [UIColor whiteColor];
+        nameLabel.font = [UIFont systemFontOfSize:14.0];
+        nameLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
+        [rowView addSubview:nameLabel];
+
+        // Progress view
+        UIProgressView *progressView = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
+        progressView.frame = CGRectMake(0, 30, rowView.bounds.size.width, 4);
+        progressView.progressTintColor = [UIColor systemBlueColor];
+        progressView.trackTintColor = [[UIColor whiteColor] colorWithAlphaComponent:0.3];
+        progressView.progress = 0.0;
+        [rowView addSubview:progressView];
+        self.fileProgressViews[fileKey] = progressView;
+
+        // Status label
+        UILabel *statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 38, rowView.bounds.size.width, 18)];
+        statusLabel.text = @"Waiting...";
+        statusLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
+        statusLabel.font = [UIFont systemFontOfSize:12.0];
+        [rowView addSubview:statusLabel];
+        self.fileStatusLabels[fileKey] = statusLabel;
+
+        [self.fileTransferScrollView addSubview:rowView];
+        yOffset += rowHeight;
+    }
+    self.fileTransferScrollView.contentSize = CGSizeMake(self.fileTransferScrollView.bounds.size.width, yOffset);
+
+    // Cancel/Close button (capsule shape)
+    CGFloat cancelButtonWidth = 120.0;
+    self.fileTransferCloseButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.fileTransferCloseButton.frame = CGRectMake((popupWidth - cancelButtonWidth) / 2, popupHeight - cancelButtonHeight - padding + 8, cancelButtonWidth, 36);
+    self.fileTransferCloseButton.backgroundColor = [UIColor systemRedColor];
+    self.fileTransferCloseButton.layer.cornerRadius = 18.0;
+    [self.fileTransferCloseButton setTitle:@"Cancel" forState:UIControlStateNormal];
+    [self.fileTransferCloseButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.fileTransferCloseButton.titleLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];
+    [self.fileTransferCloseButton addTarget:self action:@selector(cancelFileTransfer) forControlEvents:UIControlEventTouchUpInside];
+    [self.fileTransferPopupView addSubview:self.fileTransferCloseButton];
+
+    // Initial state
+    self.fileTransferPopupView.alpha = 0.0;
+    self.fileTransferPopupView.transform = CGAffineTransformMakeScale(0.9, 0.9);
+
+    [window addSubview:self.fileTransferPopupView];
+
+    // Animate in
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.8 initialSpringVelocity:0.5 options:0 animations:^{
+        self.fileTransferPopupView.alpha = 1.0;
+        self.fileTransferPopupView.transform = CGAffineTransformIdentity;
+    } completion:nil];
+}
+
+- (void)hideFileTransferProgress {
+    if (!self.fileTransferPopupView) return;
+
+    [UIView animateWithDuration:0.2 animations:^{
+        self.fileTransferPopupView.alpha = 0.0;
+        self.fileTransferPopupView.transform = CGAffineTransformMakeScale(0.9, 0.9);
+    } completion:^(BOOL finished) {
+        [self.fileTransferPopupView removeFromSuperview];
+        self.fileTransferPopupView = nil;
+        self.fileTransferScrollView = nil;
+        self.fileProgressViews = nil;
+        self.fileStatusLabels = nil;
+        self.pendingFileURLs = nil;
+        self.fileTransferCloseButton = nil;
+        self.fileTransferHeaderLabel = nil;
+    }];
+}
+
+- (void)cancelFileTransfer {
+    NSLog(@"❌ [ScrcpyMenuView] File transfer cancelled by user");
+    self.isFileTransferCancelled = YES;
+    [self hideFileTransferProgress];
+}
+
+- (void)updateFileProgress:(NSInteger)fileIndex progress:(float)progress status:(NSString *)status {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *fileKey = [NSString stringWithFormat:@"%ld", (long)fileIndex];
+        UIProgressView *progressView = self.fileProgressViews[fileKey];
+        UILabel *statusLabel = self.fileStatusLabels[fileKey];
+
+        if (progressView) {
+            [progressView setProgress:progress animated:YES];
+        }
+        if (statusLabel) {
+            statusLabel.text = status;
+            if ([status containsString:@"Complete"]) {
+                statusLabel.textColor = [UIColor systemGreenColor];
+            } else if ([status containsString:@"Failed"] || [status containsString:@"Cancelled"]) {
+                statusLabel.textColor = [UIColor systemRedColor];
+            }
+        }
+    });
+}
+
+#pragma mark - ADB File Transfer
+
+- (void)startFileTransfer {
+    if (self.isFileTransferCancelled) {
+        return;
+    }
+
+    if (self.currentTransferIndex >= (NSInteger)self.pendingFileURLs.count) {
+        NSLog(@"✅ [ScrcpyMenuView] All files transfer attempts completed");
+        // Update UI to show completion state
+        [self updateFileTransferCompletionUI];
+        return;
+    }
+
+    NSURL *fileURL = self.pendingFileURLs[self.currentTransferIndex];
+    [self transferFile:fileURL atIndex:self.currentTransferIndex];
+}
+
+- (void)updateFileTransferCompletionUI {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Update header
+        if (self.hasFileTransferError) {
+            self.fileTransferHeaderLabel.text = @"⚠️ Transfer Complete (with errors)";
+            self.fileTransferHeaderLabel.textColor = [UIColor systemOrangeColor];
+        } else {
+            self.fileTransferHeaderLabel.text = @"✅ Transfer Complete";
+            self.fileTransferHeaderLabel.textColor = [UIColor systemGreenColor];
+        }
+
+        // Update button to "Close" with appropriate color
+        [UIView animateWithDuration:0.2 animations:^{
+            [self.fileTransferCloseButton setTitle:@"Close" forState:UIControlStateNormal];
+            self.fileTransferCloseButton.backgroundColor = self.hasFileTransferError ?
+                [UIColor systemOrangeColor] : [UIColor systemGreenColor];
+        }];
+    });
+}
+
+- (void)transferFile:(NSURL *)fileURL atIndex:(NSInteger)index {
+    NSLog(@"📤 [ScrcpyMenuView] Transferring file %ld: %@", (long)index, fileURL.lastPathComponent);
+
+    // Update status to "Transferring..."
+    [self updateFileProgress:index progress:0.1 status:@"Transferring..."];
+
+    // Start security-scoped access
+    BOOL accessGranted = [fileURL startAccessingSecurityScopedResource];
+    if (!accessGranted) {
+        NSLog(@"⚠️ [ScrcpyMenuView] Could not access security scoped resource");
+    }
+
+    // Get file path
+    NSString *localPath = fileURL.path;
+    NSString *fileName = fileURL.lastPathComponent;
+    NSString *remotePath = [NSString stringWithFormat:@"/sdcard/Download/%@", fileName];
+
+    NSLog(@"📤 [ScrcpyMenuView] ADB push: %@ -> %@", localPath, remotePath);
+
+    // Build ADB push command (no need for -s flag, ADB uses the connected device)
+    NSArray *command = @[@"push", localPath, remotePath];
+
+    // Execute ADB command asynchronously
+    __weak typeof(self) weakSelf = self;
+    [[ADBClient shared] executeADBCommandAsync:command callback:^(NSString * _Nullable output, int returnCode) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+
+        // Stop security-scoped access
+        if (accessGranted) {
+            [fileURL stopAccessingSecurityScopedResource];
+        }
+
+        if (strongSelf.isFileTransferCancelled) {
+            [strongSelf updateFileProgress:index progress:0.0 status:@"Cancelled"];
+            return;
+        }
+
+        if (returnCode == 0) {
+            NSLog(@"✅ [ScrcpyMenuView] File transferred successfully: %@", fileName);
+            NSString *successStatus = [NSString stringWithFormat:@"✓ %@", remotePath];
+            [strongSelf updateFileProgress:index progress:1.0 status:successStatus];
+        } else {
+            NSLog(@"❌ [ScrcpyMenuView] File transfer failed: %@ - %@", fileName, output);
+            strongSelf.hasFileTransferError = YES;
+            NSString *errorStatus = [NSString stringWithFormat:@"✗ %@", output ?: @"Unknown error"];
+            if (errorStatus.length > 50) {
+                errorStatus = [[errorStatus substringToIndex:47] stringByAppendingString:@"..."];
+            }
+            [strongSelf updateFileProgress:index progress:0.0 status:errorStatus];
+        }
+
+        // Transfer next file
+        [strongSelf transferNextFile];
+    }];
+
+    // Simulate progress while waiting (since ADB doesn't provide progress)
+    [self simulateProgressForFile:index];
+}
+
+- (void)simulateProgressForFile:(NSInteger)index {
+    // Simulate progress updates while waiting for transfer
+    __weak typeof(self) weakSelf = self;
+    __block float progress = 0.1;
+
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        while (progress < 0.9) {
+            if (weakSelf.isFileTransferCancelled) break;
+            if (weakSelf.currentTransferIndex != index) break;
+
+            usleep(200000); // 200ms
+            progress += 0.05;
+            if (progress > 0.9) progress = 0.9;
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) strongSelf = weakSelf;
+                if (!strongSelf || strongSelf.isFileTransferCancelled) return;
+                if (strongSelf.currentTransferIndex != index) return;
+
+                NSString *fileKey = [NSString stringWithFormat:@"%ld", (long)index];
+                UIProgressView *progressView = strongSelf.fileProgressViews[fileKey];
+                UILabel *statusLabel = strongSelf.fileStatusLabels[fileKey];
+                if (progressView && statusLabel && [statusLabel.text isEqualToString:@"Transferring..."]) {
+                    [progressView setProgress:progress animated:YES];
+                }
+            });
+        }
+    });
+}
+
+- (void)transferNextFile {
+    self.currentTransferIndex++;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self startFileTransfer];
+    });
 }
 
 @end 
