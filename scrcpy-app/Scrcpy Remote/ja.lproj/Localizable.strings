@@ -161,7 +161,13 @@
 "Generate New Key Pair" = "新しいキーペアを生成";
 "Export Keys" = "キーをエクスポート";
 "ADB Keys Directory" = "ADBキーディレクトリ";
-"ADB Keys Managements" = "ADBキー管理";
+"ADB Managements" = "ADB管理";
+"Send Files Default Path" = "ファイル送信のデフォルトパス";
+"Send Files Path" = "ファイル送信パス";
+"Default Path" = "デフォルトパス";
+"Quick Select" = "クイック選択";
+"Remote path" = "リモートパス";
+"Reset to Default" = "デフォルトにリセット";
 "Private Key (adbkey)" = "秘密鍵（adbkey）";
 "Public Key (adbkey.pub)" = "公開鍵（adbkey.pub）";
 "Clear Pairing History" = "ペアリング履歴をクリア";

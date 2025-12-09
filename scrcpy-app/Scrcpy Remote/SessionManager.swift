@@ -241,11 +241,11 @@ enum SessionDeviceType: String, Codable, CaseIterable {
             if host.starts(with: "adb://") {
                 return .adb
             }
-            
+
             // Auto-detect based on port number
             if let portNumber = Int(port) {
                 // VNC ports: < 5555, 590x (5900-5909), 1590x (15900-15909), or 2590x (25900-25909)
-                if portNumber < 5555 || 
+                if portNumber < 5555 ||
                    (portNumber >= 5900 && portNumber <= 5909) ||
                    (portNumber >= 15900 && portNumber <= 15909) ||
                    (portNumber >= 25900 && portNumber <= 25909) {
@@ -254,12 +254,17 @@ enum SessionDeviceType: String, Codable, CaseIterable {
                 // All other ports default to ADB
                 return .adb
             }
-            
+
             // Default fallback to VNC if port is not a valid number
             return .vnc
         }
     }
-    
+
+    // Objective-C compatible accessor for device type
+    @objc var deviceTypeIntValue: Int {
+        return deviceType.intValue
+    }
+
     var vncOptions: VNCSessionOptions = VNCSessionOptions()
     var adbOptions: ADBSessionOptions = ADBSessionOptions()
     
@@ -829,8 +834,44 @@ class SessionManager {
     @objc func getActionBy(_ id: UUID) -> ScrcpyAction? {
         return actions.first { $0.id == id }
     }
-    
+
     @objc func getActionsFor(_ deviceId: UUID) -> [ScrcpyAction] {
         return actions.filter { $0.deviceId == deviceId }
+    }
+
+    /// Get actions for a specific device plus "any device" actions that match the device type
+    func getActionsForDeviceAndType(_ deviceId: UUID, deviceType: SessionDeviceType) -> [ScrcpyAction] {
+        return actions.filter { action in
+            // Include if action is for this specific device
+            if action.deviceId == deviceId {
+                return true
+            }
+            // Include if action is an "any device" action matching this device type
+            if action.deviceId == nil && action.deviceType == deviceType {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// Get "any device" actions for a specific device type
+    func getAnyDeviceActionsFor(deviceType: SessionDeviceType) -> [ScrcpyAction] {
+        return actions.filter { $0.deviceId == nil && $0.deviceType == deviceType }
+    }
+
+    /// Get "any device" actions by device type using Int (for ObjC bridge)
+    @objc func getAnyDeviceActionsForType(_ deviceTypeInt: Int) -> [ScrcpyAction] {
+        guard let deviceType = SessionDeviceType(intValue: deviceTypeInt) else {
+            return []
+        }
+        return getAnyDeviceActionsFor(deviceType: deviceType)
+    }
+
+    /// Get actions for a specific device plus "any device" actions using Int (for ObjC bridge)
+    @objc func getActionsForDeviceAndTypeInt(_ deviceId: UUID, deviceTypeInt: Int) -> [ScrcpyAction] {
+        guard let deviceType = SessionDeviceType(intValue: deviceTypeInt) else {
+            return getActionsFor(deviceId)
+        }
+        return getActionsForDeviceAndType(deviceId, deviceType: deviceType)
     }
 }

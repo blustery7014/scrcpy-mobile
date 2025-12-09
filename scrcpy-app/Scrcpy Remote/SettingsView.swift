@@ -174,6 +174,10 @@ class AppSettings: ObservableObject {
     @AppStorage("settings.pip.enabled")
     var pipEnabled: Bool = false
 
+    // Send Files Default Path setting
+    @AppStorage("settings.send_files.default_path")
+    var sendFilesDefaultPath: String = "/sdcard/Download"
+
     // New: ADB pairing history
     @AppStorage("settings.adb_pairing_history")
     var adbPairingHistory: String = ""
@@ -312,12 +316,21 @@ struct SettingsView: View {
                 }
                 // Only show ADB management options when there are ADB type sessions
                 if hasADBSessions {
-                    Section(header: Text("ADB Keys Managements")) {
+                    Section(header: Text("ADB Managements")) {
                         NavigationLink(destination: ADBKeysManagementView()) {
                             Text("Manage ADB Keys")
                         }
                         NavigationLink(destination: ADBPairingView()) {
                             Text("Pair ADB with Pairing Code")
+                        }
+                        NavigationLink(destination: SendFilesSettingsView()) {
+                            HStack {
+                                Text("Send Files Default Path")
+                                Spacer()
+                                Text(appSettings.sendFilesDefaultPath)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                 }
@@ -1871,6 +1884,125 @@ struct ADBPairingView: View {
         formatter.dateStyle = .short
         formatter.timeStyle = .short
         return formatter.string(from: timestamp)
+    }
+}
+
+// MARK: - Quick Select Tags View
+struct QuickSelectTagsView: View {
+    @Binding var selectedPath: String
+
+    private let row1 = ["/sdcard/Download", "/sdcard/DCIM", "/sdcard/Documents"]
+    private let row2 = ["/sdcard/Pictures", "/sdcard/Music", "/sdcard/Movies"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ForEach(row1, id: \.self) { path in
+                    PathTagButton(
+                        path: path,
+                        isSelected: selectedPath == path,
+                        action: { selectedPath = path }
+                    )
+                }
+            }
+            HStack(spacing: 8) {
+                ForEach(row2, id: \.self) { path in
+                    PathTagButton(
+                        path: path,
+                        isSelected: selectedPath == path,
+                        action: { selectedPath = path }
+                    )
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct PathTagButton: View {
+    let path: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    private var displayName: String {
+        path.replacingOccurrences(of: "/sdcard/", with: "")
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(displayName)
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.blue : Color(.systemGray5))
+                .foregroundColor(isSelected ? .white : .primary)
+                .cornerRadius(16)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Send Files Settings View
+struct SendFilesSettingsView: View {
+    @EnvironmentObject var appSettings: AppSettings
+    @State private var editingPath: String = ""
+    @State private var showingResetAlert: Bool = false
+
+    private let defaultPath = "/sdcard/Download"
+
+    var body: some View {
+        Form {
+            Section(header: Text("Default Path")) {
+                TextField("Remote path", text: $editingPath)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .textContentType(.URL)
+            }
+
+            Section(header: Text("Quick Select")) {
+                QuickSelectTagsView(selectedPath: $editingPath)
+            }
+
+            Section {
+                Button(action: {
+                    showingResetAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset to Default")
+                    }
+                }
+                .foregroundColor(.orange)
+            }
+
+            Section(header: Text("Info")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Files sent via 'Send Files' action will be pushed to this path on the Android device.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("The path must be an absolute path starting with /sdcard/ or similar accessible directory.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .navigationBarTitle("Send Files Path", displayMode: .inline)
+        .onAppear {
+            editingPath = appSettings.sendFilesDefaultPath
+        }
+        .onChange(of: editingPath) { newValue in
+            appSettings.sendFilesDefaultPath = newValue
+        }
+        .alert("Reset to Default", isPresented: $showingResetAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                editingPath = defaultPath
+            }
+        } message: {
+            Text("This will reset the path to '\(defaultPath)'.")
+        }
     }
 }
 

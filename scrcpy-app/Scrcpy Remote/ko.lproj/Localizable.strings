@@ -161,7 +161,13 @@
 "Generate New Key Pair" = "새 키 쌍 생성";
 "Export Keys" = "키 내보내기";
 "ADB Keys Directory" = "ADB 키 디렉토리";
-"ADB Keys Managements" = "ADB 키 관리";
+"ADB Managements" = "ADB 관리";
+"Send Files Default Path" = "파일 전송 기본 경로";
+"Send Files Path" = "파일 전송 경로";
+"Default Path" = "기본 경로";
+"Quick Select" = "빠른 선택";
+"Remote path" = "원격 경로";
+"Reset to Default" = "기본값으로 재설정";
 "Private Key (adbkey)" = "개인 키 (adbkey)";
 "Public Key (adbkey.pub)" = "공개 키 (adbkey.pub)";
 "Clear Pairing History" = "페어링 기록 지우기";

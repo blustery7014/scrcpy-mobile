@@ -82,9 +82,14 @@ enum ExecutionTiming: String, Codable, CaseIterable {
     @objc var deviceTypeIntValue: Int {
         return deviceType.intValue
     }
-    
+
     @objc var executionTimingIntValue: Int {
         return executionTiming.intValue
+    }
+
+    // Returns true if this action can run on any device of the matching type (no specific device selected)
+    @objc var isAnyDeviceAction: Bool {
+        return deviceId == nil
     }
     
     override init() {
@@ -1120,6 +1125,9 @@ struct ActionsView: View {
     @State private var confirmationCallback: (() -> Void)? = nil
     @State private var showingCopyAlert = false
     @State private var copiedURLScheme: String = ""
+
+    // State for "any device" action device selection
+    @State private var deviceSelectorData: DeviceSelectorData? = nil
     
     var body: some View {
         Group {
@@ -1227,6 +1235,19 @@ struct ActionsView: View {
         } message: {
             Text("URL Scheme has been copied to clipboard:\n\n\(copiedURLScheme)")
         }
+        .sheet(item: $deviceSelectorData) { data in
+            DeviceSelectorSheet(
+                action: data.action,
+                devices: data.devices,
+                onSelect: { session in
+                    deviceSelectorData = nil
+                    executeActionWithSession(data.action, session: session)
+                },
+                onCancel: {
+                    deviceSelectorData = nil
+                }
+            )
+        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowActionConfirmation"))) { notification in
             if let action = notification.object as? ScrcpyAction {
                 print("📢 [ActionsView] Received action confirmation notification for: \(action.name)")
@@ -1245,30 +1266,75 @@ struct ActionsView: View {
     }
     
     // MARK: - Action Execution Methods
-    
+
     private func executeAction(_ action: ScrcpyAction) {
+        // Check if this is an "any device" action
+        if action.isAnyDeviceAction {
+            // Find matching devices of the same type
+            let sessions = SessionManager.shared.loadSessions()
+            let matching = sessions.filter { $0.deviceType == action.deviceType }
+
+            if matching.isEmpty {
+                print("❌ [ActionsView] No \(action.deviceType.rawValue.uppercased()) devices available for this action")
+                return
+            }
+
+            if matching.count == 1 {
+                // Only one matching device, execute directly with that device
+                executeActionWithSession(action, session: matching[0])
+            } else {
+                // Multiple devices, show selection dialog
+                deviceSelectorData = DeviceSelectorData(action: action, devices: matching)
+            }
+            return
+        }
+
+        // Specific device action
         guard let deviceId = action.deviceId else {
             print("❌ [ActionsView] Cannot execute action: no device ID")
             return
         }
-        
+
         let sessions = SessionManager.shared.loadSessions()
         guard sessions.first(where: { $0.deviceId == deviceId }) != nil else {
             print("❌ [ActionsView] Cannot execute action: device not found")
             return
         }
-        
+
         // 对于所有类型的 action，都直接开始连接
         // confirmation 类型的确认会在连接成功后进行
         performActionExecution(action)
     }
-    
+
+    private func executeActionWithSession(_ action: ScrcpyAction, session: ScrcpySessionModel) {
+        print("🚀 [ActionsView] Executing 'any device' action: \(action.name) on device: \(session.sessionName)")
+        SessionConnectionManager.shared.connectToSessionWithAction(
+            session,
+            action: action,
+            statusCallback: { status, message, isConnecting in
+                print("📊 [ActionsView] Action execution status: \(status.description)")
+            },
+            errorCallback: { title, message in
+                print("❌ [ActionsView] Action execution error: \(title) - \(message)")
+            },
+            actionConfirmationCallback: { action, confirmCallback in
+                DispatchQueue.main.async {
+                    SessionConnectionManager.shared.setConfirmationAction(action, callback: confirmCallback)
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ShowActionConfirmation"),
+                        object: action
+                    )
+                }
+            }
+        )
+    }
+
     private func performActionExecution(_ action: ScrcpyAction) {
         guard let deviceId = action.deviceId else {
             print("❌ [ActionsView] Cannot execute action: no device ID")
             return
         }
-        
+
         let sessions = SessionManager.shared.loadSessions()
         guard let session = sessions.first(where: { $0.deviceId == deviceId }) else {
             print("❌ [ActionsView] Cannot execute action: device not found")
@@ -1424,10 +1490,16 @@ struct ActionRowView: View {
 
                 // Device info
                 HStack(spacing: 6) {
-                    // Device type icon
-                    Image(systemName: action.deviceType == .vnc ? "desktopcomputer" : "iphone")
-                        .font(.caption)
-                        .foregroundColor(action.deviceType == .vnc ? .blue : .green)
+                    // Device type icon - use different icon for "any device" actions
+                    if action.isAnyDeviceAction {
+                        Image(systemName: "rectangle.stack.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else {
+                        Image(systemName: action.deviceType == .vnc ? "desktopcomputer" : "iphone")
+                            .font(.caption)
+                            .foregroundColor(action.deviceType == .vnc ? .blue : .green)
+                    }
 
                     // Device name
                     Text(deviceName)
@@ -1459,7 +1531,7 @@ struct ActionRowView: View {
                 }
             }
         }
-        .padding(.vertical, 9) // Increased from 4 to 14 (added 10px)
+        .padding(.vertical, 9)
         .onAppear {
             loadDeviceName()
         }
@@ -1470,7 +1542,7 @@ struct ActionRowView: View {
             loadDeviceName()
         }
     }
-    
+
     private var executionTimingText: String {
         switch action.executionTiming {
         case .confirmation:
@@ -1481,18 +1553,113 @@ struct ActionRowView: View {
             return "\(action.delaySeconds)s"
         }
     }
-    
+
     private func loadDeviceName() {
+        // Check if this is an "any device" action
+        if action.isAnyDeviceAction {
+            let deviceTypeName = action.deviceType == .vnc ? "VNC" : "ADB"
+            deviceName = "Any \(deviceTypeName) Device"
+            return
+        }
+
         guard let deviceId = action.deviceId else {
             deviceName = "No Device"
             return
         }
-        
+
         let sessions = SessionManager.shared.loadSessions()
         if let session = sessions.first(where: { $0.deviceId == deviceId }) {
             deviceName = session.sessionName.isEmpty ? "\(session.hostReal):\(session.port)" : session.sessionName
         } else {
             deviceName = "Device Not Found"
+        }
+    }
+}
+
+// MARK: - Device Selector Data for "Any Device" Actions
+
+struct DeviceSelectorData: Identifiable {
+    let id = UUID()
+    let action: ScrcpyAction
+    let devices: [ScrcpySessionModel]
+}
+
+// MARK: - Device Selector Sheet for "Any Device" Actions
+
+struct DeviceSelectorSheet: View {
+    let action: ScrcpyAction
+    let devices: [ScrcpySessionModel]
+    let onSelect: (ScrcpySessionModel) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 16) {
+                // Action info header
+                VStack(spacing: 8) {
+                    Image(systemName: "rectangle.stack.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.orange)
+
+                    Text("Select Device for Action")
+                        .font(.headline)
+
+                    Text("'\(action.name)'")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    Text("Choose which \(action.deviceType == .vnc ? "VNC" : "ADB") device to execute this action on")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding(.top, 20)
+
+                Divider()
+
+                // Device list
+                List(devices, id: \.deviceId) { session in
+                    Button(action: {
+                        onSelect(session)
+                    }) {
+                        HStack(spacing: 12) {
+                            // Device type icon
+                            Image(systemName: session.deviceType == .vnc ? "desktopcomputer" : "iphone")
+                                .font(.title2)
+                                .foregroundColor(session.deviceType == .vnc ? .blue : .green)
+                                .frame(width: 40)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(session.sessionName.isEmpty ? "\(session.hostReal):\(session.port)" : session.sessionName)
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                Text("\(session.hostReal):\(session.port)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .listStyle(PlainListStyle())
+            }
+            .navigationTitle("Choose Device")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    onCancel()
+                }
+            )
         }
     }
 }

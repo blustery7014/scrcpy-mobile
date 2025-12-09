@@ -29,59 +29,91 @@
 
 - (NSArray<ScrcpyActionData *> *)getActionsForCurrentDevice {
     NSLog(@"[ScrcpyActionsBridge] getActionsForCurrentDevice called");
-    
+
     // Get current session
     SessionConnectionManager *connectionManager = [SessionConnectionManager shared];
     ScrcpySessionModel *currentSession = connectionManager.currentSession;
-    
+
     if (!currentSession) {
         NSLog(@"[ScrcpyActionsBridge] No current session found");
         return @[];
     }
-    
+
     if (!currentSession.id) {
         NSLog(@"[ScrcpyActionsBridge] Current session exists but has no ID");
         return @[];
     }
-    
-    NSLog(@"[ScrcpyActionsBridge] Current session deviceId: %@", currentSession.deviceId.UUIDString);
-    
-    NSArray<ScrcpyActionData *> *actions = [self getActionsForDeviceId:currentSession.deviceId.UUIDString];
-    NSLog(@"[ScrcpyActionsBridge] Found %lu actions for current device", (unsigned long)actions.count);
-    
+
+    NSLog(@"[ScrcpyActionsBridge] Current session deviceId: %@, deviceType: %ld",
+          currentSession.deviceId.UUIDString,
+          (long)currentSession.deviceTypeIntValue);
+
+    // Get actions for this specific device AND "any device" actions matching the device type
+    NSArray<ScrcpyActionData *> *actions = [self getActionsForDeviceIdAndType:currentSession.deviceId.UUIDString
+                                                               deviceTypeInt:currentSession.deviceTypeIntValue];
+    NSLog(@"[ScrcpyActionsBridge] Found %lu actions for current device (including 'any device' actions)",
+          (unsigned long)actions.count);
+
     return actions;
 }
 
 - (NSArray<ScrcpyActionData *> *)getActionsForDeviceId:(NSString *)deviceId {
     NSLog(@"[ScrcpyActionsBridge] getActionsForDeviceId called with deviceId: %@", deviceId);
-    
+
     // Get ActionManager
     ActionManager *actionManager = [ActionManager shared];
     NSLog(@"[ScrcpyActionsBridge] ActionManager obtained: %@", actionManager);
-    
+
     // Convert string to UUID
     NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:deviceId];
     if (!uuid) {
         NSLog(@"[ScrcpyActionsBridge] Failed to create UUID from deviceId: %@", deviceId);
         return @[];
     }
-    
+
     // Get actions for device
     NSArray<ScrcpyAction *> *actions = [actionManager getActionsFor:uuid];
     NSLog(@"[ScrcpyActionsBridge] Swift actions retrieved: %lu actions", (unsigned long)actions.count);
-    
-    // Convert Swift ScrcpyAction objects to Objective-C ScrcpyActionData objects
+
+    return [self convertActionsToActionData:actions];
+}
+
+- (NSArray<ScrcpyActionData *> *)getActionsForDeviceIdAndType:(NSString *)deviceId deviceTypeInt:(NSInteger)deviceTypeInt {
+    NSLog(@"[ScrcpyActionsBridge] getActionsForDeviceIdAndType called with deviceId: %@, deviceType: %ld",
+          deviceId, (long)deviceTypeInt);
+
+    // Get ActionManager
+    ActionManager *actionManager = [ActionManager shared];
+
+    // Convert string to UUID
+    NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:deviceId];
+    if (!uuid) {
+        NSLog(@"[ScrcpyActionsBridge] Failed to create UUID from deviceId: %@", deviceId);
+        return @[];
+    }
+
+    // Get actions for device and type (includes "any device" actions)
+    NSArray<ScrcpyAction *> *actions = [actionManager getActionsForDeviceAndTypeInt:uuid deviceTypeInt:deviceTypeInt];
+    NSLog(@"[ScrcpyActionsBridge] Swift actions retrieved: %lu actions (including 'any device' actions)",
+          (unsigned long)actions.count);
+
+    return [self convertActionsToActionData:actions];
+}
+
+// Helper method to convert Swift actions to ObjC action data
+- (NSArray<ScrcpyActionData *> *)convertActionsToActionData:(NSArray<ScrcpyAction *> *)actions {
     NSMutableArray<ScrcpyActionData *> *actionDataArray = [NSMutableArray array];
-    
+
     for (ScrcpyAction *action in actions) {
-        NSLog(@"[ScrcpyActionsBridge] Converting action: %@ (ID: %@)", action.name, action.id.UUIDString);
+        NSLog(@"[ScrcpyActionsBridge] Converting action: %@ (ID: %@, isAnyDevice: %@)",
+              action.name, action.id.UUIDString, action.isAnyDeviceAction ? @"YES" : @"NO");
         ScrcpyActionData *actionData = [[ScrcpyActionData alloc] init];
         actionData.actionId = action.id.UUIDString;
         actionData.name = action.name;
-        
+
         // Convert device type using intValue
         actionData.deviceType = (action.deviceTypeIntValue == 0) ? @"VNC" : @"ADB";
-        
+
         // Convert execution timing using intValue
         switch (action.executionTimingIntValue) {
             case 1: // immediate
@@ -95,12 +127,13 @@
                 actionData.executionTiming = @"confirmation";
                 break;
         }
-        
+
         actionData.delaySeconds = action.delaySeconds;
-        
+        actionData.isAnyDeviceAction = action.isAnyDeviceAction;
+
         [actionDataArray addObject:actionData];
     }
-    
+
     NSLog(@"[ScrcpyActionsBridge] Converted %lu actions to ScrcpyActionData objects", (unsigned long)actionDataArray.count);
     return [actionDataArray copy];
 }

@@ -82,14 +82,78 @@ struct StepIndicatorView: View {
     }
 }
 
+// MARK: - Device Selection Mode
+enum DeviceSelectionMode {
+    case specificDevice(ScrcpySession)
+    case anyDeviceOfType(SessionDeviceType)
+
+    var isAnyDevice: Bool {
+        if case .anyDeviceOfType = self { return true }
+        return false
+    }
+
+    var deviceType: SessionDeviceType {
+        switch self {
+        case .specificDevice(let session):
+            return session.sessionModel.deviceType
+        case .anyDeviceOfType(let type):
+            return type
+        }
+    }
+
+    var session: ScrcpySession? {
+        if case .specificDevice(let session) = self {
+            return session
+        }
+        return nil
+    }
+}
+
 // MARK: - Step 1 View (Device Selection)
 
 struct DeviceSelectionView: View {
     @Binding var selectedDevice: ScrcpySession?
+    // New: track if user selected "Any device" mode
+    @Binding var selectedDeviceType: SessionDeviceType?
+    @Binding var useAnyDeviceMode: Bool
+
     @State private var savedSessions: [ScrcpySession] = []
-    
+
     var onDeviceDoubleTap: (() -> Void)? = nil
-    
+
+    // Legacy initializer for backwards compatibility
+    init(selectedDevice: Binding<ScrcpySession?>, onDeviceDoubleTap: (() -> Void)? = nil) {
+        self._selectedDevice = selectedDevice
+        self._selectedDeviceType = .constant(nil)
+        self._useAnyDeviceMode = .constant(false)
+        self.onDeviceDoubleTap = onDeviceDoubleTap
+    }
+
+    // New initializer with device type selection support
+    init(selectedDevice: Binding<ScrcpySession?>,
+         selectedDeviceType: Binding<SessionDeviceType?>,
+         useAnyDeviceMode: Binding<Bool>,
+         onDeviceDoubleTap: (() -> Void)? = nil) {
+        self._selectedDevice = selectedDevice
+        self._selectedDeviceType = selectedDeviceType
+        self._useAnyDeviceMode = useAnyDeviceMode
+        self.onDeviceDoubleTap = onDeviceDoubleTap
+    }
+
+    // Get available device types from saved sessions
+    private var availableDeviceTypes: [SessionDeviceType] {
+        let types = Set(savedSessions.map { $0.sessionModel.deviceType })
+        return Array(types).sorted { $0.rawValue < $1.rawValue }
+    }
+
+    // Check if we have a valid selection (either specific device or any device type)
+    private var hasValidSelection: Bool {
+        if useAnyDeviceMode {
+            return selectedDeviceType != nil
+        }
+        return selectedDevice != nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Device Selection
@@ -97,11 +161,11 @@ struct DeviceSelectionView: View {
                 Text("Select Device")
                     .font(.headline)
                     .foregroundColor(.primary)
-                
-                Text("Choose a device to associate with this action")
+
+                Text("Choose a specific device or select a device type to choose later")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                
+
                 if savedSessions.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "rectangle.stack.badge.plus")
@@ -120,17 +184,58 @@ struct DeviceSelectionView: View {
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(12)
                 } else {
-                    // Use flexible columns so cards expand to fill width,
-                    // keeping equal outer margins with the ScrollView padding
+                    // "Any Device" type options (only show if there are devices of that type)
+                    if !availableDeviceTypes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Select Later (Any Device of Type)")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+                                ForEach(availableDeviceTypes, id: \.self) { deviceType in
+                                    AnyDeviceTypeCardView(
+                                        deviceType: deviceType,
+                                        isSelected: useAnyDeviceMode && selectedDeviceType == deviceType,
+                                        onTap: {
+                                            useAnyDeviceMode = true
+                                            selectedDeviceType = deviceType
+                                            selectedDevice = nil
+                                        },
+                                        onDoubleTap: {
+                                            useAnyDeviceMode = true
+                                            selectedDeviceType = deviceType
+                                            selectedDevice = nil
+                                            onDeviceDoubleTap?()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Divider()
+                            .padding(.vertical, 8)
+
+                        Text("Or Select Specific Device")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                    }
+
+                    // Specific device selection
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
                         ForEach(savedSessions) { session in
                             DeviceCardView(
                                 session: session,
-                                isSelected: selectedDevice?.id == session.id,
+                                isSelected: !useAnyDeviceMode && selectedDevice?.id == session.id,
                                 onTap: {
+                                    useAnyDeviceMode = false
+                                    selectedDeviceType = nil
                                     selectedDevice = session
                                 },
                                 onDoubleTap: {
+                                    useAnyDeviceMode = false
+                                    selectedDeviceType = nil
                                     selectedDevice = session
                                     onDeviceDoubleTap?()
                                 }
@@ -139,13 +244,13 @@ struct DeviceSelectionView: View {
                     }
                 }
             }
-            
-            if selectedDevice == nil {
+
+            if !hasValidSelection {
                 VStack(spacing: 12) {
                     HStack {
                         Image(systemName: "info.circle")
                             .foregroundColor(.orange)
-                        Text("Please select a device to continue")
+                        Text("Please select a device or device type to continue")
                             .font(.subheadline)
                             .foregroundColor(.orange)
                         Spacer()
@@ -156,17 +261,61 @@ struct DeviceSelectionView: View {
                     .cornerRadius(8)
                 }
             }
-            
+
             Spacer()
         }
         .onAppear {
             loadSavedSessions()
         }
     }
-    
+
     private func loadSavedSessions() {
         savedSessions = SessionManager.shared.loadSessions().map {
             ScrcpySession(sessionModel: $0)
+        }
+    }
+}
+
+// MARK: - Any Device Type Card View
+
+struct AnyDeviceTypeCardView: View {
+    let deviceType: SessionDeviceType
+    let isSelected: Bool
+    let onTap: () -> Void
+    let onDoubleTap: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: deviceType == .vnc ? "desktopcomputer" : "iphone")
+                .font(.system(size: 28))
+                .foregroundColor(deviceType == .vnc ? .blue : .green)
+
+            Text("Any \(deviceType == .vnc ? "VNC" : "ADB") Device")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+
+            Text("Select at runtime")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected ? (deviceType == .vnc ? Color.blue.opacity(0.15) : Color.green.opacity(0.15)) : Color.gray.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? (deviceType == .vnc ? Color.blue : Color.green) : Color.clear, lineWidth: 2)
+        )
+        .onTapGesture(count: 2) {
+            onDoubleTap()
+        }
+        .onTapGesture(count: 1) {
+            onTap()
         }
     }
 }

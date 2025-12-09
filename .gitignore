@@ -60,3 +60,4 @@ output-rm
 build
 
 .claude
+.DS_Store

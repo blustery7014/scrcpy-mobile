@@ -19,43 +19,57 @@ struct NewActionView: View {
     @State private var executionTiming: ExecutionTiming = .confirmation
     @State private var delaySeconds: Int = 3
     @State private var showingDeviceSelector = false
-    
+
+    // New: "Any device" mode support
+    @State private var selectedDeviceType: SessionDeviceType? = nil
+    @State private var useAnyDeviceMode: Bool = false
+
     // VNC action states
     @State private var vncInputKeysConfig = VNCInputKeysConfig()
     @State private var showingVNCKeySelector = false
     @State private var lastSelectedPCKeyCategory: PCKeyCategory = .letters
-    
+
     // New ADB action states
     @State private var selectedADBActionType: ADBActionType = .homeKey
     @State private var adbInputKeysConfig = ADBInputKeysConfig()
     @State private var adbShellConfig = ADBShellConfig()
     @State private var showingKeySelector = false
     @State private var lastSelectedKeyCategory: KeyCategory = .letters
-    
+
     let onSave: (ScrcpyAction) -> Void
-    
+
+    // Get the effective device type (from specific device or "any device" selection)
+    private var effectiveDeviceType: SessionDeviceType? {
+        if useAnyDeviceMode {
+            return selectedDeviceType
+        }
+        return selectedDevice?.sessionModel.deviceType
+    }
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 // Step indicator
                 StepIndicatorView(currentStep: currentStep, totalSteps: 3)
                     .padding()
-                
+
                 // Content
                 ScrollView {
                     VStack(spacing: 20) {
                         if currentStep == 1 {
                             DeviceSelectionView(
                                 selectedDevice: $selectedDevice,
+                                selectedDeviceType: $selectedDeviceType,
+                                useAnyDeviceMode: $useAnyDeviceMode,
                                 onDeviceDoubleTap: {
-                                    if selectedDevice != nil {
+                                    if hasValidDeviceSelection() {
                                         handleNext()
                                     }
                                 }
                             )
                         } else if currentStep == 2 {
                             Step2View(
-                                deviceType: selectedDevice?.deviceType ?? "vnc",
+                                deviceType: effectiveDeviceType?.rawValue ?? "vnc",
                                 selectedVNCQuickActions: $selectedVNCQuickActions,
                                 vncInputKeysConfig: $vncInputKeysConfig,
                                 adbCommands: $adbCommands,
@@ -100,7 +114,7 @@ struct NewActionView: View {
                             currentStep -= 1
                         }
                     }
-                    
+
                     if currentStep < 3 {
                         Button("Next") {
                             handleNext()
@@ -130,70 +144,116 @@ struct NewActionView: View {
             }
         }
     }
-    
+
+    private func hasValidDeviceSelection() -> Bool {
+        if useAnyDeviceMode {
+            return selectedDeviceType != nil
+        }
+        return selectedDevice != nil
+    }
+
     private func generateDefaultActionName() {
-        guard let device = selectedDevice else { return }
-        
         var baseName = ""
-        let deviceName = device.sessionModel.sessionName.isEmpty ? "Device" : device.sessionModel.sessionName
-        
-        if device.sessionModel.deviceType == .vnc {
-            if selectedVNCQuickActions.isEmpty {
-                baseName = "Connect to \(deviceName)"
-            } else {
-                let actionNames = selectedVNCQuickActions.map { $0.rawValue }
-                baseName = "\(deviceName) - \(actionNames.joined(separator: ", "))"
-            }
-        } else {
-            switch selectedADBActionType {
-            case .homeKey:
-                baseName = "\(deviceName) - Home Key"
-            case .switchKey:
-                baseName = "\(deviceName) - Switch Key"
-            case .inputKeys:
-                if !adbInputKeysConfig.keys.isEmpty {
-                    baseName = "\(deviceName) - Key Input"
+
+        if useAnyDeviceMode, let deviceType = selectedDeviceType {
+            // Generate name for "any device" action
+            let deviceTypeName = deviceType == .vnc ? "VNC" : "ADB"
+            if deviceType == .vnc {
+                if selectedVNCQuickActions.isEmpty {
+                    baseName = "Any \(deviceTypeName) - Connect"
                 } else {
-                    baseName = "\(deviceName) - Input Keys"
+                    let actionNames = selectedVNCQuickActions.map { $0.rawValue }
+                    baseName = "Any \(deviceTypeName) - \(actionNames.joined(separator: ", "))"
                 }
-            case .shellCommands:
-                baseName = "\(deviceName) - Shell Commands"
+            } else {
+                switch selectedADBActionType {
+                case .homeKey:
+                    baseName = "Any \(deviceTypeName) - Home Key"
+                case .switchKey:
+                    baseName = "Any \(deviceTypeName) - Switch Key"
+                case .inputKeys:
+                    baseName = "Any \(deviceTypeName) - Key Input"
+                case .shellCommands:
+                    baseName = "Any \(deviceTypeName) - Shell Commands"
+                }
+            }
+        } else if let device = selectedDevice {
+            // Generate name for specific device action
+            let deviceName = device.sessionModel.sessionName.isEmpty ? "Device" : device.sessionModel.sessionName
+
+            if device.sessionModel.deviceType == .vnc {
+                if selectedVNCQuickActions.isEmpty {
+                    baseName = "Connect to \(deviceName)"
+                } else {
+                    let actionNames = selectedVNCQuickActions.map { $0.rawValue }
+                    baseName = "\(deviceName) - \(actionNames.joined(separator: ", "))"
+                }
+            } else {
+                switch selectedADBActionType {
+                case .homeKey:
+                    baseName = "\(deviceName) - Home Key"
+                case .switchKey:
+                    baseName = "\(deviceName) - Switch Key"
+                case .inputKeys:
+                    if !adbInputKeysConfig.keys.isEmpty {
+                        baseName = "\(deviceName) - Key Input"
+                    } else {
+                        baseName = "\(deviceName) - Input Keys"
+                    }
+                case .shellCommands:
+                    baseName = "\(deviceName) - Shell Commands"
+                }
             }
         }
-        
+
         actionName = generateUniqueActionName(baseName: baseName)
     }
-    
+
     private func generateUniqueActionName(baseName: String) -> String {
         let existingNames = ActionManager.shared.actions.map { $0.name }
-        
+
         if !existingNames.contains(baseName) {
             return baseName
         }
-        
+
         var counter = 1
         var uniqueName = "\(baseName) \(counter)"
-        
+
         while existingNames.contains(uniqueName) {
             counter += 1
             uniqueName = "\(baseName) \(counter)"
         }
-        
+
         return uniqueName
     }
-    
+
     private func saveAction() {
         guard !actionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        
+
         var action = ScrcpyAction()
         action.name = actionName
-        
-        if let device = selectedDevice {
+        action.executionTiming = executionTiming
+        action.delaySeconds = delaySeconds
+
+        if useAnyDeviceMode, let deviceType = selectedDeviceType {
+            // "Any device" mode - no specific device, only type
+            action.deviceId = nil
+            action.deviceType = deviceType
+
+            if deviceType == .vnc {
+                action.vncQuickActions = Array(selectedVNCQuickActions)
+                action.vncInputKeysConfig = vncInputKeysConfig
+            } else {
+                action.adbActionType = selectedADBActionType
+                action.adbInputKeysConfig = adbInputKeysConfig
+                action.adbShellConfig = adbShellConfig
+                action.adbCommands = adbCommands
+            }
+        } else if let device = selectedDevice {
+            // Specific device mode
             action.deviceId = device.sessionModel.deviceId
             action.deviceType = device.sessionModel.deviceType
-            action.executionTiming = executionTiming
-            action.delaySeconds = delaySeconds
-            
+
             if device.sessionModel.deviceType == .vnc {
                 action.vncQuickActions = Array(selectedVNCQuickActions)
                 action.vncInputKeysConfig = vncInputKeysConfig
@@ -201,15 +261,14 @@ struct NewActionView: View {
                 action.adbActionType = selectedADBActionType
                 action.adbInputKeysConfig = adbInputKeysConfig
                 action.adbShellConfig = adbShellConfig
-                // Keep legacy support
                 action.adbCommands = adbCommands
             }
         }
-        
+
         onSave(action)
         dismiss()
     }
-    
+
     private func handleNext() {
         if currentStep == 2 {
             // Only generate default name if no name has been set
@@ -221,14 +280,14 @@ struct NewActionView: View {
             currentStep += 1
         }
     }
-    
+
     private func canProceedToNext() -> Bool {
         switch currentStep {
         case 1:
-            return selectedDevice != nil
+            return hasValidDeviceSelection()
         case 2:
-            guard let device = selectedDevice else { return false }
-            if device.sessionModel.deviceType == .vnc {
+            guard let deviceType = effectiveDeviceType else { return false }
+            if deviceType == .vnc {
                 if !selectedVNCQuickActions.isEmpty {
                     // Check specific VNC action requirements
                     if selectedVNCQuickActions.contains(.inputKeys) {
@@ -256,10 +315,12 @@ struct NewActionView: View {
             return false
         }
     }
-    
+
     private func resetForm() {
         actionName = ""
         selectedDevice = nil
+        selectedDeviceType = nil
+        useAnyDeviceMode = false
         currentStep = 1
         selectedVNCQuickActions.removeAll()
         vncInputKeysConfig = VNCInputKeysConfig()
@@ -281,22 +342,26 @@ struct EditActionView: View {
     @State private var executionTiming: ExecutionTiming = .confirmation
     @State private var delaySeconds: Int = 3
     @State private var savedSessions: [ScrcpySession] = []
-    
+
+    // New: "Any device" mode support
+    @State private var selectedDeviceType: SessionDeviceType?
+    @State private var useAnyDeviceMode: Bool
+
     // VNC action states
     @State private var vncInputKeysConfig: VNCInputKeysConfig
     @State private var showingVNCKeySelector = false
     @State private var lastSelectedPCKeyCategory: PCKeyCategory = .letters
-    
-    // ADB action states  
+
+    // ADB action states
     @State private var showingKeySelector = false
     @State private var lastSelectedKeyCategory: KeyCategory = .letters
     @State private var selectedADBActionType: ADBActionType
     @State private var adbInputKeysConfig: ADBInputKeysConfig
     @State private var adbShellConfig: ADBShellConfig
-    
+
     let action: ScrcpyAction
     let onSave: (ScrcpyAction) -> Void
-    
+
     init(action: ScrcpyAction, onSave: @escaping (ScrcpyAction) -> Void) {
         self.action = action
         self.onSave = onSave
@@ -310,30 +375,50 @@ struct EditActionView: View {
         self._selectedADBActionType = State(initialValue: action.adbActionType)
         self._adbInputKeysConfig = State(initialValue: action.adbInputKeysConfig)
         self._adbShellConfig = State(initialValue: action.adbShellConfig)
+        // Initialize "any device" mode based on whether the action has a specific device
+        self._useAnyDeviceMode = State(initialValue: action.deviceId == nil)
+        self._selectedDeviceType = State(initialValue: action.deviceId == nil ? action.deviceType : nil)
     }
-    
+
+    // Get the effective device type (from specific device or "any device" selection)
+    private var effectiveDeviceType: SessionDeviceType? {
+        if useAnyDeviceMode {
+            return selectedDeviceType
+        }
+        return selectedDevice?.sessionModel.deviceType
+    }
+
+    private func hasValidDeviceSelection() -> Bool {
+        if useAnyDeviceMode {
+            return selectedDeviceType != nil
+        }
+        return selectedDevice != nil
+    }
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 // Step indicator
                 StepIndicatorView(currentStep: currentStep, totalSteps: 3)
                     .padding()
-                
+
                 // Content
                 ScrollView {
                     VStack(spacing: 20) {
                         if currentStep == 1 {
                             DeviceSelectionView(
                                 selectedDevice: $selectedDevice,
+                                selectedDeviceType: $selectedDeviceType,
+                                useAnyDeviceMode: $useAnyDeviceMode,
                                 onDeviceDoubleTap: {
-                                    if selectedDevice != nil {
+                                    if hasValidDeviceSelection() {
                                         handleNext()
                                     }
                                 }
                             )
                         } else if currentStep == 2 {
                             Step2View(
-                                deviceType: selectedDevice?.deviceType ?? action.deviceType.rawValue,
+                                deviceType: effectiveDeviceType?.rawValue ?? action.deviceType.rawValue,
                                 selectedVNCQuickActions: $selectedVNCQuickActions,
                                 vncInputKeysConfig: $vncInputKeysConfig,
                                 adbCommands: $adbCommands,
@@ -378,7 +463,7 @@ struct EditActionView: View {
                             currentStep -= 1
                         }
                     }
-                    
+
                     if currentStep < 3 {
                         Button("Next") {
                             handleNext()
@@ -409,13 +494,13 @@ struct EditActionView: View {
         }
         .onAppear {
             loadSavedSessions()
-            // Find and select the associated device
-            if let deviceId = action.deviceId {
+            // Find and select the associated device (if not in "any device" mode)
+            if !useAnyDeviceMode, let deviceId = action.deviceId {
                 selectedDevice = savedSessions.first { $0.sessionModel.deviceId == deviceId }
             }
         }
     }
-    
+
     private func handleNext() {
         if currentStep == 2 {
             // Only generate default name if no name has been set
@@ -427,14 +512,14 @@ struct EditActionView: View {
             currentStep += 1
         }
     }
-    
+
     private func canProceedToNext() -> Bool {
         switch currentStep {
         case 1:
-            return selectedDevice != nil
+            return hasValidDeviceSelection()
         case 2:
-            guard let device = selectedDevice else { return false }
-            if device.sessionModel.deviceType == .vnc {
+            guard let deviceType = effectiveDeviceType else { return false }
+            if deviceType == .vnc {
                 if !selectedVNCQuickActions.isEmpty {
                     // Check specific VNC action requirements
                     if selectedVNCQuickActions.contains(.inputKeys) {
@@ -462,90 +547,132 @@ struct EditActionView: View {
             return false
         }
     }
-    
+
     private func generateDefaultActionName() {
-        guard let device = selectedDevice else { return }
-        
         var baseName = ""
-        let deviceName = device.sessionModel.sessionName.isEmpty ? "Device" : device.sessionModel.sessionName
-        
-        if device.sessionModel.deviceType == .vnc {
-            if selectedVNCQuickActions.isEmpty {
-                baseName = "Connect to \(deviceName)"
-            } else {
-                let actionNames = selectedVNCQuickActions.map { $0.rawValue }
-                baseName = "\(deviceName) - \(actionNames.joined(separator: ", "))"
-            }
-        } else {
-            switch selectedADBActionType {
-            case .homeKey:
-                baseName = "\(deviceName) - Home Key"
-            case .switchKey:
-                baseName = "\(deviceName) - Switch Key"
-            case .inputKeys:
-                if !adbInputKeysConfig.keys.isEmpty {
-                    baseName = "\(deviceName) - Key Input"
+
+        if useAnyDeviceMode, let deviceType = selectedDeviceType {
+            // Generate name for "any device" action
+            let deviceTypeName = deviceType == .vnc ? "VNC" : "ADB"
+            if deviceType == .vnc {
+                if selectedVNCQuickActions.isEmpty {
+                    baseName = "Any \(deviceTypeName) - Connect"
                 } else {
-                    baseName = "\(deviceName) - Input Keys"
+                    let actionNames = selectedVNCQuickActions.map { $0.rawValue }
+                    baseName = "Any \(deviceTypeName) - \(actionNames.joined(separator: ", "))"
                 }
-            case .shellCommands:
-                baseName = "\(deviceName) - Shell Commands"
+            } else {
+                switch selectedADBActionType {
+                case .homeKey:
+                    baseName = "Any \(deviceTypeName) - Home Key"
+                case .switchKey:
+                    baseName = "Any \(deviceTypeName) - Switch Key"
+                case .inputKeys:
+                    baseName = "Any \(deviceTypeName) - Key Input"
+                case .shellCommands:
+                    baseName = "Any \(deviceTypeName) - Shell Commands"
+                }
+            }
+        } else if let device = selectedDevice {
+            let deviceName = device.sessionModel.sessionName.isEmpty ? "Device" : device.sessionModel.sessionName
+
+            if device.sessionModel.deviceType == .vnc {
+                if selectedVNCQuickActions.isEmpty {
+                    baseName = "Connect to \(deviceName)"
+                } else {
+                    let actionNames = selectedVNCQuickActions.map { $0.rawValue }
+                    baseName = "\(deviceName) - \(actionNames.joined(separator: ", "))"
+                }
+            } else {
+                switch selectedADBActionType {
+                case .homeKey:
+                    baseName = "\(deviceName) - Home Key"
+                case .switchKey:
+                    baseName = "\(deviceName) - Switch Key"
+                case .inputKeys:
+                    if !adbInputKeysConfig.keys.isEmpty {
+                        baseName = "\(deviceName) - Key Input"
+                    } else {
+                        baseName = "\(deviceName) - Input Keys"
+                    }
+                case .shellCommands:
+                    baseName = "\(deviceName) - Shell Commands"
+                }
             }
         }
-        
+
         let existingNames = ActionManager.shared.actions.filter { $0.id != action.id }.map { $0.name }
         actionName = generateUniqueActionName(baseName: baseName, existingNames: existingNames)
     }
-    
+
     private func generateUniqueActionName(baseName: String, existingNames: [String]) -> String {
         if !existingNames.contains(baseName) {
             return baseName
         }
-        
+
         var counter = 1
         var uniqueName = "\(baseName) \(counter)"
-        
+
         while existingNames.contains(uniqueName) {
             counter += 1
             uniqueName = "\(baseName) \(counter)"
         }
-        
+
         return uniqueName
     }
-    
+
     private func saveAction() {
         guard !actionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        guard let device = selectedDevice else {
-            print("❌ [EditActionView] Cannot save: no device selected")
-            return
-        }
 
         // Create a new action object with updated values
-        // This ensures proper SwiftUI refresh and change detection
         let updatedAction = ScrcpyAction()
         updatedAction.id = action.id  // Preserve the original ID
         updatedAction.name = actionName
-        updatedAction.deviceId = device.sessionModel.deviceId
-        updatedAction.deviceType = device.sessionModel.deviceType
         updatedAction.executionTiming = executionTiming
         updatedAction.delaySeconds = delaySeconds
         updatedAction.createdAt = action.createdAt  // Preserve creation date
 
-        if device.sessionModel.deviceType == .vnc {
-            updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
-            updatedAction.vncInputKeysConfig = vncInputKeysConfig
+        if useAnyDeviceMode, let deviceType = selectedDeviceType {
+            // "Any device" mode - no specific device, only type
+            updatedAction.deviceId = nil
+            updatedAction.deviceType = deviceType
+
+            if deviceType == .vnc {
+                updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
+                updatedAction.vncInputKeysConfig = vncInputKeysConfig
+            } else {
+                updatedAction.adbActionType = selectedADBActionType
+                updatedAction.adbInputKeysConfig = adbInputKeysConfig
+                updatedAction.adbShellConfig = adbShellConfig
+                updatedAction.adbCommands = adbCommands
+            }
+
+            print("📝 [EditActionView] Saving edited action (any device mode): '\(updatedAction.name)' with device type: \(deviceType.rawValue)")
+        } else if let device = selectedDevice {
+            // Specific device mode
+            updatedAction.deviceId = device.sessionModel.deviceId
+            updatedAction.deviceType = device.sessionModel.deviceType
+
+            if device.sessionModel.deviceType == .vnc {
+                updatedAction.vncQuickActions = Array(selectedVNCQuickActions)
+                updatedAction.vncInputKeysConfig = vncInputKeysConfig
+            } else {
+                updatedAction.adbActionType = selectedADBActionType
+                updatedAction.adbInputKeysConfig = adbInputKeysConfig
+                updatedAction.adbShellConfig = adbShellConfig
+                updatedAction.adbCommands = adbCommands
+            }
+
+            print("📝 [EditActionView] Saving edited action: '\(updatedAction.name)' with device: \(device.sessionModel.sessionName) (deviceId: \(updatedAction.deviceId?.uuidString ?? "nil"))")
         } else {
-            updatedAction.adbActionType = selectedADBActionType
-            updatedAction.adbInputKeysConfig = adbInputKeysConfig
-            updatedAction.adbShellConfig = adbShellConfig
-            updatedAction.adbCommands = adbCommands
+            print("❌ [EditActionView] Cannot save: no device or device type selected")
+            return
         }
 
-        print("📝 [EditActionView] Saving edited action: '\(updatedAction.name)' with device: \(device.sessionModel.sessionName) (deviceId: \(updatedAction.deviceId?.uuidString ?? "nil"))")
         onSave(updatedAction)
         dismiss()
     }
-    
+
     private func resetForm() {
         actionName = action.name
         selectedVNCQuickActions = Set(action.vncQuickActions)
@@ -553,9 +680,11 @@ struct EditActionView: View {
         adbCommands = action.adbCommands
         executionTiming = action.executionTiming
         delaySeconds = action.delaySeconds
+        useAnyDeviceMode = action.deviceId == nil
+        selectedDeviceType = action.deviceId == nil ? action.deviceType : nil
         currentStep = 1
     }
-    
+
     private func loadSavedSessions() {
         savedSessions = SessionManager.shared.loadSessions().map {
             ScrcpySession(sessionModel: $0)

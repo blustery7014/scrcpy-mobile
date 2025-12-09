@@ -161,7 +161,13 @@
 "Generate New Key Pair" = "生成新的密钥对";
 "Export Keys" = "导出密钥";
 "ADB Keys Directory" = "ADB 密钥目录";
-"ADB Keys Managements" = "ADB 密钥管理";
+"ADB Managements" = "ADB 管理";
+"Send Files Default Path" = "文件发送默认路径";
+"Send Files Path" = "文件发送路径";
+"Default Path" = "默认路径";
+"Quick Select" = "快速选择";
+"Remote path" = "远程路径";
+"Reset to Default" = "重置为默认";
 "Private Key (adbkey)" = "私钥（adbkey）";
 "Public Key (adbkey.pub)" = "公钥（adbkey.pub）";
 "Clear Pairing History" = "清除配对历史";

@@ -2273,7 +2273,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1720"
             endingLineNumber = "1720"
-            landmarkName = "-gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:"
+            landmarkName = "-notifyDelegateWithDragState:location:viewSize:offset:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2337,7 +2337,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1558"
             endingLineNumber = "1558"
-            landmarkName = "-removeDragGesture"
+            landmarkName = "-addDragGesture"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2433,7 +2433,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1368"
             endingLineNumber = "1368"
-            landmarkName = "-removePinchGesture"
+            landmarkName = "-addPinchGesture"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

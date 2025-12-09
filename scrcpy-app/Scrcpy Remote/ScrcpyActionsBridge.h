@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSString *deviceType; // "VNC" or "ADB"
 @property (nonatomic, strong) NSString *executionTiming; // "immediate", "delayed", "confirmation"
 @property (nonatomic, assign) NSInteger delaySeconds;
+@property (nonatomic, assign) BOOL isAnyDeviceAction; // True if this action works on any device of the type
 @end
 
 // Callback types for action execution
