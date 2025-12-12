@@ -239,6 +239,7 @@ void ScrcpyTryResetVideo(void) {
         @"turnScreenOff": @"--turn-screen-off",
         @"stayAwake": @"--stay-awake",
         @"powerOffOnClose": @"--power-off-on-close",
+        @"noCleanup": @"--no-cleanup",
         @"forceAdbForward": @"--force-adb-forward",
     };
     return supportedOptions[key] ?: nil;

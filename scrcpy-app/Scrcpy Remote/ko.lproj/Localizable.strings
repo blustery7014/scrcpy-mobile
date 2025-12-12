@@ -236,7 +236,8 @@
 "Enable Audio (Android 11+)" = "오디오 활성화 (Android 11 이상)";
 "Enable Clipboard Sync" = "클립보드 동기화 활성화";
 "Turn Remote Screen Off After Connected" = "연결 후 원격 화면 끄기";
-"Turn Remote Screen Off After Disconnected" = "연결 해제 후 원격 화면 끄기";
+"Lock Remote Screen After Disconnected (Press Power)" = "연결 해제 후 원격 화면 잠금 (전원 버튼 누름)";
+"No Cleanup After Disconnected (Keep Screen State)" = "연결 해제 후 정리 안 함 (화면 상태 유지)";
 "Keep Remote Device Awake During Use" = "사용 중 원격 장치 깨어있게 유지";
 "Start New Display" = "새 디스플레이 시작";
 "Size:" = "크기:";

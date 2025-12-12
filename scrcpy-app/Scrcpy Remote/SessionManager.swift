@@ -139,7 +139,10 @@ struct ADBSessionOptions: Codable, Identifiable {
     
     // 断开连接后关闭远程屏幕选项
     var powerOffOnClose: Bool = false
-    
+
+    // 断开连接后不清理选项（保持屏幕状态）
+    var noCleanup: Bool = false
+
     // 强制 ADB 转发连接选项
     var forceAdbForward: Bool = false
     
@@ -181,7 +184,10 @@ struct ADBSessionOptions: Codable, Identifiable {
         
         // 解码断开连接后关闭远程屏幕选项，默认为 true
         self.powerOffOnClose = try container.decodeIfPresent(Bool.self, forKey: .powerOffOnClose) ?? true
-        
+
+        // 解码断开连接后不清理选项，默认为 false
+        self.noCleanup = try container.decodeIfPresent(Bool.self, forKey: .noCleanup) ?? false
+
         // 解码强制 ADB 转发连接选项，默认为 false
         self.forceAdbForward = try container.decodeIfPresent(Bool.self, forKey: .forceAdbForward) ?? false
         

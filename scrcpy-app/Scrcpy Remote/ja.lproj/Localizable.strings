@@ -236,7 +236,8 @@
 "Enable Audio (Android 11+)" = "オーディオを有効にする（Android 11以降）";
 "Enable Clipboard Sync" = "クリップボード同期を有効にする";
 "Turn Remote Screen Off After Connected" = "接続後にリモート画面をオフにする";
-"Turn Remote Screen Off After Disconnected" = "切断後にリモート画面をオフにする";
+"Lock Remote Screen After Disconnected (Press Power)" = "切断後にリモート画面をロック（電源ボタン押下）";
+"No Cleanup After Disconnected (Keep Screen State)" = "切断後にクリーンアップしない（画面状態を維持）";
 "Keep Remote Device Awake During Use" = "使用中はリモートデバイスを起動状態に保つ";
 "Start New Display" = "新しいディスプレイを開始";
 "Size:" = "サイズ：";

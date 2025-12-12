@@ -255,8 +255,10 @@ struct SessionCreateView: View {
                         
                         Toggle("Turn Remote Screen Off After Connected", isOn: $sessionModel.adbOptions.turnScreenOff)
                         
-                        Toggle("Turn Remote Screen Off After Disconnected", isOn: $sessionModel.adbOptions.powerOffOnClose)
-                        
+                        Toggle("Lock Remote Screen After Disconnected (Press Power)", isOn: $sessionModel.adbOptions.powerOffOnClose)
+
+                        Toggle("No Cleanup After Disconnected (Keep Screen State)", isOn: $sessionModel.adbOptions.noCleanup)
+
                         Toggle("Keep Remote Device Awake During Use", isOn: $sessionModel.adbOptions.stayAwake)
                         
                         Toggle("Enable Hardware Decoding", isOn: $sessionModel.adbOptions.enableHardwareDecoding)

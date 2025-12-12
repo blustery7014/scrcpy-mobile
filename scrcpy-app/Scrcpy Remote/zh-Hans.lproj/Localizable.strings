@@ -236,7 +236,8 @@
 "Enable Audio (Android 11+)" = "启用音频（Android 11+）";
 "Enable Clipboard Sync" = "启用剪贴板同步";
 "Turn Remote Screen Off After Connected" = "连接后关闭远程屏幕";
-"Turn Remote Screen Off After Disconnected" = "断开后关闭远程屏幕";
+"Lock Remote Screen After Disconnected (Press Power)" = "断开后锁定远程屏幕（按电源键）";
+"No Cleanup After Disconnected (Keep Screen State)" = "断开后不清理（保持屏幕状态）";
 "Keep Remote Device Awake During Use" = "使用期间保持设备唤醒";
 "Start New Display" = "启动新的显示";
 "Size:" = "大小：";
