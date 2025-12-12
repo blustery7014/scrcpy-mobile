@@ -6,13 +6,19 @@
 //
 
 #import "ScrcpyMenuView.h"
+#import <PhotosUI/PhotosUI.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface ScrcpyMenuView (FileTransfer) <UIDocumentPickerDelegate>
+API_AVAILABLE(ios(14.0))
+@interface ScrcpyMenuView (FileTransfer) <UIDocumentPickerDelegate, PHPickerViewControllerDelegate>
+
+// ActionSheet for choosing source
+- (void)showSendFilesOrPhotosActionSheet;
 
 // File Picker
 - (void)showFilePicker;
+- (void)showPhotoPicker API_AVAILABLE(ios(14.0));
 - (UIViewController *)topViewController;
 
 // File Transfer Progress UI

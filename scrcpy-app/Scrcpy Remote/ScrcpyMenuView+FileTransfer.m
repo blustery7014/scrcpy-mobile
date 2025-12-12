@@ -9,8 +9,188 @@
 #import "ScrcpyMenuView+Private.h"
 #import "ADBClient.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <PhotosUI/PhotosUI.h>
 
 @implementation ScrcpyMenuView (FileTransfer)
+
+#pragma mark - ActionSheet for Source Selection
+
+- (void)showSendFilesOrPhotosActionSheet {
+    NSLog(@"📤 [ScrcpyMenuView] Showing Send Files or Photos ActionSheet");
+
+    UIViewController *topVC = [self topViewController];
+    if (!topVC) {
+        NSLog(@"❌ [ScrcpyMenuView] Cannot present ActionSheet - no top view controller");
+        return;
+    }
+
+    UIAlertController *actionSheet = [UIAlertController alertControllerWithTitle:@"Send Files or Photos"
+                                                                         message:@"Choose the source of files to send to the device"
+                                                                  preferredStyle:UIAlertControllerStyleActionSheet];
+
+    // Browse Files action
+    UIAlertAction *browseFilesAction = [UIAlertAction actionWithTitle:@"Browse Files"
+                                                                style:UIAlertActionStyleDefault
+                                                              handler:^(UIAlertAction * _Nonnull action) {
+        NSLog(@"📂 [ScrcpyMenuView] User selected Browse Files");
+        [self showFilePicker];
+    }];
+    [actionSheet addAction:browseFilesAction];
+
+    // Browse Photo Library action
+    UIAlertAction *browsePhotosAction = [UIAlertAction actionWithTitle:@"Browse Photo Library"
+                                                                 style:UIAlertActionStyleDefault
+                                                               handler:^(UIAlertAction * _Nonnull action) {
+        NSLog(@"🖼️ [ScrcpyMenuView] User selected Browse Photo Library");
+        if (@available(iOS 14.0, *)) {
+            [self showPhotoPicker];
+        } else {
+            NSLog(@"⚠️ [ScrcpyMenuView] Photo Library requires iOS 14.0 or later");
+        }
+    }];
+    [actionSheet addAction:browsePhotosAction];
+
+    // Cancel action
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Cancel"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:^(UIAlertAction * _Nonnull action) {
+        NSLog(@"❌ [ScrcpyMenuView] User cancelled Send Files or Photos");
+    }];
+    [actionSheet addAction:cancelAction];
+
+    // For iPad: configure popover presentation
+    if (actionSheet.popoverPresentationController) {
+        UIWindow *window = [self activeWindow];
+        actionSheet.popoverPresentationController.sourceView = window;
+        actionSheet.popoverPresentationController.sourceRect = CGRectMake(window.bounds.size.width / 2, window.bounds.size.height / 2, 0, 0);
+        actionSheet.popoverPresentationController.permittedArrowDirections = 0;
+    }
+
+    [topVC presentViewController:actionSheet animated:YES completion:nil];
+}
+
+#pragma mark - Photo Picker
+
+- (void)showPhotoPicker API_AVAILABLE(ios(14.0)) {
+    NSLog(@"🖼️ [ScrcpyMenuView] Showing photo picker");
+
+    PHPickerConfiguration *config = [[PHPickerConfiguration alloc] init];
+    config.selectionLimit = 0; // 0 means unlimited selection
+    config.filter = [PHPickerFilter anyFilterMatchingSubfilters:@[
+        [PHPickerFilter imagesFilter],
+        [PHPickerFilter videosFilter]
+    ]];
+
+    PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:config];
+    picker.delegate = self;
+    picker.modalPresentationStyle = UIModalPresentationFormSheet;
+
+    UIViewController *topVC = [self topViewController];
+    if (topVC) {
+        [topVC presentViewController:picker animated:YES completion:nil];
+    } else {
+        NSLog(@"❌ [ScrcpyMenuView] Cannot present photo picker - no top view controller");
+    }
+}
+
+#pragma mark - PHPickerViewControllerDelegate
+
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results API_AVAILABLE(ios(14.0)) {
+    [picker dismissViewControllerAnimated:YES completion:nil];
+
+    NSLog(@"🖼️ [ScrcpyMenuView] Picked %lu items from photo library", (unsigned long)results.count);
+
+    if (results.count == 0) {
+        return;
+    }
+
+    // Process selected items and get file URLs
+    NSMutableArray<NSURL *> *fileURLs = [NSMutableArray array];
+    dispatch_group_t group = dispatch_group_create();
+    NSString *tempDir = NSTemporaryDirectory();
+
+    for (PHPickerResult *result in results) {
+        NSItemProvider *provider = result.itemProvider;
+
+        // Check for image
+        if ([provider hasItemConformingToTypeIdentifier:UTTypeImage.identifier]) {
+            dispatch_group_enter(group);
+            [provider loadFileRepresentationForTypeIdentifier:UTTypeImage.identifier completionHandler:^(NSURL * _Nullable url, NSError * _Nullable error) {
+                if (url && !error) {
+                    // Copy to temp directory with original filename
+                    NSString *fileName = url.lastPathComponent;
+                    NSString *tempPath = [tempDir stringByAppendingPathComponent:fileName];
+                    NSURL *tempURL = [NSURL fileURLWithPath:tempPath];
+
+                    // Remove existing file if needed
+                    [[NSFileManager defaultManager] removeItemAtURL:tempURL error:nil];
+
+                    NSError *copyError;
+                    if ([[NSFileManager defaultManager] copyItemAtURL:url toURL:tempURL error:&copyError]) {
+                        @synchronized (fileURLs) {
+                            [fileURLs addObject:tempURL];
+                        }
+                        NSLog(@"🖼️ [ScrcpyMenuView] Copied image to temp: %@", tempPath);
+                    } else {
+                        NSLog(@"❌ [ScrcpyMenuView] Failed to copy image: %@", copyError);
+                    }
+                } else {
+                    NSLog(@"❌ [ScrcpyMenuView] Failed to load image: %@", error);
+                }
+                dispatch_group_leave(group);
+            }];
+        }
+        // Check for video
+        else if ([provider hasItemConformingToTypeIdentifier:UTTypeMovie.identifier]) {
+            dispatch_group_enter(group);
+            [provider loadFileRepresentationForTypeIdentifier:UTTypeMovie.identifier completionHandler:^(NSURL * _Nullable url, NSError * _Nullable error) {
+                if (url && !error) {
+                    // Copy to temp directory with original filename
+                    NSString *fileName = url.lastPathComponent;
+                    NSString *tempPath = [tempDir stringByAppendingPathComponent:fileName];
+                    NSURL *tempURL = [NSURL fileURLWithPath:tempPath];
+
+                    // Remove existing file if needed
+                    [[NSFileManager defaultManager] removeItemAtURL:tempURL error:nil];
+
+                    NSError *copyError;
+                    if ([[NSFileManager defaultManager] copyItemAtURL:url toURL:tempURL error:&copyError]) {
+                        @synchronized (fileURLs) {
+                            [fileURLs addObject:tempURL];
+                        }
+                        NSLog(@"🎬 [ScrcpyMenuView] Copied video to temp: %@", tempPath);
+                    } else {
+                        NSLog(@"❌ [ScrcpyMenuView] Failed to copy video: %@", copyError);
+                    }
+                } else {
+                    NSLog(@"❌ [ScrcpyMenuView] Failed to load video: %@", error);
+                }
+                dispatch_group_leave(group);
+            }];
+        }
+    }
+
+    // Wait for all items to be loaded, then start transfer
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        if (fileURLs.count > 0) {
+            NSLog(@"📤 [ScrcpyMenuView] Starting transfer of %lu photo/video items", (unsigned long)fileURLs.count);
+
+            // Store file URLs and start transfer
+            self.pendingFileURLs = [fileURLs mutableCopy];
+            self.isFileTransferCancelled = NO;
+            self.hasFileTransferError = NO;
+            self.currentTransferIndex = 0;
+
+            // Show progress popup
+            [self showFileTransferProgress];
+
+            // Start file transfer
+            [self startFileTransfer];
+        } else {
+            NSLog(@"⚠️ [ScrcpyMenuView] No files to transfer after processing");
+        }
+    });
+}
 
 #pragma mark - File Picker
 

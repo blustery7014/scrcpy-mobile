@@ -309,15 +309,15 @@
     UIImageSymbolConfiguration *largeConfig = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightMedium];
     UIImageSymbolConfiguration *smallConfig = [UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightMedium];
 
-    // Check if this is the "Send Files" row (first row for ADB devices)
+    // Check if this is the "Send Files or Photos" row (first row for ADB devices)
     if ([self shouldShowSendFilesOption] && indexPath.row == 0) {
         UIImage *sendIcon = [[UIImage systemImageNamed:@"square.and.arrow.up.fill" withConfiguration:largeConfig]
                              imageWithTintColor:[UIColor systemBlueColor] renderingMode:UIImageRenderingModeAlwaysOriginal];
         cell.imageView.image = [self imageWithIcon:sendIcon inSize:iconContainerSize];
-        cell.textLabel.text = @"Send Files";
+        cell.textLabel.text = @"Send Files or Photos";
         cell.textLabel.textColor = [UIColor whiteColor];
         cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];
-        cell.detailTextLabel.text = @"Push files to /sdcard/Download";
+        cell.detailTextLabel.text = @"Push files or photos to device";
         cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
         cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
         return cell;
@@ -374,11 +374,11 @@
     NSLog(@"🔥 [ScrcpyMenuView] didSelectRowAtIndexPath called for row: %ld", (long)indexPath.row);
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
 
-    // Check if "Send Files" was tapped (first row for ADB devices)
+    // Check if "Send Files or Photos" was tapped (first row for ADB devices)
     if ([self shouldShowSendFilesOption] && indexPath.row == 0) {
-        NSLog(@"📤 [ScrcpyMenuView] Send Files selected");
+        NSLog(@"📤 [ScrcpyMenuView] Send Files or Photos selected");
         [self hideActionsMenu];
-        [self showFilePicker];
+        [self showSendFilesOrPhotosActionSheet];
         return;
     }
 
