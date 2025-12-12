@@ -163,9 +163,26 @@ class AppSettings: ObservableObject {
     
     @AppStorage("settings.tailscale.hostname")
     var tailscaleHostname: String = "ScrcpyRemote_iOS"
-    
+
     @AppStorage("settings.tailscale.auth_key")
     var tailscaleAuthKey: String = ""
+
+    // OAuth settings for generating auth keys
+    @AppStorage("settings.tailscale.oauth_client_id")
+    var tailscaleOAuthClientID: String = ""
+
+    @AppStorage("settings.tailscale.oauth_client_secret")
+    var tailscaleOAuthClientSecret: String = ""
+
+    @AppStorage("settings.tailscale.oauth_tag")
+    var tailscaleOAuthTag: String = "tag:scrcpy-remote"
+
+    // Track if auth key was generated via OAuth (for display purposes)
+    @AppStorage("settings.tailscale.auth_key_generated_via_oauth")
+    var tailscaleAuthKeyGeneratedViaOAuth: Bool = false
+
+    @AppStorage("settings.tailscale.auth_key_expires_at")
+    var tailscaleAuthKeyExpiresAt: String = ""
     
     @AppStorage("settings.live_activity.enabled")
     var liveActivityEnabled: Bool = true
@@ -483,6 +500,19 @@ struct TailscaleAuthSettingsView: View {
     @State private var tailscaleIPv6: String = ""
     @State private var tailscaleMagicDNS: String = ""
 
+    // OAuth states
+    @State private var isGeneratingKey: Bool = false
+    @State private var oauthResult: String = ""
+    @State private var oauthSuccess: Bool = false
+    @State private var showOAuthSection: Bool = false
+
+    // Check if OAuth credentials are configured for auto-regeneration
+    private var hasOAuthCredentials: Bool {
+        !appSettings.tailscaleOAuthClientID.isEmpty &&
+        !appSettings.tailscaleOAuthClientSecret.isEmpty &&
+        !appSettings.tailscaleOAuthTag.isEmpty
+    }
+
     var body: some View {
         Form {
             Section(header: Text("Tailscale Configuration")) {
@@ -490,35 +520,205 @@ struct TailscaleAuthSettingsView: View {
                     .textContentType(.name)
                     .autocapitalization(.none)
                     .autocorrectionDisabled(true)
-                
-                TextField("Auth Key", text: $appSettings.tailscaleAuthKey)
-                    .textContentType(.password)
-                    .autocapitalization(.none)
-                    .autocorrectionDisabled(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    SecureField("Auth Key", text: $appSettings.tailscaleAuthKey)
+                        .textContentType(.password)
+                        .autocapitalization(.none)
+                        .autocorrectionDisabled(true)
+
+                    if appSettings.tailscaleAuthKeyGeneratedViaOAuth && !appSettings.tailscaleAuthKeyExpiresAt.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Image(systemName: "key.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption2)
+                                Text("Generated via OAuth")
+                                    .font(.caption2)
+                                    .foregroundColor(.green)
+                                Text("• Expires: \(formatExpiryDate(appSettings.tailscaleAuthKeyExpiresAt))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            if hasOAuthCredentials {
+                                Text("Will auto-regenerate when connecting")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .italic()
+                            }
+                        }
+                    }
+                }
             }
-            
-            Section(header: Text("How to Get Auth Key")) {
+
+            Section(header: Text("Manual Auth Key")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("To get your Tailscale Auth Key:")
+                    Text("Paste an auth key from Tailscale admin console:")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                    
+
                     Text("1. Visit https://login.tailscale.com/admin/settings/keys")
                         .font(.caption)
                         .foregroundColor(.blue)
                         .textSelection(.enabled)
-                    
+
                     Text("2. Create a new Auth Key")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
-                    Text("3. Copy the key and paste it above")
+
+                    Text("3. Copy the key and paste it in the Auth Key field above")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 .padding(.vertical, 4)
             }
-            
+
+            // Generate Auth Key via OAuth Section
+            Section(header: HStack {
+                Text("Generate Auth Key via OAuth")
+                Spacer()
+                Button(action: { withAnimation { showOAuthSection.toggle() } }) {
+                    Image(systemName: showOAuthSection ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                }
+            }) {
+                if showOAuthSection {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("OAuth Client ID")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("Client ID", text: $appSettings.tailscaleOAuthClientID)
+                                .textContentType(.username)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled(true)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("OAuth Client Secret")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            SecureField("Client Secret", text: $appSettings.tailscaleOAuthClientSecret)
+                                .textContentType(.password)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Device Tag (required for OAuth)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("tag:your-tag", text: $appSettings.tailscaleOAuthTag)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled(true)
+                        }
+
+                        Button(action: {
+                            generateAuthKeyViaOAuth()
+                        }) {
+                            HStack {
+                                if isGeneratingKey {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "key.viewfinder")
+                                }
+                                Text(isGeneratingKey ? "Generating..." : "Generate Auth Key")
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isGeneratingKey ||
+                                  appSettings.tailscaleOAuthClientID.isEmpty ||
+                                  appSettings.tailscaleOAuthClientSecret.isEmpty ||
+                                  appSettings.tailscaleOAuthTag.isEmpty)
+
+                        if !oauthResult.isEmpty {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: oauthSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                    .foregroundColor(oauthSuccess ? .green : .red)
+                                Text(oauthResult)
+                                    .font(.caption)
+                                    .foregroundColor(oauthSuccess ? .green : .red)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Benefits of OAuth-generated keys:")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        Text("• Can be automatically regenerated (up to 90 days each)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("• More secure than long-lived manual keys")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("• OAuth credentials can generate unlimited keys")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+
+                    // How to setup OAuth - now inside the OAuth section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("How to create an OAuth client:")
+                            .font(.caption)
+                            .fontWeight(.medium)
+
+                        Text("Step 1: Create a Tag")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+
+                        Text("Visit https://login.tailscale.com/admin/acls/visual/tags")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                            .textSelection(.enabled)
+
+                        Text("Click 'Add Tag' and enter a name like 'scrcpy-remote'")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Text("Step 2: Create OAuth Client")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                            .padding(.top, 4)
+
+                        Text("Visit https://login.tailscale.com/admin/settings/trust-credentials")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                            .textSelection(.enabled)
+
+                        Text("Click 'Credential' -> 'OAuth'")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Text("Select 'auth_keys' scope with Write permission")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Text("Select the tag you created (e.g., 'tag:scrcpy-remote')")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Text("Click 'Generate credential' and copy the Client ID and Secret")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } else {
+                    Button(action: { withAnimation { showOAuthSection = true } }) {
+                        HStack {
+                            Image(systemName: "key.viewfinder")
+                            Text("Configure OAuth to generate auth keys automatically")
+                                .font(.subheadline)
+                        }
+                    }
+                }
+            }
+
             Section {
                 Button(action: {
                     connectAndTestTailscale()
@@ -533,7 +733,7 @@ struct TailscaleAuthSettingsView: View {
                     }
                 }
                 .disabled(isConnecting || appSettings.tailscaleAuthKey.isEmpty)
-                
+
                 if isConnected || !connectionResult.isEmpty {
                     Button(action: {
                         cleanupTailscale()
@@ -544,7 +744,7 @@ struct TailscaleAuthSettingsView: View {
                         }
                     }
                     .foregroundColor(.red)
-                    
+
                     Button(action: {
                         clearPersistentState()
                     }) {
@@ -556,7 +756,7 @@ struct TailscaleAuthSettingsView: View {
                     .foregroundColor(.orange)
                 }
             }
-            
+
             if !connectionResult.isEmpty {
                 Section(header: Text("Connection Status")) {
                     if isConnected {
@@ -568,7 +768,7 @@ struct TailscaleAuthSettingsView: View {
                                     .fontWeight(.medium)
                                     .foregroundColor(.green)
                             }
-                            
+
                             if !tailscaleIPv4.isEmpty || !tailscaleIPv6.isEmpty || !tailscaleMagicDNS.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
@@ -580,7 +780,7 @@ struct TailscaleAuthSettingsView: View {
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
                                     }
-                                    
+
                                     if !tailscaleIPv4.isEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text("Tailscale IPv4:")
@@ -597,7 +797,7 @@ struct TailscaleAuthSettingsView: View {
                                                 .cornerRadius(6)
                                         }
                                     }
-                                    
+
                                     if !tailscaleIPv6.isEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text("Tailscale IPv6:")
@@ -614,7 +814,7 @@ struct TailscaleAuthSettingsView: View {
                                                 .cornerRadius(6)
                                         }
                                     }
-                                    
+
                                     if !tailscaleMagicDNS.isEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text("MagicDNS:")
@@ -633,7 +833,7 @@ struct TailscaleAuthSettingsView: View {
                                     }
                                 }
                             }
-                            
+
                             Text(connectionResult)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -648,7 +848,7 @@ struct TailscaleAuthSettingsView: View {
                                     .fontWeight(.medium)
                                     .foregroundColor(.red)
                             }
-                            
+
                             Text(connectionResult)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -665,6 +865,128 @@ struct TailscaleAuthSettingsView: View {
         .onDisappear {
             // Do not cleanup on disappear
             // TailscaleManager will close connections automatically if not active
+        }
+    }
+
+    private func formatExpiryDate(_ isoDate: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        if let date = formatter.date(from: isoDate) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: isoDate) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+
+        return isoDate
+    }
+
+    private func generateAuthKeyViaOAuth() {
+        guard !appSettings.tailscaleOAuthClientID.isEmpty,
+              !appSettings.tailscaleOAuthClientSecret.isEmpty,
+              !appSettings.tailscaleOAuthTag.isEmpty else {
+            oauthResult = "Please fill in all OAuth fields"
+            oauthSuccess = false
+            return
+        }
+
+        isGeneratingKey = true
+        oauthResult = ""
+        oauthSuccess = false
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let manager = TailscaleManager.shared
+
+            print("[OAuth] Setting credentials...")
+            guard manager.setOAuthCredentials(
+                clientID: self.appSettings.tailscaleOAuthClientID,
+                clientSecret: self.appSettings.tailscaleOAuthClientSecret
+            ) else {
+                DispatchQueue.main.async {
+                    self.isGeneratingKey = false
+                    self.oauthResult = "Failed to set OAuth credentials"
+                    self.oauthSuccess = false
+                }
+                return
+            }
+
+            print("[OAuth] Creating auth key with tag: \(self.appSettings.tailscaleOAuthTag)")
+            manager.resetOAuthStatus()
+
+            guard manager.createAuthKeyViaOAuth(
+                tags: [self.appSettings.tailscaleOAuthTag],
+                reusable: true,
+                ephemeral: false,
+                preauthorized: true,
+                expirySeconds: 0, // Use default (90 days max)
+                description: "Generated by Scrcpy Remote"
+            ) else {
+                DispatchQueue.main.async {
+                    self.isGeneratingKey = false
+                    self.oauthResult = "Failed to initiate auth key creation"
+                    self.oauthSuccess = false
+                }
+                return
+            }
+
+            // Poll for result
+            let timeoutSeconds = 30
+            var elapsed = 0
+
+            while elapsed < timeoutSeconds {
+                let status = manager.getOAuthStatus()
+
+                if status == 1 {
+                    // Success
+                    if let authKey = manager.getOAuthLastAuthKey() {
+                        let expiresAt = manager.getOAuthLastExpiresAt() ?? ""
+                        DispatchQueue.main.async {
+                            self.isGeneratingKey = false
+                            self.appSettings.tailscaleAuthKey = authKey
+                            self.appSettings.tailscaleAuthKeyGeneratedViaOAuth = true
+                            self.appSettings.tailscaleAuthKeyExpiresAt = expiresAt
+                            self.oauthResult = "Auth key generated successfully!"
+                            self.oauthSuccess = true
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self.isGeneratingKey = false
+                            self.oauthResult = "Key generated but could not be retrieved"
+                            self.oauthSuccess = false
+                        }
+                    }
+                    return
+                } else if status == -1 {
+                    // Error
+                    let errorMsg = manager.getOAuthLastError() ?? "Unknown error"
+                    DispatchQueue.main.async {
+                        self.isGeneratingKey = false
+                        self.oauthResult = "Failed: \(errorMsg)"
+                        self.oauthSuccess = false
+                    }
+                    return
+                }
+
+                Thread.sleep(forTimeInterval: 0.5)
+                elapsed += 1
+            }
+
+            // Timeout
+            DispatchQueue.main.async {
+                self.isGeneratingKey = false
+                self.oauthResult = "Timeout waiting for auth key generation"
+                self.oauthSuccess = false
+            }
         }
     }
 
