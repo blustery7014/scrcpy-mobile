@@ -6,7 +6,9 @@ package main
 import "C"
 
 import (
+	"context"
 	"log"
+	"strings"
 	"time"
 
 	forwarder "me.wsen.scrcpy-tsnet/lib"
@@ -26,10 +28,42 @@ var (
 	// Test variables to track IP changes
 	firstConnectionIPs  []string
 	secondConnectionIPs []string
+
+	// OAuth variables
+	oauthClient        *forwarder.OAuthClient
+	oauthLastAuthKey   string
+	oauthLastExpiresAt string
+	oauthLastError     string
+	oauthStatus        int // 0: none, 1: success, -1: error
 )
 
 func init() {
 	tsnetForwarder = forwarder.GetInstance()
+	oauthClient = forwarder.GetOAuthInstance()
+
+	// Register OAuth callback
+	oauthCallback := &forwarder.OAuthCallback{
+		OnTokenSuccess: func(token *forwarder.OAuthToken) {
+			log.Printf("OAuth Token Success: type=%s, expires_in=%d", token.TokenType, token.ExpiresIn)
+		},
+		OnTokenError: func(err error) {
+			log.Printf("OAuth Token Error: %v", err)
+			oauthLastError = err.Error()
+			oauthStatus = -1
+		},
+		OnAuthKeySuccess: func(authKey, expiresAt string) {
+			log.Printf("OAuth Auth Key Success: key=%s..., expires=%s", truncateForLog(authKey, 20), expiresAt)
+			oauthLastAuthKey = authKey
+			oauthLastExpiresAt = expiresAt
+			oauthStatus = 1
+		},
+		OnAuthKeyError: func(err error) {
+			log.Printf("OAuth Auth Key Error: %v", err)
+			oauthLastError = err.Error()
+			oauthStatus = -1
+		},
+	}
+	oauthClient.RegisterOAuthCallback(oauthCallback)
 
 	// Register connect callback
 	connectCallback := &forwarder.ConnectCallback{
@@ -355,6 +389,161 @@ func tsnet_get_second_connection_ips() *C.char {
 		return C.CString(secondConnectionIPs[0])
 	}
 	return C.CString("")
+}
+
+// Helper function to truncate string for logging
+func truncateForLog(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen]
+}
+
+// ============== OAuth C Bindings ==============
+
+// oauth_set_credentials sets the OAuth client credentials
+//
+//export oauth_set_credentials
+func oauth_set_credentials(clientID *C.char, clientSecret *C.char) C.int {
+	id := C.GoString(clientID)
+	secret := C.GoString(clientSecret)
+
+	if id == "" || secret == "" {
+		return -1
+	}
+
+	oauthClient.SetOAuthCredentials(id, secret)
+	return 0
+}
+
+// oauth_validate_credentials validates the OAuth credentials by attempting to get a token
+//
+//export oauth_validate_credentials
+func oauth_validate_credentials() C.int {
+	oauthStatus = 0
+	oauthLastError = ""
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		err := oauthClient.ValidateCredentials(ctx)
+		if err != nil {
+			oauthLastError = err.Error()
+			oauthStatus = -1
+		} else {
+			oauthStatus = 1
+		}
+	}()
+
+	return 0
+}
+
+// oauth_create_auth_key creates an auth key using OAuth
+// tags should be a comma-separated string like "tag:server,tag:client"
+//
+//export oauth_create_auth_key
+func oauth_create_auth_key(tags *C.char, reusable C.int, ephemeral C.int, preauthorized C.int, expirySeconds C.int, description *C.char) C.int {
+	oauthStatus = 0
+	oauthLastError = ""
+	oauthLastAuthKey = ""
+	oauthLastExpiresAt = ""
+
+	tagsStr := C.GoString(tags)
+	descStr := C.GoString(description)
+
+	// Parse comma-separated tags
+	var tagList []string
+	if tagsStr != "" {
+		for _, tag := range strings.Split(tagsStr, ",") {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				tagList = append(tagList, tag)
+			}
+		}
+	}
+
+	if len(tagList) == 0 {
+		oauthLastError = "at least one tag is required for OAuth auth key creation"
+		oauthStatus = -1
+		return -1
+	}
+
+	oauthClient.CreateAuthKeyAsync(
+		tagList,
+		reusable != 0,
+		ephemeral != 0,
+		preauthorized != 0,
+		int(expirySeconds),
+		descStr,
+	)
+
+	return 0
+}
+
+// oauth_get_status gets the OAuth operation status
+// Returns: 0 = in progress, 1 = success, -1 = error
+//
+//export oauth_get_status
+func oauth_get_status() C.int {
+	return C.int(oauthStatus)
+}
+
+// oauth_get_last_auth_key gets the last generated auth key
+//
+//export oauth_get_last_auth_key
+func oauth_get_last_auth_key() *C.char {
+	return C.CString(oauthLastAuthKey)
+}
+
+// oauth_get_last_expires_at gets the expiration time of the last generated auth key
+//
+//export oauth_get_last_expires_at
+func oauth_get_last_expires_at() *C.char {
+	return C.CString(oauthLastExpiresAt)
+}
+
+// oauth_get_last_error gets the last OAuth error message
+//
+//export oauth_get_last_error
+func oauth_get_last_error() *C.char {
+	return C.CString(oauthLastError)
+}
+
+// oauth_is_credentials_set checks if OAuth credentials are configured
+//
+//export oauth_is_credentials_set
+func oauth_is_credentials_set() C.int {
+	if oauthClient.IsCredentialsSet() {
+		return 1
+	}
+	return 0
+}
+
+// oauth_get_client_id gets the configured OAuth client ID (for display)
+//
+//export oauth_get_client_id
+func oauth_get_client_id() *C.char {
+	return C.CString(oauthClient.GetClientID())
+}
+
+// oauth_clear_credentials clears OAuth credentials
+//
+//export oauth_clear_credentials
+func oauth_clear_credentials() {
+	oauthClient.ClearCredentials()
+	oauthLastAuthKey = ""
+	oauthLastExpiresAt = ""
+	oauthLastError = ""
+	oauthStatus = 0
+}
+
+// oauth_reset_status resets the OAuth status to allow new operations
+//
+//export oauth_reset_status
+func oauth_reset_status() {
+	oauthStatus = 0
+	oauthLastError = ""
 }
 
 // main function is required
