@@ -28,14 +28,17 @@ struct NetworkConnectionInfo {
 /// Manages network connections for sessions, handling both direct and Tailscale connections
 class SessionNetworking {
     static let shared = SessionNetworking()
-    
+
     // Port range for local forwarding
     private let forwardPortMin = 20000
     private let forwardPortMax = 30000
-    
+
     // Track active sessions and their port forwards
     private var activeSessionForwards: [UUID: (host: String, port: Int, localPort: Int)] = [:]
-    
+
+    // Status callback for UI updates (e.g., "Regenerating auth key...")
+    var statusUpdateCallback: ((String) -> Void)?
+
     private init() {}
     
     // MARK: - Public Methods
@@ -118,63 +121,106 @@ class SessionNetworking {
     /// Set up Tailscale connection and port forwarding
     private func setupTailscaleConnection(sessionId: UUID, remoteHost: String, remotePort: Int) async -> NetworkConnectionInfo? {
         let manager = TailscaleManager.shared
-        
+
+        // Check if auth key needs regeneration before connecting
+        if manager.isAuthKeyExpired() {
+            if manager.canAutoRegenerateAuthKey() {
+                statusUpdateCallback?("Auth key expired, regenerating...")
+                print("[SessionNetworking] Auth key expired, attempting auto-regeneration")
+
+                let regenerated = await withCheckedContinuation { continuation in
+                    manager.autoRegenerateAuthKeyIfNeeded { success, error in
+                        if let error = error {
+                            print("[SessionNetworking] Auth key regeneration failed: \(error)")
+                        }
+                        continuation.resume(returning: success)
+                    }
+                }
+
+                if regenerated {
+                    statusUpdateCallback?("Auth key regenerated successfully")
+                    print("[SessionNetworking] Auth key regenerated successfully")
+                } else {
+                    statusUpdateCallback?("Failed to regenerate auth key")
+                    print("[SessionNetworking] Failed to regenerate auth key, connection may fail")
+                    // Continue anyway - the old key might still work
+                }
+            } else {
+                print("[SessionNetworking] Auth key expired but OAuth not configured for auto-regeneration")
+                statusUpdateCallback?("Auth key expired - configure OAuth for auto-renewal")
+            }
+        }
+
         // Check if Tailscale configuration is valid
         guard manager.isConfigurationValid() else {
             print("[SessionNetworking] Tailscale configuration is invalid")
             let configStatus = manager.getConfigurationStatus()
             print("[SessionNetworking] Configuration status: \(configStatus)")
+            statusUpdateCallback?("Tailscale configuration invalid")
             return nil
         }
-        
+
+        statusUpdateCallback?("Connecting to Tailscale...")
+
         // Ensure Tailscale is connected
         guard manager.ensureConnected() else {
             print("[SessionNetworking] Failed to ensure Tailscale connection")
             if let lastError = manager.getLastError() {
                 print("[SessionNetworking] Tailscale error: \(lastError)")
+                statusUpdateCallback?("Tailscale error: \(lastError)")
             }
             return nil
         }
-        
+
+        statusUpdateCallback?("Waiting for Tailscale connection...")
+
         // Wait for connection to be established
         let connected = await waitForTailscaleConnection(timeout: 30.0)
         guard connected else {
             print("[SessionNetworking] Tailscale connection timeout")
             if let lastError = manager.getLastError() {
                 print("[SessionNetworking] Tailscale error after timeout: \(lastError)")
+                statusUpdateCallback?("Connection timeout: \(lastError)")
+            } else {
+                statusUpdateCallback?("Tailscale connection timeout")
             }
             return nil
         }
-        
+
+        statusUpdateCallback?("Setting up port forwarding...")
+
         // Find available local port
         guard let localPort = findAvailablePort() else {
             print("[SessionNetworking] No available ports in range \(forwardPortMin)-\(forwardPortMax)")
+            statusUpdateCallback?("No available ports")
             return nil
         }
-        
+
         // Stop existing forward for this session if any
         _ = stopForwarding(for: sessionId)
-        
+
         // Start port forwarding
         let success = manager.startForward(
             remoteAddr: remoteHost,
             remotePort: remotePort,
             localPort: localPort
         )
-        
+
         guard success else {
             print("[SessionNetworking] Failed to start port forwarding: \(remoteHost):\(remotePort) -> 127.0.0.1:\(localPort)")
             if let lastError = manager.getLastError() {
                 print("[SessionNetworking] Port forwarding error: \(lastError)")
+                statusUpdateCallback?("Port forwarding failed: \(lastError)")
             }
             return nil
         }
-        
+
         // Track the forward
         activeSessionForwards[sessionId] = (host: remoteHost, port: remotePort, localPort: localPort)
-        
+
         print("[SessionNetworking] Started port forwarding: \(remoteHost):\(remotePort) -> 127.0.0.1:\(localPort)")
-        
+        statusUpdateCallback?("Connected via Tailscale")
+
         return NetworkConnectionInfo(
             host: "127.0.0.1",
             port: String(localPort),

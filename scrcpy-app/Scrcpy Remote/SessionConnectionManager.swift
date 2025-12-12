@@ -469,10 +469,18 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
         errorCallback: @escaping ConnectionErrorCallback
     ) {
         print("🔗 [SessionConnectionManager] Performing connection to session: \(session.sessionName)")
-        
+
         isConnecting = true
         statusCallback(ScrcpyStatusConnecting, "Preparing connection...", true)
-        
+
+        // Hook up SessionNetworking status callback for Tailscale/OAuth status updates
+        SessionNetworking.shared.statusUpdateCallback = { [weak self] message in
+            DispatchQueue.main.async {
+                print("📡 [SessionConnectionManager] Network status: \(message)")
+                statusCallback(ScrcpyStatusConnecting, message, true)
+            }
+        }
+
         Task {
             do {
                 var connectionInfo = await SessionNetworking.shared.getConnectionInfo(for: session)
@@ -492,6 +500,8 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
                 
                 guard let finalConnectionInfo = connectionInfo else {
                     await MainActor.run {
+                        // Clear the status callback on error
+                        SessionNetworking.shared.statusUpdateCallback = nil
                         self.handleConnectionError(
                             title: "Connection Setup Failed",
                             message: "Failed to setup connection. Please check your network configuration and try again.",
@@ -516,12 +526,17 @@ typealias ActionConfirmationCallback = (ScrcpyAction, @escaping () -> Void) -> V
                         sessionDict["host"] = finalConnectionInfo.host
                         print("🔌 [SessionConnectionManager] Using direct connection: \(finalConnectionInfo.host):\(finalConnectionInfo.port)")
                     }
-                    
+
+                    // Clear the status callback as we're done with network setup
+                    SessionNetworking.shared.statusUpdateCallback = nil
+
                     self.startScrcpyConnection(sessionDict: sessionDict, connectionInfo: finalConnectionInfo)
                 }
                 
             } catch {
                 await MainActor.run {
+                    // Clear the status callback on error
+                    SessionNetworking.shared.statusUpdateCallback = nil
                     self.handleConnectionError(
                         title: "Connection Error",
                         message: "Failed to establish connection: \(error.localizedDescription)",
