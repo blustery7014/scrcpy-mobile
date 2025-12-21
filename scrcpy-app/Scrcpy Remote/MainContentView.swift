@@ -32,6 +32,7 @@ struct MainContentView: View {
             let appearance = UINavigationBarAppearance()
             appearance.configureWithDefaultBackground()
             appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            appearance.shadowColor = UIColor.separator  // Add subtle shadow/border below navigation bar
             UINavigationBar.appearance().standardAppearance = appearance
             UINavigationBar.appearance().compactAppearance = appearance
             UINavigationBar.appearance().scrollEdgeAppearance = appearance

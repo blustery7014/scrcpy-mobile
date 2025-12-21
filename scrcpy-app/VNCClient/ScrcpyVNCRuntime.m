@@ -38,6 +38,56 @@ static BOOL g_mouseJustStopped = NO;  // 标记鼠标是否刚刚停止移动（
 static int g_mouseStopCounter = 0;    // 鼠标停止移动计数器
 static const int MOUSE_STOP_THRESHOLD = 3;  // 鼠标停止移动阈值（帧数）
 
+// 双缓冲机制 - 优先使用预分配缓冲区，必要时回退到malloc
+// 绝不丢弃帧，因为VNC增量更新必须全部应用才能正确渲染
+typedef struct {
+    void *data;
+    size_t capacity;
+    volatile BOOL inUse;
+} VNCPixelBuffer;
+
+#define VNC_BUFFER_COUNT 3  // 增加缓冲区数量以减少malloc回退
+static VNCPixelBuffer g_pixelBuffers[VNC_BUFFER_COUNT] = {{NULL, 0, NO}, {NULL, 0, NO}, {NULL, 0, NO}};
+
+// 获取可用的像素缓冲区，如果需要则扩容，如果全部繁忙则malloc
+static void* VNCGetPixelBuffer(size_t requiredSize, int *outBufferIndex) {
+    // 查找空闲的预分配缓冲区
+    for (int i = 0; i < VNC_BUFFER_COUNT; i++) {
+        if (!__sync_bool_compare_and_swap(&g_pixelBuffers[i].inUse, NO, YES)) {
+            continue;  // 缓冲区正在使用中
+        }
+
+        // 获取到缓冲区，检查是否需要扩容
+        if (g_pixelBuffers[i].capacity < requiredSize) {
+            void *newData = realloc(g_pixelBuffers[i].data, requiredSize);
+            if (!newData) {
+                __sync_bool_compare_and_swap(&g_pixelBuffers[i].inUse, YES, NO);
+                continue;  // 扩容失败，尝试下一个缓冲区
+            }
+            g_pixelBuffers[i].data = newData;
+            g_pixelBuffers[i].capacity = requiredSize;
+        }
+
+        *outBufferIndex = i;
+        return g_pixelBuffers[i].data;
+    }
+
+    // 所有预分配缓冲区都在使用中，回退到malloc（绝不丢弃帧）
+    *outBufferIndex = -1;  // 标记为动态分配
+    return malloc(requiredSize);
+}
+
+// 释放像素缓冲区（标记为可用或free动态分配的）
+static void VNCReleasePixelBuffer(int bufferIndex, void *buffer) {
+    if (bufferIndex >= 0 && bufferIndex < VNC_BUFFER_COUNT) {
+        // 预分配缓冲区，标记为可用
+        __sync_bool_compare_and_swap(&g_pixelBuffers[bufferIndex].inUse, YES, NO);
+    } else if (bufferIndex == -1 && buffer) {
+        // 动态分配的缓冲区，需要free
+        free(buffer);
+    }
+}
+
 
 // 前向声明
 void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale);
@@ -238,20 +288,25 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
         NSLog(@"❌ [VNCRuntime] Invalid SDL objects: texture=%p, renderer=%p, window=%p", sdlTexture, sdlRenderer, sdlWindow);
         return;
     }
-    
+
     SDL_Surface *sdl = rfbClientGetClientData(cl, SDL_Init);
     if (!sdl || !sdl->pixels) {
         NSLog(@"❌ [VNCRuntime] Invalid SDL surface or pixels");
         return;
     }
-    
-    SDL_Rect r = {x, y, w, h};
-    
-    if (SDL_UpdateTexture(sdlTexture, &r, sdl->pixels + y*sdl->pitch + x*4, sdl->pitch) < 0) {
-        rfbClientErr("update: failed to update texture: %s\n", SDL_GetError());
+
+    // 使用缓冲池复制像素数据（优先使用预分配缓冲区，必要时回退到malloc）
+    SDL_Rect updateRect = {x, y, w, h};
+    int pixelDataSize = h * sdl->pitch;
+    int bufferIndex = -1;
+    void *pixelDataCopy = VNCGetPixelBuffer(pixelDataSize, &bufferIndex);
+    if (!pixelDataCopy) {
+        NSLog(@"❌ [VNCRuntime] Failed to allocate pixel buffer");
         return;
     }
-    
+    memcpy(pixelDataCopy, sdl->pixels + y * sdl->pitch, pixelDataSize);
+    int pitch = sdl->pitch;
+
     // 获取窗口和纹理尺寸
     int windowWidth, windowHeight;
     SDL_GetWindowSize(sdlWindow, &windowWidth, &windowHeight);
@@ -464,30 +519,55 @@ static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, i
     
     // 使用可能更新后的偏移量创建目标矩形
     SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
-    
-    // 清除渲染器并绘制纹理（居中并保持比例）
-    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
-    SDL_RenderClear(sdlRenderer);
-    SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
-    
-    // 绘制鼠标光标（使用最终的屏幕坐标）
-    if (vncClient && cl->appData.useRemoteCursor) {
+
+    // 计算鼠标光标位置（在主线程dispatch之前）
+    BOOL shouldDrawCursor = vncClient && cl->appData.useRemoteCursor;
+    int cursorScreenX = 0, cursorScreenY = 0;
+    float cursorScale = finalScale;
+    if (shouldDrawCursor) {
         int remoteMouseX = vncClient.currentMouseX;
         int remoteMouseY = vncClient.currentMouseY;
-        int screenMouseX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
-        int screenMouseY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
-        
-        // 绘制macOS风格的鼠标光标（使用最终缩放）
-        VNCRuntimeDrawMacOSCursor(sdlRenderer, screenMouseX, screenMouseY, finalScale);
+        cursorScreenX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
+        cursorScreenY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
     }
-    
-    SDL_RenderPresent(sdlRenderer);
-    
-    // 检查是否是第一帧渲染，如果是则更新状态为窗口已显示
-    if (vncClient && vncClient.scrcpyStatus <= ScrcpyStatusConnected) {
-        vncClient.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
-        ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "First frame rendered, SDL window appeared");
-    }
+
+    // 检查是否是第一帧渲染
+    BOOL isFirstFrame = vncClient && vncClient.scrcpyStatus <= ScrcpyStatusConnected;
+
+    // SDL Metal渲染必须在主线程执行，避免MTLDebugCommandBuffer线程安全崩溃
+    // SDL_UpdateTexture也会触发Metal操作，必须在主线程执行
+    int capturedBufferIndex = bufferIndex;  // 捕获缓冲区索引用于block
+    void *capturedPixelData = pixelDataCopy;  // 捕获缓冲区指针用于释放
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 更新纹理（使用复制的像素数据）
+        if (SDL_UpdateTexture(sdlTexture, &updateRect, capturedPixelData + x * 4, pitch) < 0) {
+            rfbClientErr("update: failed to update texture: %s\n", SDL_GetError());
+            VNCReleasePixelBuffer(capturedBufferIndex, capturedPixelData);
+            return;
+        }
+
+        // 清除渲染器并绘制纹理（居中并保持比例）
+        SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
+        SDL_RenderClear(sdlRenderer);
+        SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
+
+        // 绘制鼠标光标（使用最终的屏幕坐标）
+        if (shouldDrawCursor) {
+            // 绘制macOS风格的鼠标光标（使用最终缩放）
+            VNCRuntimeDrawMacOSCursor(sdlRenderer, cursorScreenX, cursorScreenY, cursorScale);
+        }
+
+        SDL_RenderPresent(sdlRenderer);
+
+        // 检查是否是第一帧渲染，如果是则更新状态为窗口已显示
+        if (isFirstFrame) {
+            vncClient.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
+            ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "First frame rendered, SDL window appeared");
+        }
+
+        // 释放像素缓冲区（标记为可重用或free动态分配的）
+        VNCReleasePixelBuffer(capturedBufferIndex, capturedPixelData);
+    });
     
     // 智能请求下一帧更新（仅在传统模式下）
     if (vncClient && !vncClient.areContinuousUpdatesEnabled) {
