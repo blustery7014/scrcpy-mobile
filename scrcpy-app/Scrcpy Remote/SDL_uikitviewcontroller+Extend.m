@@ -20,6 +20,9 @@
 #import "Scrcpy_Remote-Swift.h"
 #import "ScrcpyConstants.h"
 
+// External notification name from ScrcpyRuntime
+extern NSString * const ScrcpyRemoteOrientationChangedNotification;
+
 @interface SDL_uikitviewcontroller () <ScrcpyMenuViewDelegate>
 @property (nonatomic, assign)   NSInteger  homeIndicatorHidden;
 @end
@@ -29,6 +32,53 @@
 // Key for menuView associated object
 static char menuViewKey;
 static char inputMaskViewKey;
+static char lockedOrientationMaskKey;
+static char orientationLockEnabledKey;
+
+#pragma mark - Method Swizzling for Orientation Control
+
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Class class = [self class];
+
+        // Swizzle supportedInterfaceOrientations
+        SEL originalSelector = @selector(supportedInterfaceOrientations);
+        SEL swizzledSelector = @selector(scrcpy_supportedInterfaceOrientations);
+
+        Method originalMethod = class_getInstanceMethod(class, originalSelector);
+        Method swizzledMethod = class_getInstanceMethod(class, swizzledSelector);
+
+        // If the original method doesn't exist, add it first
+        BOOL didAddMethod = class_addMethod(class,
+                                            originalSelector,
+                                            method_getImplementation(swizzledMethod),
+                                            method_getTypeEncoding(swizzledMethod));
+
+        if (didAddMethod) {
+            class_replaceMethod(class,
+                               swizzledSelector,
+                               method_getImplementation(originalMethod),
+                               method_getTypeEncoding(originalMethod));
+        } else {
+            method_exchangeImplementations(originalMethod, swizzledMethod);
+        }
+
+        NSLog(@"📱 [SDL_uikitviewcontroller] Method swizzling completed for supportedInterfaceOrientations");
+    });
+}
+
+- (UIInterfaceOrientationMask)scrcpy_supportedInterfaceOrientations {
+    // If orientation lock is enabled, return only the locked orientation
+    if ([self isOrientationLockEnabled]) {
+        UIInterfaceOrientationMask lockedMask = [self lockedOrientationMask];
+        NSLog(@"📱 [SDL_uikitviewcontroller] Returning locked orientation mask: %lu", (unsigned long)lockedMask);
+        return lockedMask;
+    }
+
+    // Otherwise, call original implementation (which allows all orientations)
+    return [self scrcpy_supportedInterfaceOrientations];
+}
 
 // Getter for menuView
 - (ScrcpyMenuView *)menuView {
@@ -48,6 +98,28 @@ static char inputMaskViewKey;
 // Setter for inputMaskView
 - (void)setInputMaskView:(ScrcpyInputMaskView *)inputMaskView {
     objc_setAssociatedObject(self, &inputMaskViewKey, inputMaskView, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+// Getter for lockedOrientationMask
+- (UIInterfaceOrientationMask)lockedOrientationMask {
+    NSNumber *value = objc_getAssociatedObject(self, &lockedOrientationMaskKey);
+    return value ? [value unsignedIntegerValue] : UIInterfaceOrientationMaskAll;
+}
+
+// Setter for lockedOrientationMask
+- (void)setLockedOrientationMask:(UIInterfaceOrientationMask)mask {
+    objc_setAssociatedObject(self, &lockedOrientationMaskKey, @(mask), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+// Getter for orientationLockEnabled
+- (BOOL)isOrientationLockEnabled {
+    NSNumber *value = objc_getAssociatedObject(self, &orientationLockEnabledKey);
+    return value ? [value boolValue] : NO;
+}
+
+// Setter for orientationLockEnabled
+- (void)setOrientationLockEnabled:(BOOL)enabled {
+    objc_setAssociatedObject(self, &orientationLockEnabledKey, @(enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 - (void)viewWillLayoutSubviews
@@ -97,12 +169,63 @@ static char inputMaskViewKey;
                                              selector:@selector(handleVNCTipNotification:)
                                                  name:kNotificationVNCClipboardSynced
                                                object:nil];
+
+    // 监听远程设备方向变化通知
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleRemoteOrientationChanged:)
+                                                 name:ScrcpyRemoteOrientationChangedNotification
+                                               object:nil];
+
+    // 监听断开连接通知，以便重置方向锁定
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleDisconnectForOrientationReset:)
+                                                 name:ScrcpyRequestDisconnectNotification
+                                               object:nil];
+
+    // 监听状态更新通知，检测断开连接状态
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleStatusUpdateForOrientationReset:)
+                                                 name:ScrcpyStatusUpdatedNotificationName
+                                               object:nil];
+
+    // Check if there's already a known remote orientation (frame arrived before viewDidAppear)
+    // Apply it now since we missed the notification
+    [self applyPendingRemoteOrientation];
+}
+
+-(void)applyPendingRemoteOrientation {
+    // Check if remote orientation is already known (frames arrived before viewDidAppear)
+    if (!IsRemoteOrientationKnown()) {
+        NSLog(@"📱 [SDL_uikitviewcontroller] No pending remote orientation to apply");
+        return;
+    }
+
+    int width = 0, height = 0;
+    BOOL isLandscape = GetCurrentRemoteOrientation(&width, &height);
+
+    NSLog(@"📱 [SDL_uikitviewcontroller] Applying pending remote orientation: %@ (%dx%d)",
+          isLandscape ? @"Landscape" : @"Portrait", width, height);
+
+    // Force orientation change
+    [self forceOrientationToLandscape:isLandscape];
+
+    // Schedule layout updates
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self updateDisplayLayerFrame];
+    });
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self updateDisplayLayerFrame];
+    });
 }
 
 -(void)viewWillUnload
 {
     [super viewWillUnload];
-    
+
+    // Unlock orientation when view is about to be unloaded
+    [self unlockOrientation];
+
     self.homeIndicatorHidden = 0;
     [self setNeedsUpdateOfHomeIndicatorAutoHidden];
     NSLog(@"Reset ViewControllers HomeIndicatorAutoHidden.");
@@ -130,6 +253,178 @@ static char inputMaskViewKey;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [alert dismissViewControllerAnimated:YES completion:nil];
     });
+}
+
+#pragma mark - Remote Orientation Change
+
+-(void)handleRemoteOrientationChanged:(NSNotification *)notification {
+    BOOL isLandscape = [notification.userInfo[@"isLandscape"] boolValue];
+    int remoteWidth = [notification.userInfo[@"width"] intValue];
+    int remoteHeight = [notification.userInfo[@"height"] intValue];
+    BOOL isFirstFrame = [notification.userInfo[@"isFirstFrame"] boolValue];
+
+    NSLog(@"📱 [SDL_uikitviewcontroller] Remote orientation %@: %@ (%dx%d)",
+          isFirstFrame ? @"initial" : @"changed",
+          isLandscape ? @"Landscape" : @"Portrait", remoteWidth, remoteHeight);
+
+    // Force orientation change
+    [self forceOrientationToLandscape:isLandscape];
+
+    // Schedule layout update after a short delay to ensure orientation change completes
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self updateDisplayLayerFrame];
+    });
+
+    // Also update after a longer delay for iOS animation completion
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self updateDisplayLayerFrame];
+    });
+}
+
+-(void)updateDisplayLayerFrame {
+    // Force layout update
+    [self.view setNeedsLayout];
+    [self.view layoutIfNeeded];
+
+    // Explicitly update all AVSampleBufferDisplayLayer frames
+    for (CALayer *layer in self.view.layer.sublayers) {
+        if ([layer isKindOfClass:AVSampleBufferDisplayLayer.class]) {
+            CGRect newFrame = self.view.bounds;
+            if (!CGRectEqualToRect(layer.frame, newFrame)) {
+                NSLog(@"📱 [SDL_uikitviewcontroller] Updating display layer frame: %@ -> %@",
+                      NSStringFromCGRect(layer.frame), NSStringFromCGRect(newFrame));
+                layer.frame = newFrame;
+            }
+        }
+    }
+}
+
+-(void)forceOrientationToLandscape:(BOOL)landscape {
+    UIWindowScene *windowScene = self.view.window.windowScene;
+    if (!windowScene) {
+        NSLog(@"⚠️ [SDL_uikitviewcontroller] No window scene available for orientation change");
+        return;
+    }
+
+    // Set the locked orientation mask to prevent local device rotation
+    UIInterfaceOrientationMask targetMask = landscape
+        ? UIInterfaceOrientationMaskLandscape
+        : UIInterfaceOrientationMaskPortrait;
+
+    [self setLockedOrientationMask:targetMask];
+    [self setOrientationLockEnabled:YES];
+
+    NSLog(@"🔒 [SDL_uikitviewcontroller] Orientation locked to: %@", landscape ? @"Landscape" : @"Portrait");
+
+    // Check if current orientation already matches target
+    UIInterfaceOrientation currentOrientation = windowScene.interfaceOrientation;
+    BOOL currentIsLandscape = UIInterfaceOrientationIsLandscape(currentOrientation);
+
+    if (currentIsLandscape == landscape) {
+        NSLog(@"📱 [SDL_uikitviewcontroller] Orientation already matches: %@, updating layer frame",
+              landscape ? @"Landscape" : @"Portrait");
+        // Still update the layer frame in case it's not correct
+        [self updateDisplayLayerFrame];
+        return;
+    }
+
+    if (@available(iOS 16.0, *)) {
+        // iOS 16+ uses requestGeometryUpdate
+        UIWindowSceneGeometryPreferencesIOS *preferences =
+            [[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:targetMask];
+
+        __weak typeof(self) weakSelf = self;
+        [windowScene requestGeometryUpdateWithPreferences:preferences
+                                             errorHandler:^(NSError * _Nonnull error) {
+            NSLog(@"❌ [SDL_uikitviewcontroller] Failed to update geometry: %@", error.localizedDescription);
+            // Still try to update layer frame on error
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf updateDisplayLayerFrame];
+            });
+        }];
+
+        // Also update the view controller to ensure it reports the correct orientations
+        [self setNeedsUpdateOfSupportedInterfaceOrientations];
+
+        NSLog(@"📱 [SDL_uikitviewcontroller] Requested orientation change to %@ (iOS 16+)",
+              landscape ? @"Landscape" : @"Portrait");
+    } else {
+        // iOS 15 and earlier - use device orientation value setting
+        UIDeviceOrientation targetOrientation = landscape
+            ? UIDeviceOrientationLandscapeLeft
+            : UIDeviceOrientationPortrait;
+
+        // Force orientation using private API (setValue:forKey:)
+        [[UIDevice currentDevice] setValue:@(targetOrientation) forKey:@"orientation"];
+
+        // Trigger orientation change
+        [UIViewController attemptRotationToDeviceOrientation];
+
+        NSLog(@"📱 [SDL_uikitviewcontroller] Forced orientation change to %@ (iOS 15-)",
+              landscape ? @"Landscape" : @"Portrait");
+    }
+}
+
+-(void)unlockOrientation {
+    // Disable orientation lock
+    [self setOrientationLockEnabled:NO];
+    [self setLockedOrientationMask:UIInterfaceOrientationMaskAll];
+
+    // Reset orientation tracking state in runtime
+    ResetScrcpyOrientationTracking();
+
+    NSLog(@"🔓 [SDL_uikitviewcontroller] Orientation unlocked, following local device orientation");
+
+    // Update supported orientations
+    if (@available(iOS 16.0, *)) {
+        [self setNeedsUpdateOfSupportedInterfaceOrientations];
+
+        // Request geometry update to allow all orientations
+        UIWindowScene *windowScene = self.view.window.windowScene;
+        if (windowScene) {
+            UIWindowSceneGeometryPreferencesIOS *preferences =
+                [[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:UIInterfaceOrientationMaskAll];
+
+            [windowScene requestGeometryUpdateWithPreferences:preferences
+                                                 errorHandler:^(NSError * _Nonnull error) {
+                NSLog(@"⚠️ [SDL_uikitviewcontroller] Failed to unlock geometry: %@", error.localizedDescription);
+            }];
+        }
+    } else {
+        [UIViewController attemptRotationToDeviceOrientation];
+    }
+}
+
+-(void)handleDisconnectForOrientationReset:(NSNotification *)notification {
+    NSLog(@"📱 [SDL_uikitviewcontroller] Disconnect requested, unlocking orientation");
+    // Dispatch to main thread since this may be called from background
+    if ([NSThread isMainThread]) {
+        [self unlockOrientation];
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self unlockOrientation];
+        });
+    }
+}
+
+-(void)handleStatusUpdateForOrientationReset:(NSNotification *)notification {
+    NSNumber *statusNumber = notification.userInfo[@"status"];
+    if (!statusNumber) return;
+
+    int status = [statusNumber intValue];
+
+    // Check if status is disconnected (ScrcpyStatusDisconnected = 0)
+    if (status == 0) {
+        NSLog(@"📱 [SDL_uikitviewcontroller] Status changed to disconnected, unlocking orientation");
+        // Dispatch to main thread since this notification comes from background thread
+        if ([NSThread isMainThread]) {
+            [self unlockOrientation];
+        } else {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self unlockOrientation];
+            });
+        }
+    }
 }
 
 #pragma mark - Keyboard Notifications

@@ -84,9 +84,14 @@ struct VNCSessionOptions: Codable, Identifiable {
     var vncPassword: String = ""
     var compressionLevel: VNCCompressionLevel = .standard
     var qualityLevel: VNCQualityLevel = .standard
-    
+
+    // VNC Audio Streaming Options
+    var enableAudio: Bool = false
+    var audioPort: String = ""  // Empty means default 4901
+    var audioBufferMs: Int = 100  // Audio buffer time in milliseconds
+
     init() { }
-    
+
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -94,6 +99,9 @@ struct VNCSessionOptions: Codable, Identifiable {
         self.vncPassword = try container.decodeIfPresent(String.self, forKey: .vncPassword) ?? ""
         self.compressionLevel = try container.decodeIfPresent(VNCCompressionLevel.self, forKey: .compressionLevel) ?? .standard
         self.qualityLevel = try container.decodeIfPresent(VNCQualityLevel.self, forKey: .qualityLevel) ?? .standard
+        self.enableAudio = try container.decodeIfPresent(Bool.self, forKey: .enableAudio) ?? false
+        self.audioPort = try container.decodeIfPresent(String.self, forKey: .audioPort) ?? ""
+        self.audioBufferMs = try container.decodeIfPresent(Int.self, forKey: .audioBufferMs) ?? 100
     }
 }
 
@@ -151,7 +159,10 @@ struct ADBSessionOptions: Codable, Identifiable {
     
     // 硬件解码选项，默认启用
     var enableHardwareDecoding: Bool = true
-    
+
+    // 跟随远程设备方向变化选项，默认禁用
+    var followRemoteOrientation: Bool = false
+
     init() { }
     
     init(from decoder: any Decoder) throws {
@@ -196,6 +207,9 @@ struct ADBSessionOptions: Codable, Identifiable {
         
         // 解码硬件解码选项，默认为 true
         self.enableHardwareDecoding = try container.decodeIfPresent(Bool.self, forKey: .enableHardwareDecoding) ?? true
+
+        // 解码跟随远程设备方向变化选项，默认为 false
+        self.followRemoteOrientation = try container.decodeIfPresent(Bool.self, forKey: .followRemoteOrientation) ?? false
     }
 }
 

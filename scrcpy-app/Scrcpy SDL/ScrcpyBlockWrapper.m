@@ -182,7 +182,27 @@ char *GetPasswordBlock(rfbClient* cl) {
         NSLog(@"GetPasswordBlock IMP not found for: %p", cl);
         return NULL;
     }
-    
+
     char *(*block)(rfbClient* cl, void *) = (char *(*)(rfbClient* cl, void *sel))blockIMP;
     return block(cl, NULL);
+}
+
+/**
+ * BlockEntry: FinishedFrameBufferUpdateBlock
+ */
+
+IMP GetSet_FinishedFrameBufferUpdateBlockIMP(rfbClient* cl, IMP blockIMP) {
+    static ScrcpyBlockEntry entries[ScrcpyBlockEntryMax] = {0};
+    return GetSet_ScrcpyBlockIMP(entries, cl, blockIMP);
+}
+
+void FinishedFrameBufferUpdateBlock(rfbClient* cl) {
+    IMP blockIMP = GetSet_FinishedFrameBufferUpdateBlockIMP(cl, nil);
+    if (!blockIMP) {
+        // 不输出日志，因为这个回调是可选的
+        return;
+    }
+
+    void (*block)(rfbClient* cl, void *) = (void (*)(rfbClient* cl, void *sel))blockIMP;
+    block(cl, NULL);
 }

@@ -62,8 +62,6 @@ static inline int ScrcpyVNCShiftedKeysym(int keysym, BOOL shiftActive) {
 
 // Throttling for high-frequency logs
 static CFAbsoluteTime kVNCLogThrottleInterval = 2.0; // seconds
-static CFAbsoluteTime sLastTraditionalTimeoutLogTime = 0;
-static NSUInteger sSuppressedTraditionalTimeoutLogs = 0;
 static CFAbsoluteTime sLastIncrementalUpdateLogTime = 0;
 static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
 
@@ -205,18 +203,23 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
 #pragma mark - VNC消息循环
 
 - (void)vncMessageLoop {
+    // 性能诊断
+    static int sMessagesReceived = 0;
+    static int sTimeouts = 0;
+    static CFAbsoluteTime sLastStatTime = 0;
+
     while (self.connected && !self.forceStop && ![[NSThread currentThread] isCancelled]) {
         // 检查当前连接操作是否被取消
         if (self.currentConnectionOperation && self.currentConnectionOperation.isCancelled) {
             NSLog(@"🔌 [ScrcpyVNCClient] Current connection operation cancelled, stopping message loop");
             break;
         }
-        
+
         // 智能超时策略：连续更新模式使用更长的超时时间
         int timeout = self.areContinuousUpdatesEnabled ? 5000 : 500;  // 5秒 vs 0.5秒
-        
+
         int i = WaitForMessage(self.rfbClient, timeout);
-        
+
         if (i < 0) {
             NSLog(@"🔌 [ScrcpyVNCClient] VNC message wait failed, breaking loop");
             self.connected = NO;
@@ -224,41 +227,57 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
             ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC message wait failed");
             return;
         }
-        
+
         // 再次检查连接状态
         if (self.rfbClient->sock == RFB_INVALID_SOCKET) {
             break;
         }
-        
-        if (!HandleRFBServerMessage(self.rfbClient)) {
-            NSLog(@"🔌 [ScrcpyVNCClient] VNC server message handling failed, breaking loop");
-            self.connected = NO;
-            self.scrcpyStatus = ScrcpyStatusDisconnected;
-            ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC server message handling failed");
-            return;
+
+        // 统计消息接收情况
+        if (i > 0) {
+            sMessagesReceived++;
+        } else {
+            sTimeouts++;
         }
-        
+
+        // 每秒输出统计
+        CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+        if (now - sLastStatTime >= 1.0) {
+            if (sMessagesReceived > 0 || sTimeouts > 0) {
+                NSLog(@"📈 [VNC MsgLoop] Received: %d msgs, Timeouts: %d, ContinuousUpdates: %@",
+                      sMessagesReceived, sTimeouts, self.areContinuousUpdatesEnabled ? @"YES" : @"NO");
+            }
+            sMessagesReceived = 0;
+            sTimeouts = 0;
+            sLastStatTime = now;
+        }
+
+        if (i > 0) {
+            CFAbsoluteTime handleStart = CFAbsoluteTimeGetCurrent();
+            if (!HandleRFBServerMessage(self.rfbClient)) {
+                NSLog(@"🔌 [ScrcpyVNCClient] VNC server message handling failed, breaking loop");
+                self.connected = NO;
+                self.scrcpyStatus = ScrcpyStatusDisconnected;
+                ScrcpyUpdateStatus(ScrcpyStatusDisconnected, "VNC server message handling failed");
+                return;
+            }
+            CFAbsoluteTime handleEnd = CFAbsoluteTimeGetCurrent();
+            CFAbsoluteTime handleTime = (handleEnd - handleStart) * 1000;
+            if (handleTime > 50) {
+                NSLog(@"⚠️ [VNC MsgLoop] HandleRFBServerMessage took %.1fms", handleTime);
+            }
+        }
+
         // 检查是否有连续更新相关的消息
         VNCRuntimeCheckForContinuousUpdatesMessage(self.rfbClient);
-        
+
         // 在传统模式下，如果没有消息则主动请求更新
+        // sendSmartFramebufferUpdateRequest 内部已有节流，无需额外日志
         if (i == 0 && !self.areContinuousUpdatesEnabled) {
-            CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-            if ((now - sLastTraditionalTimeoutLogTime) >= kVNCLogThrottleInterval) {
-                if (sSuppressedTraditionalTimeoutLogs > 0) {
-                    NSLog(@"🔄 [ScrcpyVNCClient] Timeout in traditional mode, sending update request (suppressed %lu repeats)", (unsigned long)sSuppressedTraditionalTimeoutLogs);
-                    sSuppressedTraditionalTimeoutLogs = 0;
-                } else {
-                    NSLog(@"🔄 [ScrcpyVNCClient] Timeout in traditional mode, sending update request");
-                }
-                sLastTraditionalTimeoutLogTime = now;
-            } else {
-                sSuppressedTraditionalTimeoutLogs++;
-            }
             [self sendSmartFramebufferUpdateRequest];
         }
     }
-    
+
     NSLog(@"🔌 [ScrcpyVNCClient] VNC message loop ended");
 }
 
@@ -636,6 +655,9 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
         
         // 只有在没有被取消的情况下才启动消息循环
         if (!connectionOperation.isCancelled) {
+            // Start audio streaming if enabled
+            [weakSelf startAudioStreamingIfEnabled];
+
             // 在后台线程启动消息循环
             [NSThread detachNewThreadSelector:@selector(vncMessageLoop) toTarget:weakSelf withObject:nil];
 
@@ -656,34 +678,79 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
 
 - (void)moveMouseToX:(int)x y:(int)y {
     if (!self.connected || !self.rfbClient) {
-        NSLog(@"❌ [ScrcpyVNCClient] Cannot move mouse: VNC not connected");
         return;
     }
-    
+
     // 确保坐标在远程屏幕范围内
     int maxX = self.rfbClient->width - 1;
     int maxY = self.rfbClient->height - 1;
-    
+
     int clampedX = MAX(0, MIN(x, maxX));
     int clampedY = MAX(0, MIN(y, maxY));
-    
-    if (clampedX != x || clampedY != y) {
-        NSLog(@"⚠️ [ScrcpyVNCClient] Mouse coordinates clamped from (%d,%d) to (%d,%d) for screen size %dx%d", 
-              x, y, clampedX, clampedY, self.rfbClient->width, self.rfbClient->height);
-    }
-    
+
     // 发送鼠标指针事件到VNC服务器
     if (!SendPointerEvent(self.rfbClient, clampedX, clampedY, 0)) {
-        NSLog(@"❌ [ScrcpyVNCClient] Failed to send mouse move event to (%d,%d)", clampedX, clampedY);
         return;
     }
-    
+
     // 更新存储的鼠标坐标
     self.currentMouseX = clampedX;
     self.currentMouseY = clampedY;
-    
-    NSLog(@"🐭 [ScrcpyVNCClient] Mouse moved to position (%d,%d)", clampedX, clampedY);
+
+    // 强制重新渲染以更新光标位置（即使没有VNC服务器更新）
+    VNCRuntimeForceRender(self);
 }
+
+#pragma mark - VNC Audio Streaming
+
+- (void)startAudioStreamingIfEnabled {
+    // Check if audio is enabled in session options
+    NSDictionary *vncOptions = self.sessionArguments[@"vncOptions"];
+    BOOL enableAudio = [vncOptions[@"enableAudio"] boolValue];
+
+    if (!enableAudio) {
+        NSLog(@"🔊 [ScrcpyVNCClient] Audio streaming not enabled in session options");
+        return;
+    }
+
+    NSString *host = self.sessionArguments[@"hostReal"];
+    NSString *audioPortString = vncOptions[@"audioPort"];
+    NSNumber *audioBufferMsNumber = vncOptions[@"audioBufferMs"];
+
+    // Calculate audio port: use specified port or default 4901
+    int audioPort;
+    if (audioPortString && audioPortString.length > 0) {
+        audioPort = [audioPortString intValue];
+    } else {
+        audioPort = 4901;  // Default PCM audio streaming port
+    }
+
+    // Get buffer time (default 100ms)
+    int bufferMs = audioBufferMsNumber ? [audioBufferMsNumber intValue] : 100;
+
+    NSLog(@"🔊 [ScrcpyVNCClient] Starting audio streaming from %@:%d (buffer: %dms)", host, audioPort, bufferMs);
+
+    // Create and start audio player
+    self.audioPlayer = [[ScrcpyVNCAudioPlayer alloc] init];
+    [self.audioPlayer startWithHost:host port:audioPort bufferMs:bufferMs completion:^(BOOL success, NSString * _Nullable error) {
+        if (success) {
+            NSLog(@"🔊 [ScrcpyVNCClient] Audio streaming started successfully");
+        } else {
+            NSLog(@"❌ [ScrcpyVNCClient] Failed to start audio streaming: %@", error ?: @"Unknown error");
+            // Audio failure is not critical - VNC session continues without audio
+        }
+    }];
+}
+
+- (void)stopAudioStreaming {
+    if (self.audioPlayer) {
+        NSLog(@"🔊 [ScrcpyVNCClient] Stopping audio streaming");
+        [self.audioPlayer stop];
+        self.audioPlayer = nil;
+    }
+}
+
+#pragma mark - Mouse Events
 
 - (void)sendMouseClickAtX:(int)x y:(int)y isRightClick:(BOOL)isRightClick {
     if (!self.connected || !self.rfbClient) {
@@ -1040,13 +1107,16 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
 
 - (void)disconnect {
     NSLog(@"🔌 [ScrcpyVNCClient] disconnect method called (ScrcpyClientProtocol)");
-    
+
     // 防止重复清理
     if (self.isCleaningUp) {
         NSLog(@"⚠️ [ScrcpyVNCClient] Already cleaning up, skipping");
         return;
     }
     self.isCleaningUp = YES;
+
+    // Stop audio streaming first
+    [self stopAudioStreaming];
     
     // 首先取消所有正在进行的连接操作
     if (self.connectionQueue) {
@@ -1213,14 +1283,6 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
     // 使用拖拽开始时的鼠标位置作为起点计算新的鼠标位置
     int newMouseX = self.dragStartMouseX + offsetX;
     int newMouseY = self.dragStartMouseY + offsetY;
-    
-    NSLog(@"🎯 [ScrcpyVNCClient] Drag offset calculation (1:1 scale):");
-    NSLog(@"   Remote: %dx%d, View: %.0fx%.0f, DisplayScale: %.3f", 
-          remoteWidth, remoteHeight, viewSize.width, viewSize.height, displayScale);
-    NSLog(@"   Normalized: (%.3f,%.3f) -> Pixel: (%.1f,%.1f) -> Remote: (%.1f,%.1f) -> Final: (%.1f,%.1f) / Zoom: %.2f", 
-          normalizedOffset.x, normalizedOffset.y, pixelOffsetX, pixelOffsetY, remoteOffsetX, remoteOffsetY, finalOffsetX, finalOffsetY, zoomScale);
-    NSLog(@"   Pixel offset: (%d,%d), DragStart: (%d,%d) -> New: (%d,%d)", 
-          offsetX, offsetY, self.dragStartMouseX, self.dragStartMouseY, newMouseX, newMouseY);
     
     // 移动鼠标到新位置
     [self moveMouseToX:newMouseX y:newMouseY];
@@ -1629,21 +1691,35 @@ static NSUInteger sSuppressedIncrementalUpdateLogs = 0;
           enable ? @"YES" : @"NO", x, y, width, height);
 }
 
+// 帧缓冲更新请求节流
+static CFAbsoluteTime sLastFramebufferRequestTime = 0;
+static const CFAbsoluteTime kMinFramebufferRequestInterval = 0.033;  // 最多30fps请求
+
 - (void)sendSmartFramebufferUpdateRequest {
     if (!self.connected || !self.rfbClient) {
-        NSLog(@"❌ [ScrcpyVNCClient] Cannot send framebuffer update request: VNC not connected");
         return;
     }
-    
+
+    // 检查socket是否有效
+    if (self.rfbClient->sock == RFB_INVALID_SOCKET) {
+        return;
+    }
+
     // 如果连续更新已启用，则不发送传统的更新请求
     if (self.areContinuousUpdatesEnabled) {
-        NSLog(@"🔄 [ScrcpyVNCClient] Skipping traditional update request - continuous updates enabled");
         return;
     }
-    
+
+    // 节流：限制请求频率
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (now - sLastFramebufferRequestTime < kMinFramebufferRequestInterval) {
+        return;
+    }
+    sLastFramebufferRequestTime = now;
+
     // 使用增量更新标志（首次为全量，后续为增量）
     BOOL incremental = self.incrementalUpdatesEnabled;
-    
+
     if (!SendFramebufferUpdateRequest(self.rfbClient, 0, 0, self.rfbClient->width, self.rfbClient->height, incremental)) {
         NSLog(@"❌ [ScrcpyVNCClient] Failed to send framebuffer update request");
         return;

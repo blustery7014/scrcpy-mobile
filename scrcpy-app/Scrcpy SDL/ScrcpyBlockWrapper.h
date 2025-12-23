@@ -29,4 +29,7 @@ rfbBool HandleCursorPosBlock(rfbClient* cl, int x, int y);
 IMP GetSet_GetPasswordBlockIMP(rfbClient* cl, IMP blockIMP);
 char *GetPasswordBlock(rfbClient* cl);
 
+IMP GetSet_FinishedFrameBufferUpdateBlockIMP(rfbClient* cl, IMP blockIMP);
+void FinishedFrameBufferUpdateBlock(rfbClient* cl);
+
 #endif /* ScrcpyBlockWrapper_h */

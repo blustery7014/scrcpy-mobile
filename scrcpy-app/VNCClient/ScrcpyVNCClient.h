@@ -8,6 +8,7 @@
 #import <Foundation/Foundation.h>
 #import "ScrcpyClientWrapper.h"
 #import "ScrcpyCommon.h"
+#import "ScrcpyVNCAudioPlayer.h"
 #import <SDL2/SDL.h>
 #import <rfb/rfbclient.h>
 #import <rfb/keysym.h>
@@ -69,6 +70,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL areContinuousUpdatesSupported;  // 服务器是否支持连续更新
 @property (nonatomic, assign) BOOL areContinuousUpdatesEnabled;    // 连续更新是否当前启用
 @property (nonatomic, assign) BOOL incrementalUpdatesEnabled;      // 增量更新是否启用
+
+// VNC Audio Streaming Player
+@property (nonatomic, strong, nullable) ScrcpyVNCAudioPlayer *audioPlayer;
 
 - (UIWindowScene *)currentScene;
 

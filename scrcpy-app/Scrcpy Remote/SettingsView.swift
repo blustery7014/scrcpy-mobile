@@ -187,10 +187,6 @@ class AppSettings: ObservableObject {
     @AppStorage("settings.live_activity.enabled")
     var liveActivityEnabled: Bool = true
 
-    // Picture in Picture setting
-    @AppStorage("settings.pip.enabled")
-    var pipEnabled: Bool = false
-
     // Send Files Default Path setting
     @AppStorage("settings.send_files.default_path")
     var sendFilesDefaultPath: String = "/sdcard/Download"
@@ -299,26 +295,6 @@ struct SettingsView: View {
                         #endif
                     }
 
-                    // Picture in Picture toggle - Temporarily hidden for later use
-                    // TODO: Restore Picture in Picture settings when needed
-                    /*
-                    if #available(iOS 15.0, *) {
-                        Toggle("Picture in Picture", isOn: $appSettings.pipEnabled)
-                        
-                        #if DEBUG
-                        NavigationLink(destination: PIPDebugView()) {
-                            HStack {
-                                Text("Debug Picture in Picture")
-                                Spacer()
-                                Image(systemName: "ladybug")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                            }
-                        }
-                        #endif
-                    }
-                    */
-                    
                     NavigationLink(destination: AboutView()) {
                         Text("About Scrcpy Remote")
                     }

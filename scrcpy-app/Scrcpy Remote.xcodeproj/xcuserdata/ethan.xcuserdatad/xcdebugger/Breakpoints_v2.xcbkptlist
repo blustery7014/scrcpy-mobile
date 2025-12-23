@@ -720,7 +720,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "142"
             endingLineNumber = "142"
-            landmarkName = "ScrcpyHandleFrame(frame)"
+            landmarkName = "ScrcpyAudioVolumeScale(update_scale)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1460,7 +1460,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "56"
             endingLineNumber = "56"
-            landmarkName = "ScrcpyAudioVolumeScale(update_scale)"
+            landmarkName = "SetScrcpyFollowRemoteOrientation(enabled)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1579,7 +1579,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "109"
             endingLineNumber = "109"
-            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
+            landmarkName = "CheckAndNotifyOrientationChange(width, height)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1666,7 +1666,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "102"
             endingLineNumber = "102"
-            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
+            landmarkName = "CheckAndNotifyOrientationChange(width, height)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1682,7 +1682,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "112"
             endingLineNumber = "112"
-            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
+            landmarkName = "CheckAndNotifyOrientationChange(width, height)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2513,7 +2513,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "369"
             endingLineNumber = "369"
-            landmarkName = "VNCRuntimeGotFrameBufferUpdate(cl, x, y, w, h, sdlTexture, sdlRenderer, sdlWindow)"
+            landmarkName = "VNCRuntimeFinishedFrameBufferUpdate(cl, sdlTexture, sdlRenderer, sdlWindow)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2920,7 +2920,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "133"
             endingLineNumber = "133"
-            landmarkName = "RenderPixelBufferFrame(pixelBuffer)"
+            landmarkName = "ScrcpyEnableHardwareDecoding()"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -2968,8 +2968,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1249"
             endingLineNumber = "1249"
-            landmarkName = "executeAction(_:)"
-            landmarkType = "7">
+            landmarkName = "body"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -2984,8 +2984,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1256"
             endingLineNumber = "1256"
-            landmarkName = "executeAction(_:)"
-            landmarkType = "7">
+            landmarkName = "body"
+            landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy

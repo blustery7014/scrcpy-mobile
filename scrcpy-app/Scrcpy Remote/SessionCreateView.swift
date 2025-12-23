@@ -25,6 +25,12 @@ struct SessionCreateView: View {
     @State private var selectedQualityLevel: VNCQualityLevel = .standard
     @State private var selectedVideoCodec: ADBVideoCodec = .h264
     @State private var selectedAudioCodec: ADBAudioCodec = .opus
+    @State private var selectedVolumeScale: Double = 1.0
+    // Local state for toggles that control show/hide to ensure UI refresh
+    @State private var useTailscale: Bool = false
+    @State private var enableVNCaudio: Bool = false
+    @State private var enableADBaudio: Bool = false
+    @State private var startNewDisplay: Bool = false
     private let isEditMode: Bool
     
     // Check if ADB is auto-selected based on input (not forced by user)
@@ -67,6 +73,12 @@ struct SessionCreateView: View {
         _selectedQualityLevel = State(initialValue: sessionModel.vncOptions.qualityLevel)
         _selectedVideoCodec = State(initialValue: sessionModel.adbOptions.videoCodec)
         _selectedAudioCodec = State(initialValue: sessionModel.adbOptions.audioCodec)
+        _selectedVolumeScale = State(initialValue: sessionModel.adbOptions.volumeScale)
+        // Initialize toggle states
+        _useTailscale = State(initialValue: sessionModel.useTailscale)
+        _enableVNCaudio = State(initialValue: sessionModel.vncOptions.enableAudio)
+        _enableADBaudio = State(initialValue: sessionModel.adbOptions.enableAudio)
+        _startNewDisplay = State(initialValue: sessionModel.adbOptions.startNewDisplay)
         isEditMode = true
     }
     
@@ -92,27 +104,29 @@ struct SessionCreateView: View {
                 }
                 
                 Section(header: Text("Connection Options")) {
-                    Toggle("Connect over Tailscale", isOn: $sessionModel.useTailscale)
-                        .onChange(of: sessionModel.useTailscale) { newValue in
+                    Toggle("Connect over Tailscale", isOn: $useTailscale.animation())
+                        .onChange(of: useTailscale) { newValue in
+                            sessionModel.useTailscale = newValue
                             if newValue {
                                 // Check if Tailscale Auth Key is set
                                 if appSettings.tailscaleAuthKey.isEmpty {
                                     // If not set, show Tailscale Auth settings
                                     showingTailscaleAuth = true
                                     // Temporarily disable the toggle until auth is set
+                                    useTailscale = false
                                     sessionModel.useTailscale = false
                                 }
                             }
                         }
-                    
-                    if !sessionModel.useTailscale {
+
+                    if !useTailscale {
                         Text("Please ensure you have a Tailscale account and the target device is connected to your Tailscale network.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .padding(.top, 2)
                     }
-                    
-                    if sessionModel.useTailscale {
+
+                    if useTailscale {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
@@ -141,7 +155,7 @@ struct SessionCreateView: View {
                             .autocorrectionDisabled(true)
                         SecureField("VNC Password", text: $sessionModel.vncOptions.vncPassword)
                             .textContentType(.password)
-                        
+
                         Picker("Compress Level", selection: $selectedCompressionLevel) {
                             ForEach(VNCCompressionLevel.allCases, id: \.self) { level in
                                 Text(level.displayName).tag(level)
@@ -160,6 +174,24 @@ struct SessionCreateView: View {
                         .pickerStyle(MenuPickerStyle())
                         .onChange(of: selectedQualityLevel) { newValue in
                             sessionModel.vncOptions.qualityLevel = newValue
+                        }
+
+                        Toggle("Enable Audio Streaming", isOn: $enableVNCaudio.animation())
+                            .onChange(of: enableVNCaudio) { newValue in
+                                sessionModel.vncOptions.enableAudio = newValue
+                            }
+
+                        if enableVNCaudio {
+                            TextField("Audio Port (Default: 4901)", text: $sessionModel.vncOptions.audioPort)
+                                .keyboardType(.numberPad)
+
+                            Stepper(value: $sessionModel.vncOptions.audioBufferMs, in: 50...500, step: 50) {
+                                Text("Buffer: \(sessionModel.vncOptions.audioBufferMs) ms")
+                            }
+
+                            Text("Receives MP3 audio stream over TCP. Increase buffer if audio breaks.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -211,8 +243,11 @@ struct SessionCreateView: View {
                         }
                         TextField("Max FPS, Default: 60", text: $sessionModel.adbOptions.maxFPS)
                             .keyboardType(.numberPad)
-                        Toggle("Enable Audio (Android 11+)", isOn: $sessionModel.adbOptions.enableAudio)
-                        if sessionModel.adbOptions.enableAudio {
+                        Toggle("Enable Audio (Android 11+)", isOn: $enableADBaudio.animation())
+                            .onChange(of: enableADBaudio) { newValue in
+                                sessionModel.adbOptions.enableAudio = newValue
+                            }
+                        if enableADBaudio {
                             Picker("Audio Codec", selection: $selectedAudioCodec) {
                                 ForEach(ADBAudioCodec.allCases, id: \.self) { codec in
                                     Text(codec.rawValue)
@@ -246,10 +281,13 @@ struct SessionCreateView: View {
                             HStack {
                                 Text("Volume Scale")
                                 Spacer()
-                                Text(String(format: "%.1fx", sessionModel.adbOptions.volumeScale))
+                                Text(String(format: "%.1fx", selectedVolumeScale))
                                     .foregroundColor(.secondary)
                             }
-                            Slider(value: $sessionModel.adbOptions.volumeScale, in: 0...50, step: 0.1)
+                            Slider(value: $selectedVolumeScale, in: 0...50, step: 0.1)
+                                .onChange(of: selectedVolumeScale) { newValue in
+                                    sessionModel.adbOptions.volumeScale = newValue
+                                }
                         }
                         Toggle("Enable Clipboard Sync", isOn: $sessionModel.adbOptions.enableClipboardSync)
                         
@@ -262,10 +300,15 @@ struct SessionCreateView: View {
                         Toggle("Keep Remote Device Awake During Use", isOn: $sessionModel.adbOptions.stayAwake)
                         
                         Toggle("Enable Hardware Decoding", isOn: $sessionModel.adbOptions.enableHardwareDecoding)
-                        
-                        Toggle("Start New Display", isOn: $sessionModel.adbOptions.startNewDisplay)
-                        
-                        if sessionModel.adbOptions.startNewDisplay {
+
+                        Toggle("Follow Remote Orientation Change", isOn: $sessionModel.adbOptions.followRemoteOrientation)
+
+                        Toggle("Start New Display", isOn: $startNewDisplay.animation())
+                            .onChange(of: startNewDisplay) { newValue in
+                                sessionModel.adbOptions.startNewDisplay = newValue
+                            }
+
+                        if startNewDisplay {
                             HStack {
                                 Text("Size:")
                                 TextField("Width", text: $sessionModel.adbOptions.displayWidth)
@@ -324,6 +367,13 @@ struct SessionCreateView: View {
                 selectedQualityLevel = sessionModel.vncOptions.qualityLevel
                 selectedVideoCodec = sessionModel.adbOptions.videoCodec
                 selectedAudioCodec = sessionModel.adbOptions.audioCodec
+                selectedVolumeScale = sessionModel.adbOptions.volumeScale
+
+                // Initialize toggle state variables
+                useTailscale = sessionModel.useTailscale
+                enableVNCaudio = sessionModel.vncOptions.enableAudio
+                enableADBaudio = sessionModel.adbOptions.enableAudio
+                startNewDisplay = sessionModel.adbOptions.startNewDisplay
             }
             .onChange(of: hostInput) { newValue in
                 // If user types explicit scheme, ignore any previous force toggle
@@ -385,6 +435,7 @@ struct SessionCreateView: View {
             if !isShowing && returnedFromTailscaleAuth {
                 // Check if auth key was set after returning from Tailscale Auth
                 if !appSettings.tailscaleAuthKey.isEmpty {
+                    useTailscale = true
                     sessionModel.useTailscale = true
                 }
                 returnedFromTailscaleAuth = false
@@ -397,6 +448,7 @@ struct SessionCreateView: View {
             if isEditMode && sessionModel.useTailscale && appSettings.tailscaleAuthKey.isEmpty {
                 // If editing a session that had Tailscale enabled but auth key is now missing,
                 // disable Tailscale for safety
+                useTailscale = false
                 sessionModel.useTailscale = false
             }
         }

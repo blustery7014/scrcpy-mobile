@@ -426,6 +426,16 @@ void ScrcpyTryResetVideo(void) {
     }
     NSLog(@"Hardware decoding enabled: %@", enableHardwareDecoding ? @"YES" : @"NO");
     SetScrcpyHardwareDecodingEnabled(enableHardwareDecoding);
+
+    // Setup follow remote orientation based on session settings
+    BOOL followRemoteOrientation = NO; // Default to disabled
+    if (self.sessionArguments && self.sessionArguments[@"adbOptions"]) {
+        id followOrientationSetting = self.sessionArguments[@"adbOptions"][@"followRemoteOrientation"];
+        if ([followOrientationSetting isKindOfClass:[NSNumber class]]) {
+            followRemoteOrientation = [followOrientationSetting boolValue];
+        }
+    }
+    SetScrcpyFollowRemoteOrientation(followRemoteOrientation);
     
     // Setup arguments
     NSArray *startArgs = [self buildScrcpyArgs:serial];

@@ -13,12 +13,18 @@
 #import <arpa/inet.h>
 #import <objc/runtime.h>
 #import <math.h>
+#import <stdatomic.h>
+#import <unistd.h>
 #import "ScrcpyVNCClient.h"
 
 // 光标边缘跟随常量定义
 static const int CURSOR_EDGE_THRESHOLD = 20;     // 边缘阈值（像素）- 光标距离屏幕边缘多近时触发跟随
-static const int CURSOR_FOLLOW_DISTANCE = 40;    // 边缘跟随移动距离（2倍阈值）- 一次移动的距离
-static const int CURSOR_FOLLOW_COOLDOWN = 2;     // 冷却时间（帧数）- 降低为2帧提高响应性
+static const int CURSOR_FOLLOW_DISTANCE = 60;    // 边缘跟随移动距离 - 增加以更快追赶快速移动的光标
+static const int CURSOR_FOLLOW_COOLDOWN = 1;     // 冷却时间（帧数）- 降低为1帧以实现更快响应
+
+// 快速移动时的追赶常量
+static const int CURSOR_FAST_FOLLOW_MULTIPLIER = 3;  // 光标超出边界时的追赶倍数
+static const int CURSOR_MAX_FOLLOW_DISTANCE = 200;   // 单次最大追赶距离
 
 // 旧版本的常量定义（用于旧函数，后续将移除）
 static const int CURSOR_FOLLOW_SPEED = 8;        // 每帧移动速度（像素）- 平滑连续移动
@@ -38,54 +44,68 @@ static BOOL g_mouseJustStopped = NO;  // 标记鼠标是否刚刚停止移动（
 static int g_mouseStopCounter = 0;    // 鼠标停止移动计数器
 static const int MOUSE_STOP_THRESHOLD = 3;  // 鼠标停止移动阈值（帧数）
 
-// 双缓冲机制 - 优先使用预分配缓冲区，必要时回退到malloc
-// 绝不丢弃帧，因为VNC增量更新必须全部应用才能正确渲染
-typedef struct {
-    void *data;
-    size_t capacity;
-    volatile BOOL inUse;
-} VNCPixelBuffer;
+// ============================================================================
+// VNC渲染优化 - 基于libVNC SDLvncviewer示例和Metal/iOS最佳实践
+// ============================================================================
+//
+// 关键优化策略：
+// 1. 参考libVNC官方示例：update()回调应该简单直接，立即更新纹理并渲染
+// 2. SDL_UpdateTexture在已有像素数据时比SDL_LockTexture更快（减少一次拷贝）
+// 3. 使用dispatch_async避免阻塞VNC消息循环，但需要拷贝像素数据到缓冲区
+// 4. 帧合并：多个小矩形更新合并为一次RenderPresent调用
+//
+// 参考资料：
+// - https://libvnc.github.io/doc/html/_s_d_lvncviewer_8c-example.html
+// - https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/MTLBestPracticesGuide/
+// ============================================================================
 
-#define VNC_BUFFER_COUNT 3  // 增加缓冲区数量以减少malloc回退
-static VNCPixelBuffer g_pixelBuffers[VNC_BUFFER_COUNT] = {{NULL, 0, NO}, {NULL, 0, NO}, {NULL, 0, NO}};
+// ============================================================================
+// 渲染策略 - 主线程纹理更新 + 同步呈现
+// ============================================================================
+//
+// Metal/SDL要求：
+// - SDL_UpdateTexture必须在主线程调用（Metal命令缓冲区不是线程安全的）
+// - SDL_RenderPresent也必须在主线程调用
+//
+// 新策略：
+// 1. GotFrameBufferUpdate复制像素数据，然后dispatch到主线程更新纹理
+// 2. 使用dispatch_sync确保所有纹理更新在FinishedFrameBufferUpdate前完成
+// 3. FinishedFrameBufferUpdate在主线程触发呈现
+//
+// 关键：使用信号量确保所有纹理更新完成后才呈现
+// ============================================================================
 
-// 获取可用的像素缓冲区，如果需要则扩容，如果全部繁忙则malloc
-static void* VNCGetPixelBuffer(size_t requiredSize, int *outBufferIndex) {
-    // 查找空闲的预分配缓冲区
-    for (int i = 0; i < VNC_BUFFER_COUNT; i++) {
-        if (!__sync_bool_compare_and_swap(&g_pixelBuffers[i].inUse, NO, YES)) {
-            continue;  // 缓冲区正在使用中
-        }
+// 帧更新计数器 - 追踪当前帧的矩形更新数量
+static _Atomic int g_frameUpdateCount = 0;
+static _Atomic int g_frameUpdatesCompleted = 0;
 
-        // 获取到缓冲区，检查是否需要扩容
-        if (g_pixelBuffers[i].capacity < requiredSize) {
-            void *newData = realloc(g_pixelBuffers[i].data, requiredSize);
-            if (!newData) {
-                __sync_bool_compare_and_swap(&g_pixelBuffers[i].inUse, YES, NO);
-                continue;  // 扩容失败，尝试下一个缓冲区
-            }
-            g_pixelBuffers[i].data = newData;
-            g_pixelBuffers[i].capacity = requiredSize;
-        }
+// 渲染呈现节流 - 限制SDL_RenderPresent调用频率
+static CFAbsoluteTime g_lastPresentTime = 0;
+static const CFAbsoluteTime kMinPresentInterval = 1.0 / 60.0;  // 60fps上限
 
-        *outBufferIndex = i;
-        return g_pixelBuffers[i].data;
-    }
+// 渲染串行队列 - 仅用于呈现操作
+static dispatch_queue_t g_renderQueue = NULL;
 
-    // 所有预分配缓冲区都在使用中，回退到malloc（绝不丢弃帧）
-    *outBufferIndex = -1;  // 标记为动态分配
-    return malloc(requiredSize);
-}
+// 渲染锁 - 防止同时进行VNC帧渲染和光标渲染导致Metal阻塞
+static _Atomic int g_presentInProgress = 0;
 
-// 释放像素缓冲区（标记为可用或free动态分配的）
-static void VNCReleasePixelBuffer(int bufferIndex, void *buffer) {
-    if (bufferIndex >= 0 && bufferIndex < VNC_BUFFER_COUNT) {
-        // 预分配缓冲区，标记为可用
-        __sync_bool_compare_and_swap(&g_pixelBuffers[bufferIndex].inUse, YES, NO);
-    } else if (bufferIndex == -1 && buffer) {
-        // 动态分配的缓冲区，需要free
-        free(buffer);
-    }
+// 保存SDL渲染对象用于强制重渲染
+static SDL_Renderer* g_savedRenderer = NULL;
+static SDL_Texture* g_savedTexture = NULL;
+static SDL_Window* g_savedWindow = NULL;
+
+// 纹理尺寸
+static int g_textureWidth = 0;
+static int g_textureHeight = 0;
+
+static dispatch_queue_t VNCGetRenderQueue(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // 创建目标为主线程的串行队列
+        g_renderQueue = dispatch_queue_create("com.scrcpy.vnc.render", DISPATCH_QUEUE_SERIAL);
+        dispatch_set_target_queue(g_renderQueue, dispatch_get_main_queue());
+    });
+    return g_renderQueue;
 }
 
 
@@ -246,8 +266,12 @@ rfbBool VNCRuntimeMallocFrameBuffer(rfbClient* client, ScrcpyVNCClient *vncClien
     vncClient.scrcpyStatus = ScrcpyStatusSDLWindowCreated;
     ScrcpyUpdateStatus(ScrcpyStatusSDLWindowCreated, "SDL window created successfully");
 
-    // 创建渲染器
-    *sdlRenderer = SDL_CreateRenderer(*sdlWindow, -1, SDL_RENDERER_ACCELERATED);
+    // 使用VSync以避免画面撕裂，但配置Metal使用更多缓冲区减少阻塞
+    // displaySyncEnabled=0 允许Metal不等待VBlank，但仍使用缓冲区避免撕裂
+    SDL_SetHint(SDL_HINT_RENDER_METAL_PREFER_LOW_POWER_DEVICE, "0");
+
+    // 创建渲染器，启用VSync以避免撕裂
+    *sdlRenderer = SDL_CreateRenderer(*sdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!sdlRenderer) {
         rfbClientErr("resize: error creating renderer: %s\n", SDL_GetError());
         return FALSE;
@@ -272,306 +296,222 @@ rfbBool VNCRuntimeMallocFrameBuffer(rfbClient* client, ScrcpyVNCClient *vncClien
         rfbClientErr("resize: error creating texture: %s\n", SDL_GetError());
         return FALSE;
     }
-    
+
+    // 保存纹理尺寸
+    g_textureWidth = width;
+    g_textureHeight = height;
+
     // 保存纹理
     vncClient.currentTexture = *sdlTexture;
-    
+
     // 设置帧缓冲区更新回调（在SDL对象创建后）
     vncClient.rfbClient->GotFrameBufferUpdate = GotFrameBufferUpdateBlock;
     VNCRuntimeSetupGotFrameBufferUpdateCallback(vncClient.rfbClient, *sdlTexture, *sdlRenderer, *sdlWindow);
-    
+
+    // 设置帧缓冲区更新完成回调（在所有矩形更新完成后调用，触发呈现）
+    VNCRuntimeSetupFinishedFrameBufferUpdateCallback(vncClient.rfbClient, *sdlTexture, *sdlRenderer, *sdlWindow);
+
     return TRUE;
 }
 
+// 日志前缀定义
+#define VNC_RENDER_LOG_PREFIX @"[VNCRender]"
+
 static inline void VNCRuntimeGotFrameBufferUpdate(rfbClient* cl, int x, int y, int w, int h, SDL_Texture* sdlTexture, SDL_Renderer* sdlRenderer, SDL_Window* sdlWindow) {
     if (!sdlTexture || !sdlRenderer || !sdlWindow) {
-        NSLog(@"❌ [VNCRuntime] Invalid SDL objects: texture=%p, renderer=%p, window=%p", sdlTexture, sdlRenderer, sdlWindow);
+        NSLog(@"%@ ❌ Invalid SDL objects: texture=%p, renderer=%p, window=%p", VNC_RENDER_LOG_PREFIX, sdlTexture, sdlRenderer, sdlWindow);
         return;
     }
 
     SDL_Surface *sdl = rfbClientGetClientData(cl, SDL_Init);
     if (!sdl || !sdl->pixels) {
-        NSLog(@"❌ [VNCRuntime] Invalid SDL surface or pixels");
+        NSLog(@"%@ ❌ Invalid SDL surface or pixels", VNC_RENDER_LOG_PREFIX);
         return;
     }
 
-    // 使用缓冲池复制像素数据（优先使用预分配缓冲区，必要时回退到malloc）
+    // ========================================================================
+    // 主线程纹理更新策略
+    // ========================================================================
+    // Metal要求SDL_UpdateTexture在主线程调用
+    // 我们在VNC线程复制像素数据，然后dispatch_sync到主线程更新纹理
+    // 使用dispatch_sync确保更新完成后再返回，这样FinishedFrameBufferUpdate
+    // 被调用时所有更新都已完成
+    // ========================================================================
+
     SDL_Rect updateRect = {x, y, w, h};
-    int pixelDataSize = h * sdl->pitch;
-    int bufferIndex = -1;
-    void *pixelDataCopy = VNCGetPixelBuffer(pixelDataSize, &bufferIndex);
-    if (!pixelDataCopy) {
-        NSLog(@"❌ [VNCRuntime] Failed to allocate pixel buffer");
+    int srcPitch = sdl->pitch;
+    void *srcPixels = sdl->pixels;
+
+    // 计算像素数据大小并复制（必须在dispatch前完成，因为VNC可能会修改frameBuffer）
+    int bytesPerRow = w * 4;  // ARGB8888
+    size_t bufferSize = (size_t)bytesPerRow * h;
+
+    // 分配临时缓冲区并复制像素数据
+    void *pixelData = malloc(bufferSize);
+    if (!pixelData) {
+        NSLog(@"%@ ❌ Failed to allocate pixel buffer", VNC_RENDER_LOG_PREFIX);
         return;
     }
-    memcpy(pixelDataCopy, sdl->pixels + y * sdl->pitch, pixelDataSize);
-    int pitch = sdl->pitch;
 
-    // 获取窗口和纹理尺寸
+    uint8_t *src = (uint8_t *)srcPixels + y * srcPitch + x * 4;
+    uint8_t *dst = (uint8_t *)pixelData;
+    for (int row = 0; row < h; row++) {
+        memcpy(dst, src, bytesPerRow);
+        src += srcPitch;
+        dst += bytesPerRow;
+    }
+
+    // 增加帧更新计数
+    atomic_fetch_add(&g_frameUpdateCount, 1);
+
+    // 在主线程更新纹理 - 使用dispatch_sync确保更新完成
+    dispatch_sync(VNCGetRenderQueue(), ^{
+        if (SDL_UpdateTexture(sdlTexture, &updateRect, pixelData, bytesPerRow) < 0) {
+            NSLog(@"%@ ❌ SDL_UpdateTexture failed: %s", VNC_RENDER_LOG_PREFIX, SDL_GetError());
+        }
+        free(pixelData);
+
+        // 增加完成计数
+        atomic_fetch_add(&g_frameUpdatesCompleted, 1);
+    });
+
+    // NSLog(@"%@ 📦 Texture updated: rect(%d,%d,%d,%d)", VNC_RENDER_LOG_PREFIX, x, y, w, h);
+}
+
+// FinishedFrameBufferUpdate回调 - 在所有矩形更新完成后调用
+// 由于GotFrameBufferUpdate使用dispatch_sync，此时所有纹理更新已完成
+static inline void VNCRuntimeFinishedFrameBufferUpdate(rfbClient* cl, SDL_Texture* sdlTexture, SDL_Renderer* sdlRenderer, SDL_Window* sdlWindow) {
+    if (!sdlTexture || !sdlRenderer || !sdlWindow) {
+        return;
+    }
+
+    // 获取并重置帧更新计数
+    int updateCount = atomic_exchange(&g_frameUpdateCount, 0);
+    int completedCount = atomic_exchange(&g_frameUpdatesCompleted, 0);
+
+    // 检查是否有更新
+    if (updateCount == 0) {
+        // 没有纹理更新，跳过呈现
+        return;
+    }
+
+    // 验证所有更新都已完成（dispatch_sync保证这一点，这里只是安全检查）
+    if (completedCount != updateCount) {
+        NSLog(@"%@ ⚠️ Update count mismatch: expected %d, completed %d", VNC_RENDER_LOG_PREFIX, updateCount, completedCount);
+    }
+
+    // 获取VNC客户端实例
+    ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(cl, (void*)0x1234);
+    BOOL isFirstFrame = vncClient && vncClient.scrcpyStatus <= ScrcpyStatusConnected;
+
+    // 获取窗口和纹理尺寸用于渲染
     int windowWidth, windowHeight;
     SDL_GetWindowSize(sdlWindow, &windowWidth, &windowHeight);
-    
+
     int textureWidth, textureHeight;
     SDL_QueryTexture(sdlTexture, NULL, NULL, &textureWidth, &textureHeight);
-    
-    // 获取渲染器的逻辑尺寸
+
     int logicalWidth, logicalHeight;
     SDL_RenderGetLogicalSize(sdlRenderer, &logicalWidth, &logicalHeight);
-    
-    // 如果设置了逻辑尺寸，使用逻辑尺寸；否则使用窗口尺寸
+
     int renderWidth = logicalWidth > 0 ? logicalWidth : windowWidth;
     int renderHeight = logicalHeight > 0 ? logicalHeight : windowHeight;
-    
-    // 获取VNC客户端实例以获取缩放参数
-    ScrcpyVNCClient *vncClient = (__bridge ScrcpyVNCClient*)rfbClientGetClientData(cl, (void*)0x1234);
-    
-    // 计算基础缩放（保持比例的适配缩放）
+
+    // 计算缩放和偏移
     float baseScaleX = (float)renderWidth / textureWidth;
     float baseScaleY = (float)renderHeight / textureHeight;
     float baseScale = fminf(baseScaleX, baseScaleY);
-    
-    // 应用用户缩放（从双指手势）
-    float userZoomScale = 1.0f;
-    float zoomCenterX = 0.5f;
-    float zoomCenterY = 0.5f;
-    
-    if (vncClient) {
-        userZoomScale = vncClient.currentZoomScale;
-        zoomCenterX = vncClient.zoomCenterX;
-        zoomCenterY = vncClient.zoomCenterY;
-        
-        // 更新渲染参数用于边缘跟随
-        vncClient.renderWidth = renderWidth;
-        vncClient.renderHeight = renderHeight;
-        vncClient.remoteDesktopWidth = textureWidth;
-        vncClient.remoteDesktopHeight = textureHeight;
-        
-        // 清除更新标志
-        if (vncClient.zoomUpdatePending) {
-            vncClient.zoomUpdatePending = NO;
-        }
-    }
-    
-    // 最终缩放 = 基础缩放 × 用户缩放
+
+    float userZoomScale = vncClient ? vncClient.currentZoomScale : 1.0f;
+    float zoomCenterX = vncClient ? vncClient.zoomCenterX : 0.5f;
+    float zoomCenterY = vncClient ? vncClient.zoomCenterY : 0.5f;
+
     float finalScale = baseScale * userZoomScale;
-    
     int scaledWidth = (int)(textureWidth * finalScale);
     int scaledHeight = (int)(textureHeight * finalScale);
-    
-    // 计算偏移量，考虑缩放中心和边缘跟随调整
+
     int centerX = (int)(renderWidth * zoomCenterX);
     int centerY = (int)(renderHeight * zoomCenterY);
-    
-    int offsetX = centerX - (int)(scaledWidth * zoomCenterX);
-    int offsetY = centerY - (int)(scaledHeight * zoomCenterY);
-    
-    // 应用边缘跟随的偏移量调整
-    if (vncClient) {
-        offsetX += vncClient.viewOffsetX;
-        offsetY += vncClient.viewOffsetY;
-    }
-    
-    // 边界检查 - 边缘跟随调整后的最终检查
-    if (scaledWidth <= renderWidth) {
-        // 如果缩放后内容小于等于屏幕，居中显示 - 重置viewOffset
-        offsetX = (renderWidth - scaledWidth) / 2;
-        if (vncClient) vncClient.viewOffsetX = 0;
-    } else {
-        // 如果缩放后内容大于屏幕，限制边界并更新viewOffset
-        if (offsetX > 0) {
-            offsetX = 0;
-            if (vncClient) vncClient.viewOffsetX = 0;
-        }
-        if (offsetX + scaledWidth < renderWidth) {
-            offsetX = renderWidth - scaledWidth;
-            if (vncClient) vncClient.viewOffsetX = renderWidth - scaledWidth - (centerX - (int)(scaledWidth * zoomCenterX));
-        }
-    }
-    
-    if (scaledHeight <= renderHeight) {
-        // 如果缩放后内容小于等于屏幕，居中显示 - 重置viewOffset
-        offsetY = (renderHeight - scaledHeight) / 2;
-        if (vncClient) vncClient.viewOffsetY = 0;
-    } else {
-        // 如果缩放后内容大于屏幕，限制边界并更新viewOffset
-        if (offsetY > 0) {
-            offsetY = 0;
-            if (vncClient) vncClient.viewOffsetY = 0;
-        }
-        if (offsetY + scaledHeight < renderHeight) {
-            offsetY = renderHeight - scaledHeight;
-            if (vncClient) vncClient.viewOffsetY = renderHeight - scaledHeight - (centerY - (int)(scaledHeight * zoomCenterY));
-        }
-    }
-    
-    // 绘制鼠标光标并检查边缘跟随（在绘制内容之前）
-    if (vncClient && cl->appData.useRemoteCursor) {
-        // 执行简化的边缘跟随检测
-        int remoteMouseX = vncClient.currentMouseX;
-        int remoteMouseY = vncClient.currentMouseY;
-        
-        // 将远程坐标转换为本地屏幕坐标
-        int screenMouseX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
-        int screenMouseY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
-        
-        // 检测鼠标是否在合理的范围内
-        // 大幅放宽范围限制，允许快速移动时的边缘跟随
-        int extendedThreshold = CURSOR_EDGE_THRESHOLD * 5; // 扩展到100像素范围
-        BOOL mouseInValidRange = (screenMouseX >= -extendedThreshold && screenMouseX < renderWidth + extendedThreshold && 
-                                 screenMouseY >= -extendedThreshold && screenMouseY < renderHeight + extendedThreshold);
-        
-        // 更新鼠标移动状态（在检测之后）
-        if (!g_mouseMovedThisFrame) {
-            g_mouseStopCounter++;
-            if (g_mouseStopCounter == MOUSE_STOP_THRESHOLD) {
-                // 鼠标刚刚停止移动，设置标记用于边界情况处理
-                g_mouseJustStopped = YES;
-                g_mouseIsMoving = NO;
-                NSLog(@"🛑 [MouseStop] Mouse just stopped moving after %d frames, setting justStopped flag", MOUSE_STOP_THRESHOLD);
-            }
-        } else {
-            // 重置刚停止标记（如果鼠标重新开始移动）
-            g_mouseJustStopped = NO;
-        }
-        
-        // 防振荡：减少冷却计数器
-        if (g_edgeFollowCooldown > 0) {
-            g_edgeFollowCooldown--;
-        }
-        
-        // 基础边缘跟随条件：
-        // 1. 冷却时间结束
-        // 2. 鼠标正在移动或刚刚停止移动（处理边界情况）
-        // 3. 鼠标在有效范围内（包括超出边界的情况）
-        // 特殊情况：如果鼠标明显超出边界，即使本帧没有移动也允许跟随
-        BOOL canTriggerMovingOrJustStopped = g_mouseIsMoving || g_mouseJustStopped;
-        BOOL mouseNeedsRescue = (screenMouseX < 0 || screenMouseX >= renderWidth || 
-                               screenMouseY < 0 || screenMouseY >= renderHeight);
-        BOOL baseCanTriggerEdgeFollow = (g_edgeFollowCooldown == 0) && mouseInValidRange && 
-                                       (canTriggerMovingOrJustStopped || mouseNeedsRescue);
-        
-        // 水平边缘检测 - 直接移动，无平滑处理
-        if (scaledWidth > renderWidth) {
-            int currentOffsetX = offsetX;
-            
-            // 检查左边缘条件
-            BOOL leftEdgeCondition = (screenMouseX < CURSOR_EDGE_THRESHOLD);
-            BOOL leftContentAvailable = (currentOffsetX < 0);
-            
-            // 左边缘：鼠标在左侧阈值内，且还有左侧内容可以显示
-            if (baseCanTriggerEdgeFollow && leftEdgeCondition && leftContentAvailable) {
-                // 向右移动视图（增加viewOffsetX）
-                int maxViewOffsetX = -currentOffsetX + vncClient.viewOffsetX;
-                int newViewOffsetX = vncClient.viewOffsetX + CURSOR_FOLLOW_DISTANCE;
-                vncClient.viewOffsetX = MIN(maxViewOffsetX, newViewOffsetX);
-                
-                g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-            }
-            // 右边缘：鼠标在右侧阈值内，且还有右侧内容可以显示
-            else if (baseCanTriggerEdgeFollow && screenMouseX > (renderWidth - CURSOR_EDGE_THRESHOLD) && 
-                     (currentOffsetX + scaledWidth) > renderWidth) {
-                // 向左移动视图（减少viewOffsetX）
-                int minViewOffsetX = (renderWidth - scaledWidth) - currentOffsetX + vncClient.viewOffsetX;
-                int newViewOffsetX = vncClient.viewOffsetX - CURSOR_FOLLOW_DISTANCE;
-                vncClient.viewOffsetX = MAX(minViewOffsetX, newViewOffsetX);
-                
-                g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-            }
-        }
-        
-        // 垂直边缘检测 - 直接移动，无平滑处理
-        if (scaledHeight > renderHeight) {
-            int currentOffsetY = offsetY;
-            
-            // 上边缘：鼠标在上侧阈值内，且还有上侧内容可以显示
-            if (baseCanTriggerEdgeFollow && screenMouseY < CURSOR_EDGE_THRESHOLD && currentOffsetY < 0) {
-                // 向下移动视图（增加viewOffsetY）
-                int maxViewOffsetY = -currentOffsetY + vncClient.viewOffsetY;
-                int newViewOffsetY = vncClient.viewOffsetY + CURSOR_FOLLOW_DISTANCE;
-                vncClient.viewOffsetY = MIN(maxViewOffsetY, newViewOffsetY);
-                
-                g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-            }
-            // 下边缘：鼠标在下侧阈值内，且还有下侧内容可以显示
-            else if (baseCanTriggerEdgeFollow && screenMouseY > (renderHeight - CURSOR_EDGE_THRESHOLD) && 
-                     (currentOffsetY + scaledHeight) > renderHeight) {
-                // 向上移动视图（减少viewOffsetY）
-                int minViewOffsetY = (renderHeight - scaledHeight) - currentOffsetY + vncClient.viewOffsetY;
-                int newViewOffsetY = vncClient.viewOffsetY - CURSOR_FOLLOW_DISTANCE;
-                vncClient.viewOffsetY = MAX(minViewOffsetY, newViewOffsetY);
-                
-                g_edgeFollowCooldown = CURSOR_FOLLOW_COOLDOWN;
-            }
-        }
-        
-        // 更新防振荡跟踪变量
-        g_lastViewOffsetX = vncClient.viewOffsetX;
-        g_lastViewOffsetY = vncClient.viewOffsetY;
-        
-        // 重置鼠标移动标记，为下一帧做准备（必须在边缘跟随检测完成后）
-        g_mouseMovedThisFrame = NO;
-        
-        // 重置刚停止标记，确保只使用一次（处理边界情况后）
-        if (g_mouseJustStopped) {
-            g_mouseJustStopped = NO;
-        }
-    }
-    
-    // 使用可能更新后的偏移量创建目标矩形
-    SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
+    int offsetX = centerX - (int)(scaledWidth * zoomCenterX) + (vncClient ? vncClient.viewOffsetX : 0);
+    int offsetY = centerY - (int)(scaledHeight * zoomCenterY) + (vncClient ? vncClient.viewOffsetY : 0);
 
-    // 计算鼠标光标位置（在主线程dispatch之前）
+    if (scaledWidth <= renderWidth) {
+        offsetX = (renderWidth - scaledWidth) / 2;
+    } else {
+        if (offsetX > 0) offsetX = 0;
+        if (offsetX + scaledWidth < renderWidth) offsetX = renderWidth - scaledWidth;
+    }
+    if (scaledHeight <= renderHeight) {
+        offsetY = (renderHeight - scaledHeight) / 2;
+    } else {
+        if (offsetY > 0) offsetY = 0;
+        if (offsetY + scaledHeight < renderHeight) offsetY = renderHeight - scaledHeight;
+    }
+
+    // 计算光标位置
     BOOL shouldDrawCursor = vncClient && cl->appData.useRemoteCursor;
     int cursorScreenX = 0, cursorScreenY = 0;
     float cursorScale = finalScale;
+
     if (shouldDrawCursor) {
         int remoteMouseX = vncClient.currentMouseX;
         int remoteMouseY = vncClient.currentMouseY;
         cursorScreenX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
         cursorScreenY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
+
+        const int CURSOR_EDGE_MARGIN = 5;
+        if (cursorScreenX < CURSOR_EDGE_MARGIN) cursorScreenX = CURSOR_EDGE_MARGIN;
+        else if (cursorScreenX > renderWidth - CURSOR_EDGE_MARGIN) cursorScreenX = renderWidth - CURSOR_EDGE_MARGIN;
+        if (cursorScreenY < CURSOR_EDGE_MARGIN) cursorScreenY = CURSOR_EDGE_MARGIN;
+        else if (cursorScreenY > renderHeight - CURSOR_EDGE_MARGIN) cursorScreenY = renderHeight - CURSOR_EDGE_MARGIN;
     }
 
-    // 检查是否是第一帧渲染
-    BOOL isFirstFrame = vncClient && vncClient.scrcpyStatus <= ScrcpyStatusConnected;
+    SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
 
-    // SDL Metal渲染必须在主线程执行，避免MTLDebugCommandBuffer线程安全崩溃
-    // SDL_UpdateTexture也会触发Metal操作，必须在主线程执行
-    int capturedBufferIndex = bufferIndex;  // 捕获缓冲区索引用于block
-    void *capturedPixelData = pixelDataCopy;  // 捕获缓冲区指针用于释放
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // 更新纹理（使用复制的像素数据）
-        if (SDL_UpdateTexture(sdlTexture, &updateRect, capturedPixelData + x * 4, pitch) < 0) {
-            rfbClientErr("update: failed to update texture: %s\n", SDL_GetError());
-            VNCReleasePixelBuffer(capturedBufferIndex, capturedPixelData);
+    // NSLog(@"%@ 🖼️ FinishedFrameBufferUpdate - presenting frame, dstRect(%d,%d,%d,%d)",
+    //       VNC_RENDER_LOG_PREFIX, offsetX, offsetY, scaledWidth, scaledHeight);
+
+    // 在主线程呈现 - SDL_RenderPresent必须在主线程调用
+    dispatch_async(VNCGetRenderQueue(), ^{
+        // 检查是否需要节流呈现
+        CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+        CFAbsoluteTime elapsed = now - g_lastPresentTime;
+
+        if (elapsed < kMinPresentInterval && !isFirstFrame) {
+            // NSLog(@"%@ ⏳ Throttled: elapsed=%.3fms < min=%.3fms",
+            //       VNC_RENDER_LOG_PREFIX, elapsed * 1000, kMinPresentInterval * 1000);
             return;
         }
 
-        // 清除渲染器并绘制纹理（居中并保持比例）
+        int expected = 0;
+        if (!atomic_compare_exchange_strong(&g_presentInProgress, &expected, 1)) {
+            NSLog(@"%@ ⚠️ Present already in progress, skipping", VNC_RENDER_LOG_PREFIX);
+            return;
+        }
+
+        // 准备渲染
         SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
         SDL_RenderClear(sdlRenderer);
         SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
 
-        // 绘制鼠标光标（使用最终的屏幕坐标）
         if (shouldDrawCursor) {
-            // 绘制macOS风格的鼠标光标（使用最终缩放）
             VNCRuntimeDrawMacOSCursor(sdlRenderer, cursorScreenX, cursorScreenY, cursorScale);
         }
 
         SDL_RenderPresent(sdlRenderer);
+        g_lastPresentTime = CFAbsoluteTimeGetCurrent();
+        atomic_store(&g_presentInProgress, 0);
 
-        // 检查是否是第一帧渲染，如果是则更新状态为窗口已显示
-        if (isFirstFrame) {
+        // NSLog(@"%@ ✅ Frame presented successfully", VNC_RENDER_LOG_PREFIX);
+
+        if (isFirstFrame && vncClient) {
             vncClient.scrcpyStatus = ScrcpyStatusSDLWindowAppeared;
-            ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "First frame rendered, SDL window appeared");
+            ScrcpyUpdateStatus(ScrcpyStatusSDLWindowAppeared, "First frame rendered");
         }
-
-        // 释放像素缓冲区（标记为可重用或free动态分配的）
-        VNCReleasePixelBuffer(capturedBufferIndex, capturedPixelData);
     });
-    
-    // 智能请求下一帧更新（仅在传统模式下）
+
+    // 请求下一帧更新（传统模式）
     if (vncClient && !vncClient.areContinuousUpdatesEnabled) {
-        // 在传统模式下，处理完当前帧后立即请求下一帧
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             [vncClient sendSmartFramebufferUpdateRequest];
         });
@@ -660,8 +600,22 @@ static inline rfbCredential* VNCRuntimeGetCredential(rfbClient* cl, int credenti
 // Public interface functions
 
 void VNCRuntimeSetupGotFrameBufferUpdateCallback(rfbClient* client, SDL_Texture* sdlTexture, SDL_Renderer* sdlRenderer, SDL_Window* sdlWindow) {
+    // 保存SDL对象用于强制重渲染
+    g_savedRenderer = sdlRenderer;
+    g_savedTexture = sdlTexture;
+    g_savedWindow = sdlWindow;
+
     GetSet_GotFrameBufferUpdateBlockIMP(client, imp_implementationWithBlock(^void(rfbClient* cl, int x, int y, int w, int h){
         VNCRuntimeGotFrameBufferUpdate(cl, x, y, w, h, sdlTexture, sdlRenderer, sdlWindow);
+    }));
+}
+
+void VNCRuntimeSetupFinishedFrameBufferUpdateCallback(rfbClient* client, SDL_Texture* sdlTexture, SDL_Renderer* sdlRenderer, SDL_Window* sdlWindow) {
+    // 设置FinishedFrameBufferUpdate回调
+    client->FinishedFrameBufferUpdate = FinishedFrameBufferUpdateBlock;
+
+    GetSet_FinishedFrameBufferUpdateBlockIMP(client, imp_implementationWithBlock(^void(rfbClient* cl){
+        VNCRuntimeFinishedFrameBufferUpdate(cl, sdlTexture, sdlRenderer, sdlWindow);
     }));
 }
 
@@ -686,8 +640,23 @@ void VNCRuntimeSetupGetCredentialCallback(rfbClient* client, NSString* user, NSS
 void VNCRuntimeCleanupCallbacks(rfbClient* client) {
     GetSet_GetCredentialBlockIMP(client, nil);
     GetSet_GotFrameBufferUpdateBlockIMP(client, nil);
+    GetSet_FinishedFrameBufferUpdateBlockIMP(client, nil);
     GetSet_HandleCursorPosBlockIMP(client, nil);
     GetSet_GetPasswordBlockIMP(client, nil);
+
+    // 清除保存的SDL对象
+    g_savedRenderer = NULL;
+    g_savedTexture = NULL;
+    g_savedWindow = NULL;
+
+    // 重置纹理尺寸
+    g_textureWidth = 0;
+    g_textureHeight = 0;
+
+    // 重置原子计数器
+    atomic_store(&g_frameUpdateCount, 0);
+    atomic_store(&g_frameUpdatesCompleted, 0);
+    atomic_store(&g_presentInProgress, 0);
 }
 
 // 光标尺寸常量定义 - 支持Retina显示
@@ -856,11 +825,7 @@ void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale
         cursorSize
     };
     
-    // 应用最高质量渲染选项以减少锯齿
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");
-    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
-    
-    // 使用高质量纹理过滤
+    // 使用高质量纹理过滤（但不启用VSync以避免阻塞）
     SDL_SetTextureScaleMode(g_cursorTexture, SDL_ScaleModeLinear);
     
     SDL_RenderCopy(renderer, g_cursorTexture, NULL, &destRect);
@@ -1029,7 +994,131 @@ void VNCRuntimeSetMouseMoved(void) {
     g_mouseIsMoving = YES;
     g_mouseStopCounter = 0;  // 重置停止计数器
     g_mouseJustStopped = NO; // 重置刚停止标记（鼠标重新开始移动）
-    NSLog(@"🖱️ [MouseMoved] Flag set from drag handler - IsMoving: YES, reset justStopped");
+}
+
+// 强制渲染节流 - 光标渲染使用独立的时间戳
+static CFAbsoluteTime g_lastCursorRenderTime = 0;
+static const CFAbsoluteTime kMinCursorRenderInterval = 1.0 / 120.0;  // 光标渲染最多120fps（更高响应）
+
+// 强制重新渲染当前帧（用于光标位置更新时无VNC更新的情况）
+void VNCRuntimeForceRender(ScrcpyVNCClient* vncClient) {
+    if (!vncClient || !g_savedRenderer || !g_savedTexture || !g_savedWindow) {
+        return;
+    }
+
+    // 光标独立节流：使用独立的时间戳，不受VNC帧更新影响
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    CFAbsoluteTime elapsed = now - g_lastCursorRenderTime;
+    if (elapsed < kMinCursorRenderInterval) {
+        return;  // 跳过过于频繁的光标渲染请求
+    }
+    g_lastCursorRenderTime = now;
+
+    // 在渲染队列中执行（确保主线程）
+    dispatch_async(VNCGetRenderQueue(), ^{
+        SDL_Renderer* sdlRenderer = g_savedRenderer;
+        SDL_Texture* sdlTexture = g_savedTexture;
+        SDL_Window* sdlWindow = g_savedWindow;
+
+        if (!sdlRenderer || !sdlTexture || !sdlWindow) {
+            return;
+        }
+
+        // 获取窗口和纹理尺寸
+        int windowWidth, windowHeight;
+        SDL_GetWindowSize(sdlWindow, &windowWidth, &windowHeight);
+
+        int textureWidth, textureHeight;
+        SDL_QueryTexture(sdlTexture, NULL, NULL, &textureWidth, &textureHeight);
+
+        // 获取渲染器的逻辑尺寸
+        int logicalWidth, logicalHeight;
+        SDL_RenderGetLogicalSize(sdlRenderer, &logicalWidth, &logicalHeight);
+
+        int renderWidth = logicalWidth > 0 ? logicalWidth : windowWidth;
+        int renderHeight = logicalHeight > 0 ? logicalHeight : windowHeight;
+
+        // 计算缩放
+        float baseScaleX = (float)renderWidth / textureWidth;
+        float baseScaleY = (float)renderHeight / textureHeight;
+        float baseScale = fminf(baseScaleX, baseScaleY);
+
+        float userZoomScale = vncClient.currentZoomScale;
+        float zoomCenterX = vncClient.zoomCenterX;
+        float zoomCenterY = vncClient.zoomCenterY;
+
+        float finalScale = baseScale * userZoomScale;
+        int scaledWidth = (int)(textureWidth * finalScale);
+        int scaledHeight = (int)(textureHeight * finalScale);
+
+        // 计算偏移量
+        int centerX = (int)(renderWidth * zoomCenterX);
+        int centerY = (int)(renderHeight * zoomCenterY);
+        int offsetX = centerX - (int)(scaledWidth * zoomCenterX) + vncClient.viewOffsetX;
+        int offsetY = centerY - (int)(scaledHeight * zoomCenterY) + vncClient.viewOffsetY;
+
+        // 边界检查
+        if (scaledWidth <= renderWidth) {
+            offsetX = (renderWidth - scaledWidth) / 2;
+        } else {
+            if (offsetX > 0) offsetX = 0;
+            if (offsetX + scaledWidth < renderWidth) offsetX = renderWidth - scaledWidth;
+        }
+        if (scaledHeight <= renderHeight) {
+            offsetY = (renderHeight - scaledHeight) / 2;
+        } else {
+            if (offsetY > 0) offsetY = 0;
+            if (offsetY + scaledHeight < renderHeight) offsetY = renderHeight - scaledHeight;
+        }
+
+        SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
+
+        // 计算光标位置
+        int remoteMouseX = vncClient.currentMouseX;
+        int remoteMouseY = vncClient.currentMouseY;
+        int cursorScreenX = dstRect.x + (remoteMouseX * scaledWidth) / textureWidth;
+        int cursorScreenY = dstRect.y + (remoteMouseY * scaledHeight) / textureHeight;
+
+        // 限制光标在屏幕边缘
+        const int CURSOR_EDGE_MARGIN = 5;
+        if (cursorScreenX < CURSOR_EDGE_MARGIN) {
+            cursorScreenX = CURSOR_EDGE_MARGIN;
+        } else if (cursorScreenX > renderWidth - CURSOR_EDGE_MARGIN) {
+            cursorScreenX = renderWidth - CURSOR_EDGE_MARGIN;
+        }
+        if (cursorScreenY < CURSOR_EDGE_MARGIN) {
+            cursorScreenY = CURSOR_EDGE_MARGIN;
+        } else if (cursorScreenY > renderHeight - CURSOR_EDGE_MARGIN) {
+            cursorScreenY = renderHeight - CURSOR_EDGE_MARGIN;
+        }
+
+        // 检查是否有正在进行的present（原子操作）
+        if (atomic_load(&g_presentInProgress)) {
+            return;  // 渲染正在进行，无需独立渲染
+        }
+
+        // 检查节流 - 避免过度渲染
+        CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+        CFAbsoluteTime elapsed = now - g_lastPresentTime;
+        if (elapsed < kMinPresentInterval) {
+            return;  // 距离上次渲染太近，跳过
+        }
+
+        // VNC空闲时，光标独立渲染（使用原子CAS确保只有一个渲染线程）
+        int expected = 0;
+        if (!atomic_compare_exchange_strong(&g_presentInProgress, &expected, 1)) {
+            return;  // 另一个渲染正在进行
+        }
+
+        SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
+        SDL_RenderClear(sdlRenderer);
+        SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &dstRect);
+        VNCRuntimeDrawMacOSCursor(sdlRenderer, cursorScreenX, cursorScreenY, finalScale);
+        SDL_RenderPresent(sdlRenderer);
+
+        g_lastPresentTime = CFAbsoluteTimeGetCurrent();
+        atomic_store(&g_presentInProgress, 0);
+    });
 }
 
 // 清理全局光标纹理资源

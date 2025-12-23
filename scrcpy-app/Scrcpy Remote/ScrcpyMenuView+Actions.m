@@ -43,9 +43,9 @@
 
     NSLog(@"🔥 [ScrcpyMenuView] Found %lu actions for current device", (unsigned long)self.actionsData.count);
 
-    // Check if we have any items to show (custom actions OR "Send Files" for ADB devices)
-    BOOL hasSendFilesOption = [self shouldShowSendFilesOption];
-    if (self.actionsData.count == 0 && !hasSendFilesOption) {
+    // Check if we have any items to show (custom actions OR embedded options for ADB devices)
+    BOOL hasEmbeddedOptions = [self embeddedActionsCount] > 0;
+    if (self.actionsData.count == 0 && !hasEmbeddedOptions) {
         NSLog(@"⚠️ [ScrcpyMenuView] No actions found for current device");
         [self showNoActionsMessage];
         return;
@@ -148,13 +148,10 @@
     UIWindow *window = [self activeWindow];
     if (!window) return;
 
-    // Calculate popup size (include "Send Files" row for ADB devices)
+    // Calculate popup size (include embedded options for ADB devices)
     CGFloat popupWidth = 280.0;
     CGFloat cellHeight = 50.0;
-    NSInteger totalRows = self.actionsData.count;
-    if ([self shouldShowSendFilesOption]) {
-        totalRows += 1;
-    }
+    NSInteger totalRows = self.actionsData.count + [self embeddedActionsCount];
     CGFloat maxHeight = MIN(totalRows * cellHeight + 20, window.bounds.size.height * 0.6);
     CGFloat popupHeight = maxHeight;
 
@@ -278,15 +275,23 @@
     return self.currentDeviceType == ScrcpyDeviceTypeADB;
 }
 
+- (BOOL)shouldShowDumpUILayoutsOption {
+    return self.currentDeviceType == ScrcpyDeviceTypeADB;
+}
+
+- (NSInteger)embeddedActionsCount {
+    NSInteger count = 0;
+    if ([self shouldShowSendFilesOption]) count++;
+    if ([self shouldShowDumpUILayoutsOption]) count++;
+    return count;
+}
+
 - (NSInteger)actionIndexFromRow:(NSInteger)row {
-    return [self shouldShowSendFilesOption] ? row - 1 : row;
+    return row - [self embeddedActionsCount];
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    NSInteger count = self.actionsData.count;
-    if ([self shouldShowSendFilesOption]) {
-        count += 1;
-    }
+    NSInteger count = self.actionsData.count + [self embeddedActionsCount];
     NSLog(@"🔧 [ScrcpyMenuView] numberOfRowsInSection returning: %ld", (long)count);
     return count;
 }
@@ -309,18 +314,42 @@
     UIImageSymbolConfiguration *largeConfig = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightMedium];
     UIImageSymbolConfiguration *smallConfig = [UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightMedium];
 
-    // Check if this is the "Send Files or Photos" row (first row for ADB devices)
-    if ([self shouldShowSendFilesOption] && indexPath.row == 0) {
-        UIImage *sendIcon = [[UIImage systemImageNamed:@"square.and.arrow.up.fill" withConfiguration:largeConfig]
-                             imageWithTintColor:[UIColor systemBlueColor] renderingMode:UIImageRenderingModeAlwaysOriginal];
-        cell.imageView.image = [self imageWithIcon:sendIcon inSize:iconContainerSize];
-        cell.textLabel.text = @"Send Files or Photos";
-        cell.textLabel.textColor = [UIColor whiteColor];
-        cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];
-        cell.detailTextLabel.text = @"Push files or photos to device";
-        cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
-        cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
-        return cell;
+    // Track embedded row index
+    NSInteger embeddedRowIndex = 0;
+
+    // Check if this is the "Send Files or Photos" row (first embedded row for ADB devices)
+    if ([self shouldShowSendFilesOption]) {
+        if (indexPath.row == embeddedRowIndex) {
+            UIImage *sendIcon = [[UIImage systemImageNamed:@"square.and.arrow.up.fill" withConfiguration:largeConfig]
+                                 imageWithTintColor:[UIColor systemBlueColor] renderingMode:UIImageRenderingModeAlwaysOriginal];
+            cell.imageView.image = [self imageWithIcon:sendIcon inSize:iconContainerSize];
+            cell.textLabel.text = @"Send Files or Photos";
+            cell.textLabel.textColor = [UIColor whiteColor];
+            cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];
+            cell.detailTextLabel.text = @"Push files or photos to device";
+            cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
+            cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
+            return cell;
+        }
+        embeddedRowIndex++;
+    }
+
+    // Check if this is the "Dump UI Layouts" row (second embedded row for ADB devices)
+    if ([self shouldShowDumpUILayoutsOption]) {
+        if (indexPath.row == embeddedRowIndex) {
+            UIImageSymbolConfiguration *dumpConfig = [UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightMedium];
+            UIImage *dumpIcon = [[UIImage systemImageNamed:@"rectangle.3.group" withConfiguration:dumpConfig]
+                                 imageWithTintColor:[UIColor systemPurpleColor] renderingMode:UIImageRenderingModeAlwaysOriginal];
+            cell.imageView.image = [self imageWithIcon:dumpIcon inSize:iconContainerSize];
+            cell.textLabel.text = NSLocalizedString(@"Dump UI Layouts", nil);
+            cell.textLabel.textColor = [UIColor whiteColor];
+            cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];
+            cell.detailTextLabel.text = NSLocalizedString(@"Capture and inspect UI hierarchy", nil);
+            cell.detailTextLabel.textColor = [[UIColor whiteColor] colorWithAlphaComponent:0.7];
+            cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
+            return cell;
+        }
+        embeddedRowIndex++;
     }
 
     // Get actual action index
@@ -374,12 +403,33 @@
     NSLog(@"🔥 [ScrcpyMenuView] didSelectRowAtIndexPath called for row: %ld", (long)indexPath.row);
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
 
-    // Check if "Send Files or Photos" was tapped (first row for ADB devices)
-    if ([self shouldShowSendFilesOption] && indexPath.row == 0) {
-        NSLog(@"📤 [ScrcpyMenuView] Send Files or Photos selected");
-        [self hideActionsMenu];
-        [self showSendFilesOrPhotosActionSheet];
-        return;
+    // Track embedded row index
+    NSInteger embeddedRowIndex = 0;
+
+    // Check if "Send Files or Photos" was tapped (first embedded row for ADB devices)
+    if ([self shouldShowSendFilesOption]) {
+        if (indexPath.row == embeddedRowIndex) {
+            NSLog(@"📤 [ScrcpyMenuView] Send Files or Photos selected");
+            [self hideActionsMenu];
+            [self showSendFilesOrPhotosActionSheet];
+            return;
+        }
+        embeddedRowIndex++;
+    }
+
+    // Check if "Dump UI Layouts" was tapped (second embedded row for ADB devices)
+    if ([self shouldShowDumpUILayoutsOption]) {
+        if (indexPath.row == embeddedRowIndex) {
+            NSLog(@"📱 [ScrcpyMenuView] Dump UI Layouts selected");
+            [self hideActionsMenu];
+            // Also collapse the main menu
+            if (self.isExpanded) {
+                [self toggleMenuExpansion];
+            }
+            [self showDumpUILayouts];
+            return;
+        }
+        embeddedRowIndex++;
     }
 
     // Get actual action index
@@ -460,6 +510,15 @@
         [self.actionConfirmationView removeFromSuperview];
         self.actionConfirmationView = nil;
     }];
+}
+
+#pragma mark - Dump UI Layouts
+
+- (void)showDumpUILayouts {
+    NSLog(@"📱 [ScrcpyMenuView] showDumpUILayouts called");
+
+    // Present the SwiftUI DumpUIView (it will get the device info from SessionConnectionManager)
+    [ScrcpyDumpUIPresenter show];
 }
 
 @end

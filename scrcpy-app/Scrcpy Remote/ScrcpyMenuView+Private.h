@@ -90,6 +90,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (UIWindow *)activeWindow;
 - (void)updateMenuPosition;
 - (void)updateButtonLayout;
+- (void)toggleMenuExpansion;
 
 @end
 

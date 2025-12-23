@@ -122,6 +122,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ScrcpyCommonRuntime.m,
+				ScrcpyVNCAudioPlayer.m,
 				ScrcpyVNCClient.h,
 				ScrcpyVNCClient.m,
 				ScrcpyVNCRuntime.m,
@@ -958,6 +959,14 @@
 					"-lvncclient",
 					"-lcrypto",
 					"-lSDL2",
+					"-lavcodec",
+					"-lavutil",
+					"-lswresample",
+					"-liconv",
+					"-framework",
+					CoreMedia,
+					"-framework",
+					VideoToolbox,
 					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.VNCClient;
@@ -1003,6 +1012,14 @@
 					"-lvncclient",
 					"-lcrypto",
 					"-lSDL2",
+					"-lavcodec",
+					"-lavutil",
+					"-lswresample",
+					"-liconv",
+					"-framework",
+					CoreMedia,
+					"-framework",
+					VideoToolbox,
 					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.VNCClient;

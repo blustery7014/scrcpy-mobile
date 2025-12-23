@@ -21,8 +21,8 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>processing</string>
-		<string>audio</string>
 		<string>fetch</string>
+		<string>audio</string>
 	</array>
 	<key>UIDeviceFamily</key>
 	<array>
