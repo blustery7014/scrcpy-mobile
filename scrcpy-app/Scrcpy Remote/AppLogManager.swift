@@ -336,6 +336,9 @@ class AppLogManager: ObservableObject {
             let logFiles = self.getLogFilesList()
             let totalSize = logFiles.reduce(0) { $0 + $1.fileSize }
 
+            // 总是输出当前日志大小信息
+            print("📊 Current log status: \(logFiles.count) file(s), total size: \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
+
             self.autoCleanupLogsIfNeeded(totalSize: totalSize, logFiles: logFiles)
         }
     }
