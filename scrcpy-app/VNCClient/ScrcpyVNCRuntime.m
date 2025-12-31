@@ -112,7 +112,8 @@ static dispatch_queue_t VNCGetRenderQueue(void) {
 // 前向声明
 void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale);
 void VNCRuntimeSetMouseMoved(void);
-static void VNCRuntimeCheckCursorEdgeFollow(ScrcpyVNCClient* vncClient, int screenMouseX, int screenMouseY, 
+static void VNCRuntimeCheckCursorEdgeFollow(ScrcpyVNCClient* vncClient, int screenMouseX, int screenMouseY,
+                                          int remoteMouseX, int remoteMouseY,
                                           int renderWidth, int renderHeight, int* offsetX, int* offsetY,
                                           int scaledWidth, int scaledHeight, int textureWidth, int textureHeight, float finalScale);
 
@@ -448,7 +449,7 @@ static inline void VNCRuntimeFinishedFrameBufferUpdate(rfbClient* cl, SDL_Textur
         if (offsetY + scaledHeight < renderHeight) offsetY = renderHeight - scaledHeight;
     }
 
-    // 计算光标位置
+    // 计算光标位置（用于边缘跟随检测）
     BOOL shouldDrawCursor = vncClient && cl->appData.useRemoteCursor;
     int cursorScreenX = 0, cursorScreenY = 0;
     float cursorScale = finalScale;
@@ -456,6 +457,27 @@ static inline void VNCRuntimeFinishedFrameBufferUpdate(rfbClient* cl, SDL_Textur
     if (shouldDrawCursor) {
         int remoteMouseX = vncClient.currentMouseX;
         int remoteMouseY = vncClient.currentMouseY;
+
+        // 先计算光标的屏幕位置（用于边缘跟随检测）
+        int tempCursorScreenX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
+        int tempCursorScreenY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
+
+        // 🔄 边缘跟随检测和视图偏移调整
+        if (g_mouseMovedThisFrame && vncClient) {
+            VNCRuntimeCheckCursorEdgeFollow(vncClient, tempCursorScreenX, tempCursorScreenY,
+                                          remoteMouseX, remoteMouseY,
+                                          renderWidth, renderHeight, &offsetX, &offsetY,
+                                          scaledWidth, scaledHeight, textureWidth, textureHeight, finalScale);
+
+            // 更新VNC客户端的视图偏移量
+            vncClient.viewOffsetX = offsetX - (centerX - (int)(scaledWidth * zoomCenterX));
+            vncClient.viewOffsetY = offsetY - (centerY - (int)(scaledHeight * zoomCenterY));
+
+            // 重置鼠标移动标记
+            g_mouseMovedThisFrame = NO;
+        }
+
+        // 使用（可能已调整的）offsetX/Y重新计算光标屏幕位置
         cursorScreenX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
         cursorScreenY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
 
@@ -839,25 +861,28 @@ void VNCRuntimeDrawMacOSCursor(SDL_Renderer* renderer, int x, int y, float scale
 }
 
 // 光标边缘跟随逻辑实现 - 支持连续平滑移动并检测移动方向
-static void VNCRuntimeCheckCursorEdgeFollow(ScrcpyVNCClient* vncClient, int screenMouseX, int screenMouseY, 
+static void VNCRuntimeCheckCursorEdgeFollow(ScrcpyVNCClient* vncClient, int screenMouseX, int screenMouseY,
+                                          int remoteMouseX, int remoteMouseY,
                                           int renderWidth, int renderHeight, int* offsetX, int* offsetY,
                                           int scaledWidth, int scaledHeight, int textureWidth, int textureHeight, float finalScale) {
-    
+
     // 只有在内容被放大（scaledWidth > renderWidth 或 scaledHeight > renderHeight）时才需要边缘跟随
     if (scaledWidth <= renderWidth && scaledHeight <= renderHeight) {
         // 重置上一帧位置
         g_lastScreenMouseX = screenMouseX;
         g_lastScreenMouseY = screenMouseY;
+        g_lastRemoteMouseX = remoteMouseX;
+        g_lastRemoteMouseY = remoteMouseY;
         return; // 内容完全可见，无需跟随
     }
-    
-    // 计算鼠标移动方向
+
+    // 🔑 使用远程鼠标坐标计算移动方向（避免viewOffset变化影响）
     int mouseDeltaX = 0;
     int mouseDeltaY = 0;
-    
-    if (g_lastScreenMouseX >= 0 && g_lastScreenMouseY >= 0) {
-        mouseDeltaX = screenMouseX - g_lastScreenMouseX;
-        mouseDeltaY = screenMouseY - g_lastScreenMouseY;
+
+    if (g_lastRemoteMouseX >= 0 && g_lastRemoteMouseY >= 0) {
+        mouseDeltaX = remoteMouseX - g_lastRemoteMouseX;
+        mouseDeltaY = remoteMouseY - g_lastRemoteMouseY;
     }
     
     // 详细日志：当前鼠标状态
@@ -979,13 +1004,15 @@ static void VNCRuntimeCheckCursorEdgeFollow(ScrcpyVNCClient* vncClient, int scre
     if (needsUpdate) {
         *offsetX = newOffsetX;
         *offsetY = newOffsetY;
-        
+
         NSLog(@"🔄 [VNCRuntime] View offset smoothly updated to (%d, %d) due to cursor edge follow", newOffsetX, newOffsetY);
     }
-    
+
     // 更新上一帧位置 - 移到函数末尾确保delta计算正确
     g_lastScreenMouseX = screenMouseX;
     g_lastScreenMouseY = screenMouseY;
+    g_lastRemoteMouseX = remoteMouseX;
+    g_lastRemoteMouseY = remoteMouseY;
 }
 
 // 设置鼠标移动标记的函数，供外部调用
@@ -1071,11 +1098,32 @@ void VNCRuntimeForceRender(ScrcpyVNCClient* vncClient) {
             if (offsetY + scaledHeight < renderHeight) offsetY = renderHeight - scaledHeight;
         }
 
-        SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
-
-        // 计算光标位置
+        // 计算光标位置（用于边缘跟随检测）
         int remoteMouseX = vncClient.currentMouseX;
         int remoteMouseY = vncClient.currentMouseY;
+
+        // 先计算光标的屏幕位置（用于边缘跟随检测）
+        int tempCursorScreenX = offsetX + (remoteMouseX * scaledWidth) / textureWidth;
+        int tempCursorScreenY = offsetY + (remoteMouseY * scaledHeight) / textureHeight;
+
+        // 🔄 边缘跟随检测和视图偏移调整
+        if (g_mouseMovedThisFrame) {
+            VNCRuntimeCheckCursorEdgeFollow(vncClient, tempCursorScreenX, tempCursorScreenY,
+                                          remoteMouseX, remoteMouseY,
+                                          renderWidth, renderHeight, &offsetX, &offsetY,
+                                          scaledWidth, scaledHeight, textureWidth, textureHeight, finalScale);
+
+            // 更新VNC客户端的视图偏移量
+            vncClient.viewOffsetX = offsetX - (centerX - (int)(scaledWidth * zoomCenterX));
+            vncClient.viewOffsetY = offsetY - (centerY - (int)(scaledHeight * zoomCenterY));
+
+            // 重置鼠标移动标记
+            g_mouseMovedThisFrame = NO;
+        }
+
+        SDL_Rect dstRect = {offsetX, offsetY, scaledWidth, scaledHeight};
+
+        // 使用（可能已调整的）offsetX/Y重新计算光标屏幕位置
         int cursorScreenX = dstRect.x + (remoteMouseX * scaledWidth) / textureWidth;
         int cursorScreenY = dstRect.y + (remoteMouseY * scaledHeight) / textureHeight;
 

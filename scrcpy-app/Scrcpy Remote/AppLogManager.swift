@@ -22,22 +22,26 @@ class AppLogManager: ObservableObject {
     private var originalStdout: Int32 = 0
     private var originalStderr: Int32 = 0
     private var isLoggingActive: Bool = false
+    private let maxTotalLogSize: Int64 = 100 * 1024 * 1024 // 100MB
     
     private init() {
         // 创建日志目录路径
         let libraryPath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!.path
         self.logsDirectory = "\(libraryPath)/Logs"
-        
+
         // 设置日期格式器
         self.dateFormatter = DateFormatter()
         self.dateFormatter.dateFormat = "yyyy-MM-dd"
-        
+
         // 创建日志目录
         createLogsDirectoryIfNeeded()
-        
+
         // 初始化时更新统计信息
         updateLogStatistics()
-        
+
+        // 冷启动时在后台自动清理日志
+        performAutoCleanupOnColdStart()
+
         // 备份原始的 stdout 和 stderr
         self.originalStdout = dup(STDOUT_FILENO)
         self.originalStderr = dup(STDERR_FILENO)
@@ -60,18 +64,18 @@ class AppLogManager: ObservableObject {
         guard shouldEnableLogging && !isLoggingActive else {
             return
         }
-        
+
         let logPath = getCurrentLogFilePath()
-        
+
         // 重定向 stdout 和 stderr 到日志文件
         if freopen(logPath.cString(using: .ascii), "a+", stderr) != nil &&
            freopen(logPath.cString(using: .ascii), "a+", stdout) != nil {
             isLoggingActive = true
             currentLogFilePath = logPath
-            
+
             // 记录开始日志的时间戳
             print("=== Scrcpy Remote Log Started: \(Date()) ===")
-            
+
             updateLogStatistics()
         }
     }
@@ -81,19 +85,19 @@ class AppLogManager: ObservableObject {
         guard isLoggingActive else {
             return
         }
-        
+
         // 记录结束日志的时间戳
         print("=== Scrcpy Remote Log Stopped: \(Date()) ===")
         fflush(stdout)
         fflush(stderr)
-        
+
         // 恢复原始的 stdout 和 stderr
         dup2(originalStdout, STDOUT_FILENO)
         dup2(originalStderr, STDERR_FILENO)
-        
+
         isLoggingActive = false
         currentLogFilePath = nil
-        
+
         updateLogStatistics()
     }
     
@@ -301,11 +305,11 @@ class AppLogManager: ObservableObject {
     private func updateLogStatistics() {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
-            
+
             let logFiles = self.getLogFilesList()
             let filesCount = logFiles.count
             let totalSize = logFiles.reduce(0) { $0 + $1.fileSize }
-            
+
             let currentPath = self.getCurrentLogFilePath()
             let currentSize: Int64
             if FileManager.default.fileExists(atPath: currentPath),
@@ -315,11 +319,68 @@ class AppLogManager: ObservableObject {
             } else {
                 currentSize = 0
             }
-            
+
             DispatchQueue.main.async {
                 self.logFilesCount = filesCount
                 self.totalLogFilesSize = totalSize
                 self.currentLogFileSize = currentSize
+            }
+        }
+    }
+
+    /// 冷启动时在后台自动清理日志
+    private func performAutoCleanupOnColdStart() {
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            guard let self = self else { return }
+
+            let logFiles = self.getLogFilesList()
+            let totalSize = logFiles.reduce(0) { $0 + $1.fileSize }
+
+            self.autoCleanupLogsIfNeeded(totalSize: totalSize, logFiles: logFiles)
+        }
+    }
+
+    /// 当日志总大小超过限制时自动清理较老的日志
+    private func autoCleanupLogsIfNeeded(totalSize: Int64, logFiles: [LogFileInfo]) {
+        guard totalSize > maxTotalLogSize else {
+            return
+        }
+
+        print("📦 Log size (\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))) exceeds limit (\(ByteCountFormatter.string(fromByteCount: maxTotalLogSize, countStyle: .file))), cleaning up old logs...")
+
+        let currentLogPath = getCurrentLogFilePath()
+        // 按修改时间排序，最旧的在前
+        let sortedFiles = logFiles.sorted { $0.modificationDate < $1.modificationDate }
+
+        var currentTotalSize = totalSize
+        var deletedCount = 0
+
+        for logFile in sortedFiles {
+            // 保留当前日志文件
+            if logFile.filePath == currentLogPath {
+                continue
+            }
+
+            // 如果已经低于限制，停止删除
+            if currentTotalSize <= maxTotalLogSize {
+                break
+            }
+
+            do {
+                try FileManager.default.removeItem(atPath: logFile.filePath)
+                currentTotalSize -= logFile.fileSize
+                deletedCount += 1
+                print("🗑️ Deleted old log: \(logFile.fileName) (\(logFile.formattedFileSize))")
+            } catch {
+                print("⚠️ Failed to delete old log file: \(logFile.fileName), error: \(error)")
+            }
+        }
+
+        if deletedCount > 0 {
+            print("✅ Auto-cleanup completed: deleted \(deletedCount) old log file(s), current size: \(ByteCountFormatter.string(fromByteCount: currentTotalSize, countStyle: .file))")
+            // 重新更新统计信息
+            DispatchQueue.main.async { [weak self] in
+                self?.updateLogStatistics()
             }
         }
     }

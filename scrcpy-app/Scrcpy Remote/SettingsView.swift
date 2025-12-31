@@ -53,7 +53,7 @@ class AppSettings: ObservableObject {
     
     // Logging related settings
     @AppStorage("settings.logging.enabled")
-    var loggingEnabled: Bool = true {
+    var loggingEnabled: Bool = false {
         didSet {
             // Only call AppLogManager when the value actually changes
             if loggingEnabled != AppLogManager.shared.isLoggingEnabled {
