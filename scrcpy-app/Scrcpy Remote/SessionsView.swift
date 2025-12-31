@@ -376,48 +376,48 @@ struct SessionsView: View {
     
     @ViewBuilder
     private func latencyTestView(for session: ScrcpySession) -> some View {
-        Button(action: {
-            testLatency(for: session)
-        }) {
-            HStack(spacing: 4) {
-                Image(systemName: "wifi")
-                    .foregroundColor(.white)
-                    .font(.system(size: 12))
-                if testingLatencySessionId == session.id {
-                    // Replace spinner with dots animation
-                    DotLoadingView()
-                        .frame(width: 24, height: 12)
-                } else if let latency = latencyResults[session.id] {
-                    // Show latency result with color and icon based on value
-                    HStack(spacing: 2) {
-                        Text("\(Int(latency))ms")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(latencyColor(for: latency))
-                        
-                        Image(systemName: latencyIcon(for: latency))
-                            .font(.system(size: 8))
-                            .foregroundColor(latencyColor(for: latency))
-                    }
-                } else if latencyErrors[session.id] != nil {
-                    // Show error icon
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.yellow)
-                        .font(.system(size: 12))
-                } else if session.sessionModel.useTailscale {
-                    // Show "~" for Tailscale sessions that haven't been tested
-                    Text("Tailscale")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.8))
+        HStack(spacing: 4) {
+            Image(systemName: "wifi")
+                .foregroundColor(.white)
+                .font(.system(size: 12))
+            if testingLatencySessionId == session.id {
+                // Replace spinner with dots animation
+                DotLoadingView()
+                    .frame(width: 24, height: 12)
+            } else if let latency = latencyResults[session.id] {
+                // Show latency result with color and icon based on value
+                HStack(spacing: 2) {
+                    Text("\(Int(latency))ms")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(latencyColor(for: latency))
+
+                    Image(systemName: latencyIcon(for: latency))
+                        .font(.system(size: 8))
+                        .foregroundColor(latencyColor(for: latency))
                 }
+            } else if latencyErrors[session.id] != nil {
+                // Show error icon
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundColor(.yellow)
+                    .font(.system(size: 12))
+            } else if session.sessionModel.useTailscale {
+                // Show "~" for Tailscale sessions that haven't been tested
+                Text("Tailscale")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
             }
-            .padding(5)
-            .padding(.horizontal, 8)
-            .background(Color.black.opacity(0.6))
-            .cornerRadius(15)
-            .padding(.horizontal, 0)
         }
-        .buttonStyle(BorderlessButtonStyle()) // Prevent tap propagation
-        .disabled(testingLatencySessionId != nil)
+        .padding(5)
+        .padding(.horizontal, 8)
+        .background(Color.black.opacity(0.6))
+        .cornerRadius(15)
+        .padding(.horizontal, 0)
+        .frame(height: 30)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard testingLatencySessionId == nil else { return }
+            testLatency(for: session)
+        }
     }
     
     private func testLatency(for session: ScrcpySession) {
