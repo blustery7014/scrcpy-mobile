@@ -17,19 +17,25 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # 1. 基础依赖中追加 fmt 和 pkg-config，消灭找不到包的错误
+          # 1. 安装基础依赖
           brew install ffmpeg sdl2 golang fmt pkg-config
           
-          # 2. 从 Google 下载特定的 protoc 28.3
+          # 2. 下载并配置 Protoc 28.3 (官方压缩包里其实已经包含了 CMake 需要的 include 头文件)
           curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-osx-aarch_64.zip
           unzip protoc-28.3-osx-aarch_64.zip -d $HOME/protoc_env
           
-          # 3. 注入环境变量
+          # 3. 将 Protobuf 的路径显式告诉 CMake，完美解决 "missing: Protobuf_INCLUDE_DIR"
           export PATH="$HOME/protoc_env/bin:$PATH"
+          export Protobuf_ROOT="$HOME/protoc_env"
+          export Protobuf_INCLUDE_DIR="$HOME/protoc_env/include"
           echo "$HOME/protoc_env/bin" >> $GITHUB_PATH
-          protoc --version
           
-          # 4. 再次向胜利冲锋
+          # 4. 提前建好所有的目标目录，解决 "No such file or directory" 的拷贝报错
+          mkdir -p libs/iphoneos/arm64
+          mkdir -p libs/iphonesimulator/arm64
+          mkdir -p libs/iphonesimulator/x86_64
+          
+          # 5. 正式执行编译
           make libs
           make -C porting scrcpy-server
 
