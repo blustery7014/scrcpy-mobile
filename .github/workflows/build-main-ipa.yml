@@ -9,29 +9,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # 【新增的破局神抽】：强制降级并锁定 CMake 到 3.x 时代，完美兼容老代码
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.29.6'
+
       - name: Install dependencies
         run: |
-          # 1. 安装不受影响的基础依赖
-          brew install ffmpeg sdl2 golang
+          # 1. 基础依赖中追加 fmt 和 pkg-config，消灭找不到包的错误
+          brew install ffmpeg sdl2 golang fmt pkg-config
           
-          # 2. 绕过 Homebrew 限制，直接从 Google 官方下载所需的 protoc 28.3 二进制文件
+          # 2. 从 Google 下载特定的 protoc 28.3
           curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-osx-aarch_64.zip
           unzip protoc-28.3-osx-aarch_64.zip -d $HOME/protoc_env
           
-          # 3. 将下载好的工具注入到当前和后续步骤的环境变量中
+          # 3. 注入环境变量
           export PATH="$HOME/protoc_env/bin:$PATH"
           echo "$HOME/protoc_env/bin" >> $GITHUB_PATH
-          
-          # 验证版本是否符合作者要求
           protoc --version
           
-          # 4. 继续执行项目原本的编译指令
+          # 4. 再次向胜利冲锋
           make libs
           make -C porting scrcpy-server
 
       - name: Build iOS App
         run: |
-          # 调用 Xcode 工具链进行无签名编译
           xcodebuild clean build \
             -project scrcpy-ios/scrcpy-ios.xcodeproj \
             -scheme "scrcpy-ios" \
@@ -43,7 +46,6 @@ jobs:
 
       - name: Package to IPA
         run: |
-          # 将编译出的 .app 封装为 .ipa
           mkdir -p Payload
           mv scrcpy-ios/build/Release-iphoneos/scrcpy-ios.app Payload/
           zip -r scrcpy-mobile.ipa Payload
