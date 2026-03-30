@@ -14,9 +14,9 @@ jobs:
           # 1. 安装基础依赖
           brew install ffmpeg sdl2 golang
           
-          # 2. 针对报错，解绑系统可能自带的旧版 protobuf，并强制安装项目指定的版本
+          # 2. 解绑旧版，并【强制指定本地路径】安装项目所需的特定版本
           brew unlink protobuf || true
-          brew install porting/protobuf.rb
+          brew install ./porting/protobuf.rb
           
           # 3. 继续执行原有的编译指令
           make libs
