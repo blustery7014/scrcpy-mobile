@@ -1,5 +1,5 @@
 name: Build scrcpy-mobile iOS
-于:
+on:
   workflow_dispatch: # 允许手动触发
 
 jobs:
