@@ -1,5 +1,5 @@
 name: Build scrcpy-mobile iOS
-on:
+于:
   workflow_dispatch: # 允许手动触发
 
 jobs:
@@ -7,7 +7,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
@@ -36,7 +36,7 @@ jobs:
           zip -r scrcpy-mobile.ipa Payload
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: scrcpy-mobile-ipa
           path: scrcpy-mobile.ipa
