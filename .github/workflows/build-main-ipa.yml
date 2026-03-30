@@ -11,16 +11,21 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # 1. 安装基础依赖
+          # 1. 安装不受影响的基础依赖
           brew install ffmpeg sdl2 golang
           
-          # 2. 安全卸载：先判断系统里有没有装 protobuf，如果有才执行 unlink，防止报错卡死
-          if brew list protobuf &>/dev/null; then brew unlink protobuf; fi
+          # 2. 绕过 Homebrew 限制，直接从 Google 官方下载所需的 protoc 28.3 二进制文件
+          curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-osx-aarch_64.zip
+          unzip protoc-28.3-osx-aarch_64.zip -d $HOME/protoc_env
           
-          # 3. 绝对路径安装：使用 $(pwd) 获取当前绝对路径，Homebrew 绝不会再解析错
-          brew install $(pwd)/porting/protobuf.rb
+          # 3. 将下载好的工具注入到当前和后续步骤的环境变量中
+          export PATH="$HOME/protoc_env/bin:$PATH"
+          echo "$HOME/protoc_env/bin" >> $GITHUB_PATH
           
-          # 4. 继续执行原有的编译指令
+          # 验证版本是否符合作者要求
+          protoc --version
+          
+          # 4. 继续执行项目原本的编译指令
           make libs
           make -C porting scrcpy-server
 
