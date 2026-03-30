@@ -14,11 +14,13 @@ jobs:
           # 1. 安装基础依赖
           brew install ffmpeg sdl2 golang
           
-          # 2. 解绑旧版，并【强制指定本地路径】安装项目所需的特定版本
-          brew unlink protobuf || true
-          brew install ./porting/protobuf.rb
+          # 2. 安全卸载：先判断系统里有没有装 protobuf，如果有才执行 unlink，防止报错卡死
+          if brew list protobuf &>/dev/null; then brew unlink protobuf; fi
           
-          # 3. 继续执行原有的编译指令
+          # 3. 绝对路径安装：使用 $(pwd) 获取当前绝对路径，Homebrew 绝不会再解析错
+          brew install $(pwd)/porting/protobuf.rb
+          
+          # 4. 继续执行原有的编译指令
           make libs
           make -C porting scrcpy-server
 
