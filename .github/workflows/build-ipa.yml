@@ -1,0 +1,42 @@
+name: Build scrcpy-mobile iOS
+on:
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          # 安装编译所需的依赖（根据官方文档需要 golang, ffmpeg 等）
+          brew install ffmpeg sdl2 golang
+          make libs
+          make -C porting scrcpy-server
+
+      - name: Build iOS App
+        run: |
+          # 调用 Xcode 工具链进行无签名编译
+          xcodebuild clean build \
+            -project scrcpy-ios/scrcpy-ios.xcodeproj \
+            -scheme "scrcpy-ios" \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package to IPA
+        run: |
+          # 将编译出的 .app 封装为 .ipa
+          mkdir -p Payload
+          mv scrcpy-ios/build/Release-iphoneos/scrcpy-ios.app Payload/
+          zip -r scrcpy-mobile.ipa Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrcpy-mobile-ipa
+          path: scrcpy-mobile.ipa
