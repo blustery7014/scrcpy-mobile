@@ -17,25 +17,31 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # 1. 安装基础依赖
-          brew install ffmpeg sdl2 golang fmt pkg-config
+          # 1. 安装基础依赖，加入 fmt 和 protobuf（提供底层库以防 CMake 报错）
+          brew install ffmpeg sdl2 golang fmt pkg-config protobuf
           
-          # 2. 下载并配置 Protoc 28.3 (官方压缩包里其实已经包含了 CMake 需要的 include 头文件)
+          # 2. 下载官方的 Protoc 28.3 二进制包
           curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-osx-aarch_64.zip
           unzip protoc-28.3-osx-aarch_64.zip -d $HOME/protoc_env
           
-          # 3. 将 Protobuf 的路径显式告诉 CMake，完美解决 "missing: Protobuf_INCLUDE_DIR"
+          # 3. 环境变量“偷梁换柱”：把 28.3 放在系统最优先的位置，同时告诉 CMake 去哪里找头文件
           export PATH="$HOME/protoc_env/bin:$PATH"
-          export Protobuf_ROOT="$HOME/protoc_env"
-          export Protobuf_INCLUDE_DIR="$HOME/protoc_env/include"
+          export CMAKE_PREFIX_PATH="$HOME/protoc_env"
           echo "$HOME/protoc_env/bin" >> $GITHUB_PATH
           
-          # 4. 提前建好所有的目标目录，解决 "No such file or directory" 的拷贝报错
+          # 4. 暴力修复 Submodule 报错：全局修改源码包里的所有脚本，强制覆盖 Git 更改
+          find . -type f -name "*.sh" -exec sed -i '' 's/git checkout /git checkout -f /g' {} +
+          find . -type f -name "*.sh" -exec sed -i '' 's/git submodule update/git submodule update --force/g' {} +
+          
+          # 5. 提前创建好所有需要的归档目录，解决 cp 报错
           mkdir -p libs/iphoneos/arm64
           mkdir -p libs/iphonesimulator/arm64
           mkdir -p libs/iphonesimulator/x86_64
+          mkdir -p output/iphoneos/arm64
+          mkdir -p output/iphonesimulator/arm64
+          mkdir -p output/iphonesimulator/x86_64
           
-          # 5. 正式执行编译
+          # 6. 正式执行编译
           make libs
           make -C porting scrcpy-server
 
